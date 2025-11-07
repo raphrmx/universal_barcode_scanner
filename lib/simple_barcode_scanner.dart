@@ -1,4 +1,3 @@
-library simple_barcode_scanner;
 
 import 'dart:async';
 
@@ -27,7 +26,6 @@ class SimpleBarcodeScannerPage extends StatelessWidget {
   final bool? flip;
 
   ///AppBar Title
-
   final String? appBarTitle;
 
   ///center Title
@@ -219,7 +217,7 @@ class SimpleBarcodeScanner extends StatelessWidget {
     int? delayMillis,
     Widget? child,
     ScanFormat scanFormat = ScanFormat.ALL_FORMATS,
-  }) async {
+  }) {
     return Navigator.push<String>(
       context,
       MaterialPageRoute(

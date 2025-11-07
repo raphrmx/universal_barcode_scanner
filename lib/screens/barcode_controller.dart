@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 class BarcodeViewController {
@@ -19,19 +20,16 @@ class BarcodeViewController {
   }
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
-    print("Received method call: ${call.method}"); // Debug log
+    debugPrint("Received method call: ${call.method}"); // Debug log
     switch (call.method) {
       case 'onBarcodeDetected':
         if (_onScanned != null) {
-          _onScanned!(call.arguments as String);
+          _onScanned?.call(call.arguments as String);
         }
-        break;
       case 'onError':
         log('Barcode Scanner Error: ${call.arguments}');
-        break;
       default:
         log('Unhandled method: ${call.method}');
-        break;
     }
   }
 

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import 'enum.dart';
+import 'package:simple_barcode_scanner/enum.dart';
 
 /// Please note that this code is reimplementation of https://github.com/AmolGangadhare/flutter_barcode_scanner, since
 /// the package is not updated for quite sometime, I have added here
@@ -37,12 +37,8 @@ class FlutterBarcodeScanner {
     ScanFormat scanFormat,
       bool? flip,
   ) async {
-    if (cancelButtonText.isEmpty) {
-      cancelButtonText = 'Cancel';
-    }
-
     // Pass params to the plugin
-    Map params = <String, dynamic>{
+    final params = <String, dynamic>{
       'lineColor': lineColor,
       'cancelButtonText': cancelButtonText,
       'isShowFlashIcon': isShowFlashIcon,
@@ -55,10 +51,7 @@ class FlutterBarcodeScanner {
       'scannerHeight': 280,
     };
 
-    /// Get barcode scan result
-    final barcodeResult =
-        await _channel.invokeMethod('scanBarcode', params) ?? '';
-    return barcodeResult;
+    return (await _channel.invokeMethod('scanBarcode', params) ?? '') as String;
   }
 
   /// Returns a continuous stream of barcode scans until the user cancels the
@@ -78,12 +71,8 @@ class FlutterBarcodeScanner {
     ScanFormat scanFormat,
       bool? flip,
   ) {
-    if (cancelButtonText.isEmpty) {
-      cancelButtonText = 'Cancel';
-    }
-
     // Pass params to the plugin
-    Map params = <String, dynamic>{
+    final params = <String, dynamic>{
       'lineColor': lineColor,
       'cancelButtonText': cancelButtonText,
       'isShowFlashIcon': isShowFlashIcon,
@@ -99,7 +88,6 @@ class FlutterBarcodeScanner {
     // Invoke method to open camera, and then create an event channel which will
     // return a stream
     _channel.invokeMethod('scanBarcode', params);
-    _onBarcodeReceiver ??= _eventChannel.receiveBroadcastStream();
-    return _onBarcodeReceiver;
+    return _onBarcodeReceiver ?? _eventChannel.receiveBroadcastStream();
   }
 }

@@ -1,13 +1,12 @@
 import 'dart:ui_web' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:simple_barcode_scanner/barcode_appbar.dart';
 import 'package:simple_barcode_scanner/constant.dart';
 import 'package:simple_barcode_scanner/enum.dart';
+import 'package:simple_barcode_scanner/screens/barcode_controller.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'package:web/web.dart' as html;
-
-import '../barcode_appbar.dart';
-import 'barcode_controller.dart';
 
 /// Barcode scanner for web using iframe
 class BarcodeScanner extends StatelessWidget {
@@ -46,7 +45,7 @@ class BarcodeScanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String createdViewId = DateTime.now().microsecondsSinceEpoch.toString();
+    final createdViewId = DateTime.now().microsecondsSinceEpoch.toString();
     String? barcodeNumber;
 
     final iframe = html.HTMLIFrameElement()
@@ -54,7 +53,7 @@ class BarcodeScanner extends StatelessWidget {
       ..style.border = 'none'
       ..style.width = MediaQuery.of(context).size.width > 640 ? '640px' : '100%'
       ..style.height = MediaQuery.of(context).size.height > 480 ? '480px' : '100%'
-      ..onLoad.listen((event) async {
+      ..onLoad.listen((event) {
         /// Barcode listener on success barcode scanned
         html.window.onMessage.listen((event) {
           /// If barcode is null then assign scanned barcode

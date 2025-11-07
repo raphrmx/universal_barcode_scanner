@@ -3,13 +3,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:simple_barcode_scanner/barcode_appbar.dart';
+import 'package:simple_barcode_scanner/constant.dart';
 import 'package:simple_barcode_scanner/enum.dart';
+import 'package:simple_barcode_scanner/flutter_barcode_scanner.dart';
 import 'package:simple_barcode_scanner/screens/barcode_controller.dart';
 import 'package:simple_barcode_scanner/screens/window.dart';
-
-import '../barcode_appbar.dart';
-import '../constant.dart';
-import '../flutter_barcode_scanner.dart';
 
 /// Barcode scanner for mobile and desktop devices
 class BarcodeScanner extends StatefulWidget {
@@ -25,7 +24,7 @@ class BarcodeScanner extends StatefulWidget {
   final BarcodeAppBar? barcodeAppBar;
   final int? delayMillis;
   final bool? flip;
-  final Function? onClose;
+  final void Function()? onClose;
   final ScanFormat scanFormat;
 
   const BarcodeScanner({
@@ -76,13 +75,10 @@ class _BarcodeScannerState extends State<BarcodeScanner> {
       switch (widget.scanType) {
         case ScanType.barcode:
           scanMode = ScanMode.BARCODE;
-          break;
         case ScanType.qr:
           scanMode = ScanMode.QR;
-          break;
         default:
           scanMode = ScanMode.DEFAULT;
-          break;
       }
       widget.onClose != null
           ? _streamBarcodeForMobileAndTabDevices(scanMode)
@@ -97,7 +93,7 @@ class _BarcodeScannerState extends State<BarcodeScanner> {
   }
 
   Future<void> _scanBarcodeForMobileAndTabDevices(ScanMode scanMode) async {
-    String barcode = await FlutterBarcodeScanner.scanBarcode(
+    final barcode = await FlutterBarcodeScanner.scanBarcode(
       widget.lineColor,
       widget.cancelButtonText,
       widget.isShowFlashIcon,
@@ -122,7 +118,7 @@ class _BarcodeScannerState extends State<BarcodeScanner> {
       widget.flip,
     )?.listen((barcode) {
       if (barcode != null) {
-        barcode == kCancelValue ? widget.onClose?.call() : widget.onScanned(barcode);
+        barcode == kCancelValue ? widget.onClose?.call() : widget.onScanned(barcode as String? ?? '');
       }
     });
   }

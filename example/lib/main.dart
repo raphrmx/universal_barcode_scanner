@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> {
                   isShowFlashIcon: true,
                   delayMillis: 2000,
                 ).listen((event) {
-                  print("Stream Barcode Result: $event");
+                  debugPrint("Stream Barcode Result: $event");
                 });
               },
               child: const Text('Stream Barcode'),

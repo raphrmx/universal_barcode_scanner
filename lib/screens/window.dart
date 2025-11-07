@@ -4,11 +4,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:simple_barcode_scanner/barcode_appbar.dart';
 import 'package:simple_barcode_scanner/constant.dart';
 import 'package:simple_barcode_scanner/enum.dart';
 import 'package:webview_windows/webview_windows.dart';
-
-import '../barcode_appbar.dart';
 
 class WindowBarcodeScanner extends StatefulWidget {
   final String lineColor;
@@ -126,25 +125,24 @@ class _WindowBarcodeScannerState extends State<WindowBarcodeScanner> {
       required BuildContext context,
       required bool isPermissionGranted}) async {
     final WebviewPermissionDecision? decision;
+
     if (!isPermissionGranted) {
       decision = await showDialog<WebviewPermissionDecision>(
         context: context,
         builder: (BuildContext context) => AlertDialog(
           title: const Text('Permission requested'),
           content:
-              Text('\'${kind.name}\' permission is require to scan qr/barcode'),
+              Text("'${kind.name}' permission is require to scan qr/barcode"),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.pop(context, WebviewPermissionDecision.deny);
-                isPermissionGranted = false;
               },
               child: const Text('Deny'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.pop(context, WebviewPermissionDecision.allow);
-                isPermissionGranted = true;
               },
               child: const Text('Allow'),
             ),
@@ -176,10 +174,8 @@ class _WindowBarcodeScannerState extends State<WindowBarcodeScanner> {
       /// Listen to web to receive barcode
       controller.webMessage.listen((event) {
         if (event['methodName'] == "successCallback") {
-          if (event['data'] is String &&
-              event['data'].isNotEmpty &&
-              barcodeNumber == null) {
-            barcodeNumber = event['data'];
+          if (event['data'] is String && event['data'].isNotEmpty == true && barcodeNumber == null) {
+            barcodeNumber = event['data'] as String;
             widget.onScanned(barcodeNumber!);
           }
         }
