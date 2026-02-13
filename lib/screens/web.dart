@@ -99,7 +99,7 @@ class BarcodeScanner extends StatelessWidget {
     if (barcodeAppBar != null) {
       return AppBar(
         title: barcodeAppBar?.appBarTitle != null
-            ? Text(barcodeAppBar!.appBarTitle!)
+            ? Text(barcodeAppBar!.appBarTitle!, style: const TextStyle(color: Colors.white),)
             : null,
         centerTitle: barcodeAppBar?.centerTitle ?? false,
         leading: barcodeAppBar?.enableBackButton == true
@@ -112,7 +112,7 @@ class BarcodeScanner extends StatelessWidget {
       );
     }
     return AppBar(
-      title: Text(appBarTitle ?? kScanPageTitle),
+      title: Text(appBarTitle ?? kScanPageTitle, style: const TextStyle(color: Colors.white),),
       centerTitle: centerTitle,
       automaticallyImplyLeading: true,
       leading: IconButton(

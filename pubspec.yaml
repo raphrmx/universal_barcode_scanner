@@ -1,6 +1,6 @@
 name: simple_barcode_scanner
 description: simple_barcode_scanner that let you scan barcode and qr code in mobile, web and windows.
-version: 251.107.0
+version: 260.213.0
 
 platforms:
   android:
