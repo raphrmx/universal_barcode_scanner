@@ -18,6 +18,7 @@ entry point.
 
 <sub>iOS and Android above, web and Windows below.</sub>
 
+[![Build](https://img.shields.io/github/actions/workflow/status/raphrmx/universal_barcode_scanner/ci.yml?branch=main&label=build)](https://github.com/raphrmx/universal_barcode_scanner/actions/workflows/ci.yml)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=blue)](https://pub.dev/packages/universal_barcode_scanner)
 ![Maintainer](https://img.shields.io/badge/Maintainer-Raphael-purple)
 [![License](https://img.shields.io/badge/Licence-MIT-blue)](/LICENSE)

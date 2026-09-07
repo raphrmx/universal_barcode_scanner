@@ -1,0 +1,117 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Catches SDK drift on a package that can go months without a commit: a new
+  # formatter default or a new lint shows up here rather than on the next release.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [stable, beta]
+
+    # The beta leg is an early warning, not a gate.
+    continue-on-error: ${{ matrix.channel == 'beta' }}
+
+    name: test (${{ matrix.channel }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ matrix.channel }}
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          flutter pub get --directory example
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      # `flutter analyze` at the root does not descend into the example, which
+      # has its own pubspec and its own lints.
+      - name: Analyze the example
+        run: flutter analyze
+        working-directory: example
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Run the example tests
+        run: flutter test
+        working-directory: example
+
+      # Fails on a packaging regression, such as a CHANGELOG that no longer
+      # mentions the version in pubspec.yaml.
+      #
+      # The tree is restored first: `flutter pub get` rewrites generated files
+      # that are checked in, and the dry-run also refuses a working tree that
+      # differs from HEAD. That last check guards a human publishing from a
+      # dirty directory, and means nothing on a fresh checkout.
+      - name: Validate the package
+        run: |
+          git checkout -- .
+          flutter pub publish --dry-run
+
+  # The point of this job is the native code. Five platforms means five
+  # toolchains, and a plugin breaks in the ones its author cannot run locally.
+  build:
+    name: build ${{ matrix.target }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            os: ubuntu-latest
+            command: flutter build apk --debug
+          - target: web
+            os: ubuntu-latest
+            command: flutter build web --release
+          - target: macos
+            os: macos-latest
+            command: flutter build macos --debug
+          - target: ios
+            os: macos-latest
+            command: flutter build ios --debug --no-codesign
+          - target: windows
+            os: windows-latest
+            command: flutter build windows --debug
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: example
+
+      - name: Build
+        run: ${{ matrix.command }}
+        working-directory: example

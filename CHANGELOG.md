@@ -1,5 +1,9 @@
 # Universal Barcode Scanner Versions
 
+## 1.0.0+1
+
+Add gitlab CI workfown
+
 ## 1.0.0
 
 First release.
