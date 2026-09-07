@@ -47,6 +47,12 @@ endfunction()
 
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
+# webview_all_windows pulls the Windows Implementation Library pinned at
+# 1.0.220914.1, whose headers still include <experimental/coroutine>. MSVC 14.51
+# turns that into a hard error unless this is defined. Set before the plugins
+# are added so it reaches them. Remove once the dependency bumps WIL.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Application build; see runner/CMakeLists.txt.

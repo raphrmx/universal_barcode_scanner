@@ -28,6 +28,14 @@ Linux, and one webview for both desktops.
 - The page posted the scanned code to `'*'`, so an embedding parent on another origin would have
   received it. It names its own origin as the target now.
 
+### Known issue on Windows
+
+Building with Visual Studio 2026 fails on `error STL1011`, because the webview dependency pins the
+Windows Implementation Library at its 2022 release, whose headers still include
+`<experimental/coroutine>`. It is not specific to this release: `webview_windows`, used up to
+1.0.0+1, pins the very same version. The README carries the one-line workaround until it is bumped
+upstream.
+
 ### Note on 1.0.0
 
 The 1.0.0 notes below claim no published Flutter webview grants camera access on Linux. That was

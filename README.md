@@ -64,6 +64,18 @@ A usage description goes in `ios/Runner/Info.plist`. iOS kills the app without i
 <string>Camera permission is required for barcode scanning.</string>
 ```
 
+### Windows
+
+Nothing to declare, but if you build with Visual Studio 2026 or later the build fails on
+`error STL1011` from `<experimental/coroutine>`. That comes from the Windows Implementation Library
+pinned by the webview dependency, not from this plugin, and both Windows webviews on pub.dev pin the
+same 2022 release. Until it is bumped upstream, add this to your app's `windows/CMakeLists.txt`,
+above `add_subdirectory(${FLUTTER_MANAGED_DIR})`:
+
+```cmake
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+```
+
 ### macOS
 
 Two things, and the scanner fails silently without either. A usage description in

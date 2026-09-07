@@ -6,7 +6,6 @@ import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
-// ignore: avoid_web_libraries_in_flutter
 import 'package:web/web.dart' as html;
 
 /// Largest size the scanner iframe is given, in logical pixels. Below that it
