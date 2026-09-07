@@ -1,4 +1,4 @@
-group 'com.amolg.flutterbarcodescanner'
+group 'be.comapps.universal_barcode_scanner'
 version '1.0-SNAPSHOT'
 
 buildscript {
@@ -23,7 +23,7 @@ apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion 34
-    namespace "com.amolg.flutterbarcodescanner"
+    namespace "be.comapps.universal_barcode_scanner"
     defaultConfig {
         minSdkVersion 16
         targetSdkVersion 34

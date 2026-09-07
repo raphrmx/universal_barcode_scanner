@@ -1,23 +1,34 @@
-name: simple_barcode_scanner
-description: simple_barcode_scanner that let you scan barcode and qr code in mobile, web and windows.
-version: 260.213.0
+name: universal_barcode_scanner
+description: >-
+  Barcode and QR code scanner for Flutter, on Android, iOS, macOS, web and
+  Windows, from one widget and one callback.
+version: 1.0.0
+homepage: https://www.comapps.be
+repository: https://github.com/raphrmx/universal_barcode_scanner
+issue_tracker: https://github.com/raphrmx/universal_barcode_scanner/issues
+
+topics:
+  - barcode
+  - qrcode
+  - scanner
+  - camera
 
 platforms:
   android:
   ios:
+  macos:
   web:
   windows:
 
 environment:
-  sdk: ^3.5.3
-  flutter: ">=1.17.0"
+  sdk: ^3.9.0
+  flutter: '>=3.27.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_plugin_android_lifecycle: ^2.0.31
+  flutter_plugin_android_lifecycle: ^2.0.34
   path: ^1.9.1
-  permission_handler: ^12.0.1
   web: ^1.1.1
   webview_windows: ^0.4.0
 
@@ -28,12 +39,14 @@ dev_dependencies:
 
 flutter:
   assets:
-    - packages/simple_barcode_scanner/assets/barcode.html
-    - packages/simple_barcode_scanner/assets/html5-qrcode.min.js
+    - packages/universal_barcode_scanner/assets/barcode.html
+    - packages/universal_barcode_scanner/assets/html5-qrcode.min.js
   plugin:
     platforms:
       android:
-        package: com.amolg.flutterbarcodescanner
-        pluginClass: FlutterBarcodeScannerPlugin
+        package: be.comapps.universal_barcode_scanner
+        pluginClass: UniversalBarcodeScannerPlugin
       ios:
-        pluginClass: SwiftFlutterBarcodeScannerPlugin
+        pluginClass: SwiftUniversalBarcodeScannerPlugin
+      macos:
+        pluginClass: UniversalBarcodeScannerPlugin

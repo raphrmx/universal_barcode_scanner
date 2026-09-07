@@ -2,5 +2,4 @@ include: package:lint/strict.yaml
 
 analyzer:
   errors:
-    constant_identifier_names: ignore
     avoid_classes_with_only_static_members: ignore

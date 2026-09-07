@@ -1,100 +1,161 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
+import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
-import 'barcode_widget_page.dart';
+void main() => runApp(const ExampleApp());
 
-void main() {
-  runApp(const MyApp());
-}
+const BarcodeAppBar _appBar = BarcodeAppBar(
+  appBarTitle: 'Scan',
+  centerTitle: false,
+  enableBackButton: true,
+  backButtonIcon: Icon(Icons.arrow_back_ios),
+);
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+/// The three ways to use the scanner: one shot, continuous, embedded.
+class ExampleApp extends StatelessWidget {
+  /// Creates the example app.
+  const ExampleApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      title: 'Universal Barcode Scanner',
+      theme: ThemeData(colorSchemeSeed: Colors.blue),
       home: const HomePage(),
     );
   }
 }
 
+/// Menu of the three demos, showing what each one returns.
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  /// Creates the menu.
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  String result = '';
+  StreamSubscription<String>? _stream;
+  String _result = '';
+
+  @override
+  void dispose() {
+    _stream?.cancel();
+    super.dispose();
+  }
+
+  /// One shot: opens the scanner, comes back with a code or null.
+  Future<void> _scanOnce() async {
+    final String? code = await UniversalBarcodeScanner.scan(
+      context,
+      barcodeAppBar: _appBar,
+      isShowFlashIcon: true,
+      scanDelay: const Duration(milliseconds: 500),
+      cameraFace: CameraFace.back,
+      scanFormat: ScanFormat.onlyBarcode,
+    );
+    if (!mounted) return;
+    setState(() => _result = code ?? 'cancelled');
+  }
+
+  /// Continuous: the stream closes on its own when the route goes away.
+  void _scanStream() {
+    _stream?.cancel();
+    _stream = UniversalBarcodeScanner.stream(
+      context,
+      barcodeAppBar: _appBar,
+      isShowFlashIcon: true,
+      scanDelay: const Duration(seconds: 2),
+    ).listen((String code) {
+      if (mounted) setState(() => _result = code);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text('Universal Barcode Scanner')),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             ElevatedButton(
-              onPressed: () async {
-                String? res = await SimpleBarcodeScanner.scanBarcode(
-                  context,
-                  barcodeAppBar: const BarcodeAppBar(
-                    appBarTitle: 'Test',
-                    centerTitle: false,
-                    enableBackButton: true,
-                    backButtonIcon: Icon(Icons.arrow_back_ios),
-                  ),
-                  isShowFlashIcon: true,
-                  delayMillis: 500,
-                  cameraFace: CameraFace.back,
-                  scanFormat: ScanFormat.ONLY_BARCODE,
-                );
-                setState(() {
-                  result = res as String;
-                });
-              },
-              child: const Text('Scan Barcode'),
+              onPressed: _scanOnce,
+              child: const Text('Scan once'),
             ),
-            const SizedBox(
-              height: 10,
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _scanStream,
+              child: const Text('Scan continuously'),
             ),
-            Text('Scan Barcode Result: $result'),
-            const SizedBox(
-              height: 10,
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (BuildContext context) => const EmbeddedPage(),
+                ),
+              ),
+              child: const Text('Embedded view (Android and iOS)'),
+            ),
+            const SizedBox(height: 20),
+            Text('Result: $_result'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Embedded: the camera sits inside the layout, driven by a controller.
+class EmbeddedPage extends StatefulWidget {
+  /// Creates the embedded demo.
+  const EmbeddedPage({super.key});
+
+  @override
+  State<EmbeddedPage> createState() => _EmbeddedPageState();
+}
+
+class _EmbeddedPageState extends State<EmbeddedPage> {
+  BarcodeViewController? _controller;
+  String _result = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Embedded view')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: UniversalBarcodeScanner(
+                scaleWidth: 400,
+                scaleHeight: 200,
+                continuous: true,
+                onScanned: (String code) => setState(() => _result = code),
+                onBarcodeViewCreated: (BarcodeViewController controller) =>
+                    _controller = controller,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(_result),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _controller?.toggleFlash(),
+              child: const Text('Toggle flash'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                SimpleBarcodeScanner.streamBarcode(
-                  context,
-                  barcodeAppBar: const BarcodeAppBar(
-                    appBarTitle: 'Test',
-                    centerTitle: false,
-                    enableBackButton: true,
-                    backButtonIcon: Icon(Icons.arrow_back_ios),
-                  ),
-                  isShowFlashIcon: true,
-                  delayMillis: 2000,
-                ).listen((event) {
-                  debugPrint("Stream Barcode Result: $event");
-                });
-              },
-              child: const Text('Stream Barcode'),
-            ),
-            const SizedBox(
-              height: 10,
+              onPressed: () => _controller?.pauseScanning(),
+              child: const Text('Pause scanning'),
             ),
             ElevatedButton(
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) {
-                    return const BarcodeWidgetPage();
-                  }));
-                },
-                child: const Text('Barcode Scanner Widget(Android Only)'))
+              onPressed: () => _controller?.resumeScanning(),
+              child: const Text('Resume scanning'),
+            ),
           ],
         ),
       ),
