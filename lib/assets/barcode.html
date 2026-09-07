@@ -1,69 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title></title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-         /* In order to place the tracking correctly */
-         canvas.drawing, canvas.drawingBuffer {
-         position: absolute;
-         left: 0;
-         top: 0;
-         }
-         html, body {
-         height: 90%; /* IMPORTANT!!! Stretches viewport to 100% */
-         }
-      </style>
-    <script src="html5-qrcode.min.js"></script>
+  <title>Scanner</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* In order to place the tracking correctly */
+    canvas.drawing, canvas.drawingBuffer {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    html, body {
+      height: 90%;
+      margin: 0;
+    }
+  </style>
+  <script src="html5-qrcode.min.js"></script>
 </head>
 <body>
-<!-- Div to show the scanner -->
-<div id="reader" ></div>
+<div id="reader"></div>
 <script>
-  //refer doc here https://github.com/mebjas/html5-qrcode
- const html5QrCode = new Html5Qrcode("reader");
- console.log("Starting SCANNING CODE");
- const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-     html5QrCode.stop();
-     /* handle success for web */
-     window.parent.postMessage(decodedText, "*");
+  // refer doc here https://github.com/mebjas/html5-qrcode
 
-     /* handle success for window */
-     if (window.chrome.webview != "undefined") {
-         var param = {
-             "methodName": "successCallback",
-             "data": decodedText
-         }
-         window.chrome.webview.postMessage(param);
-     }
+  // Desktop hosts register a JavaScript channel under this name. On the web
+  // the page runs in an iframe instead and answers its parent.
+  var CHANNEL = 'UniversalBarcodeScanner';
 
- };
- const config = {
-     fps: 60,
-     qrbox: {
-         width: 280,
-         height: 280,
-         aspectRatio: 1.1
-     }
- };
+  var scanner = new Html5Qrcode('reader');
+  var delivered = false;
 
- // If you want to prefer back camera
- html5QrCode.start({
-     facingMode: "environment"
- }, config, qrCodeSuccessCallback);
- //html5QrCode.start({ facingMode: "user" }, config, qrCodeSuccessCallback);
+  function hasChannel() {
+    return typeof window[CHANNEL] !== 'undefined'
+      && typeof window[CHANNEL].postMessage === 'function';
+  }
 
- //Window event listener
- if (window.chrome.webview != undefined) {
-     window.chrome.webview.addEventListener('message', function(e) {
-         let data = JSON.parse(JSON.stringify(e.data));
-         if (data.event === "close") {
-             html5QrCode.stop();
-         }
+  // Called by the desktop hosts before the scanner goes away, so the camera is
+  // released rather than left running.
+  function stopScanner() {
+    try {
+      scanner.stop();
+    } catch (error) {
+      /* already stopped */
+    }
+  }
 
-     });
- }
- </script>
+  function deliver(decodedText) {
+    if (delivered) {
+      return;
+    }
+    delivered = true;
+    stopScanner();
+
+    if (hasChannel()) {
+      window[CHANNEL].postMessage(decodedText);
+      return;
+    }
+
+    // The host page is on our own origin, and naming it keeps the code from
+    // reaching a parent on another one.
+    window.parent.postMessage(decodedText, window.location.origin);
+  }
+
+  var config = {
+    fps: 60,
+    qrbox: {
+      width: 280,
+      height: 280,
+      aspectRatio: 1.1
+    }
+  };
+
+  scanner.start({ facingMode: 'environment' }, config, deliver);
+</script>
 </body>
 </html>

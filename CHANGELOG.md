@@ -1,5 +1,39 @@
 # Universal Barcode Scanner Versions
 
+## 1.1.0
+
+Linux, and one webview for both desktops.
+
+### Added
+
+- Linux, through the same bundled `html5-qrcode` page Windows already used. It works because the
+  plugin answers the page's camera permission request on the host side, which is what usually stops
+  a webview from scanning on Linux: WebKitGTK denies a media request the embedder does not handle.
+  Needs `libwebkit2gtk-4.1-0`, which most desktop installs already carry.
+
+### Changed
+
+- Windows and Linux now share a single implementation, on `webview_all` in place of
+  `webview_windows`. That package carries both a WebView2 and a WebKitGTK backend, and is the only
+  Linux webview on pub.dev that surfaces the camera permission request instead of letting the engine
+  deny it by default.
+- `path` is gone with it. It only existed to resolve the bundled page next to the executable, and
+  `webview_all` loads it as a Flutter asset directly. What is left is `webview_all` and `web`.
+
+### Fixed
+
+- The bundled page reached for `window.chrome.webview` and compared it to the string `'undefined'`,
+  which threw a `TypeError` on any browser without it, Firefox included. It now feature-detects the
+  JavaScript channel and falls back to the parent frame on the web.
+- The page posted the scanned code to `'*'`, so an embedding parent on another origin would have
+  received it. It names its own origin as the target now.
+
+### Note on 1.0.0
+
+The 1.0.0 notes below claim no published Flutter webview grants camera access on Linux. That was
+wrong: it held for the two packages checked at the time, not for the ecosystem. `webview_all` does
+grant it, which is what made this release possible.
+
 ## 1.0.0+1
 
 Add gitlab CI workfown

@@ -2,10 +2,10 @@ import 'dart:ui' show Color;
 
 /// Where the scanner page lives inside the package assets.
 ///
-/// Desktop reads it from the bundle on disk, web from the served asset
-/// directory, hence the two spellings of the same file.
+/// Desktop hands the asset key to the webview, web loads it as a served URL,
+/// hence the two spellings of the same file.
 abstract final class ScannerAsset {
-  /// Path handed to the Windows webview, resolved against the bundle.
+  /// Asset key handed to the desktop webview.
   static const String desktopPath =
       'packages/universal_barcode_scanner/assets/barcode.html';
 

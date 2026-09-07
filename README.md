@@ -2,8 +2,8 @@
 
 # Universal Barcode Scanner
 
-Barcode and QR code scanning for Flutter, on Android, iOS, macOS, web and Windows, from one
-entry point.
+Barcode and QR code scanning for Flutter, on Android, iOS, Linux, macOS, web and Windows, from
+one entry point.
 
 <p>
   <img src="https://public.comapps.be/packages/universal_barcode_scanner/ios.webp" alt="Scanning on iOS" height="360">
@@ -18,7 +18,7 @@ entry point.
 ![Maintainer](https://img.shields.io/badge/Maintainer-Raphael-purple)
 [![License](https://img.shields.io/badge/Licence-MIT-blue)](/LICENSE)
 ![Maintenance](https://img.shields.io/badge/Maintained-yes-success)
-![Platforms](https://img.shields.io/badge/Platforms-Android,_iOS,_macOS,_Web,_Windows-22375C.svg)
+![Platforms](https://img.shields.io/badge/Platforms-Android,_iOS,_Linux,_macOS,_Web,_Windows-22375C.svg)
 
 ## Platforms
 
@@ -29,18 +29,15 @@ entry point.
 | macOS | Native, AVFoundation and Vision | No |
 | Web | `html5-qrcode` in an iframe, bundled, no CDN call | No |
 | Windows | `html5-qrcode` in a WebView2 | No |
+| Linux | `html5-qrcode` in a WebKitGTK view | No |
 
 Windows needs the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/),
-which ships with Windows 11 and with any recent Edge.
+which ships with Windows 11 and with any recent Edge. Linux needs WebKitGTK, `libwebkit2gtk-4.1-0`
+on Debian and Ubuntu, which most desktop installs already carry.
 
-Linux is not supported, and the reason is worth stating because the obvious idea does not work.
-Reusing the webview approach would be the natural route, but no published Flutter webview grants a
-page access to the camera on Linux: `desktop_webview_window` never connects WebKitGTK's
-`permission-request` signal, and `webview_cef` implements no `CefPermissionHandler`. Both engines
-deny by default, so `getUserMedia` fails whatever the page does. The native route is no better,
-since `camera_linux` has been at 0.0.8 since 2023. That is also why no barcode package on pub.dev
-covers Linux, `mobile_scanner` included. On Linux the scanner says so rather than failing on a
-missing plugin.
+The same bundled page serves both, and the plugin answers its camera permission request on the host
+side. That last part is what usually stops a webview from scanning on Linux: WebKitGTK denies a
+media request the embedder does not handle.
 
 ## Install
 
@@ -193,8 +190,8 @@ flutter test
 
 ## Dependencies
 
-`webview_windows` for the Windows scanner, `path` to resolve the bundled page next to the
-executable, and `web` for the iframe. Nothing on Android, iOS or macOS beyond the SDKs.
+`webview_all` for the Windows and Linux scanners, and `web` for the iframe on the web. Nothing on
+Android, iOS or macOS beyond the SDKs.
 
 ## Credits
 

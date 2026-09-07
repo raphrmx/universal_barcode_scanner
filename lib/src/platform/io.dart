@@ -9,7 +9,7 @@ import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
-import 'package:universal_barcode_scanner/src/platform/windows.dart';
+import 'package:universal_barcode_scanner/src/platform/desktop.dart';
 
 ScanMode _scanModeOf(ScanType type) => switch (type) {
   ScanType.qr => ScanMode.qr,
@@ -19,8 +19,8 @@ ScanMode _scanModeOf(ScanType type) => switch (type) {
 
 /// Full-screen scanner for the platforms that have `dart:io`.
 ///
-/// Windows goes through a webview; Android, iOS and macOS through their native
-/// scanner. Linux says so rather than failing on a missing plugin.
+/// Android, iOS and macOS go through their native scanner; Windows and Linux
+/// through a webview running the bundled scanner page.
 class BarcodeScannerPage extends StatefulWidget {
   /// Creates the scanner page.
   const BarcodeScannerPage({
@@ -140,8 +140,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isWindows) {
-      return WindowsBarcodeScannerPage(
+    if (Platform.isWindows || Platform.isLinux) {
+      return DesktopBarcodeScannerPage(
         lineColor: widget.lineColor,
         cancelButtonText: widget.cancelButtonText,
         isShowFlashIcon: widget.isShowFlashIcon,
@@ -152,6 +152,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         scanDelay: widget.scanDelay,
         flip: widget.flip,
         onClose: widget.onClose,
+        scanFormat: widget.scanFormat,
+        child: widget.child,
       );
     }
 

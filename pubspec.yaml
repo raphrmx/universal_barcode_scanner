@@ -1,8 +1,8 @@
 name: universal_barcode_scanner
 description: >-
-  Barcode and QR code scanner for Flutter, on Android, iOS, macOS, web and
-  Windows, from one widget and one callback.
-version: 1.0.0+1
+  Barcode and QR code scanner for Flutter, on Android, iOS, Linux, macOS, web
+  and Windows, from one widget and one callback.
+version: 1.1.0
 homepage: https://www.comapps.be
 repository: https://github.com/raphrmx/universal_barcode_scanner
 issue_tracker: https://github.com/raphrmx/universal_barcode_scanner/issues
@@ -16,6 +16,7 @@ topics:
 platforms:
   android:
   ios:
+  linux:
   macos:
   web:
   windows:
@@ -27,15 +28,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_plugin_android_lifecycle: ^2.0.34
-  path: ^1.9.1
+  flutter_plugin_android_lifecycle: ^2.0.35
   web: ^1.1.1
-  webview_windows: ^0.4.0
+  webview_all: ^1.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lint: ^2.8.0
+  lint: ^2.10.0
 
 flutter:
   assets:
