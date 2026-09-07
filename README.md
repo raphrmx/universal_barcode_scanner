@@ -8,12 +8,7 @@ entry point.
 <p>
   <img src="https://public.comapps.be/packages/universal_barcode_scanner/ios.webp" alt="Scanning on iOS" height="360">
   &nbsp;&nbsp;
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/android.webp" alt="Scanning on Android" height="360">
-</p>
-<p>
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp" alt="Scanning on the web" height="300">
-  &nbsp;&nbsp;
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/windows.webp" alt="Scanning on Windows" height="300">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp" alt="Scanning on Android" height="360">
 </p>
 
 <sub>iOS and Android above, web and Windows below.</sub>
