@@ -177,23 +177,6 @@ UniversalBarcodeScanner.scan(
 );
 ```
 
-## Coming from simple_barcode_scanner
-
-| Before | Now |
-| --- | --- |
-| `SimpleBarcodeScanner.scanBarcode(context)` | `UniversalBarcodeScanner.scan(context)` |
-| `SimpleBarcodeScanner.streamBarcode(context)` | `UniversalBarcodeScanner.stream(context)` |
-| `SimpleBarcodeScanner(...)` | `UniversalBarcodeScanner(...)` |
-| `SimpleBarcodeScannerPage(...)` | removed, use `scan` |
-| `appBarTitle:`, `centerTitle:` | fields of `BarcodeAppBar` |
-| `lineColor: '#ff6666'` | `lineColor: Color(0xFFFF6666)` |
-| `delayMillis: 500` | `scanDelay: Duration(milliseconds: 500)` |
-| `ScanFormat.ALL_FORMATS` | `ScanFormat.all` |
-| `ScanFormat.ONLY_QR_CODE` | `ScanFormat.onlyQrCode` |
-| `ScanFormat.ONLY_BARCODE` | `ScanFormat.onlyBarcode` |
-| `controller.setOnScanned(cb)` | `controller.onScanned = cb` |
-| `import '.../enum.dart'` and friends | one import, `package:universal_barcode_scanner/universal_barcode_scanner.dart` |
-
 The native namespace changed too, so the two packages can no longer be installed side by side in the
 same app. That was already true in practice: they declared the same Android package and the same iOS
 class, and the build failed on a duplicate.
