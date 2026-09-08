@@ -18,6 +18,10 @@
   shading overlay from the width it measures on its own container, so sizing the view from the host
   to a box the page did not lay out for stretched everything, turning the scan square into a
   narrow sliver. The page caps and centres itself, and the view simply fills what it is given.
+- Resizing the window left the scanner on stale geometry. The library measures its container once,
+  when starting, and sizes the video and the shading overlay from it; it never measures again, so a
+  resized window showed the two at different sizes and offsets. The page watches its container now
+  and restarts the scanner, debounced, when the width really changes.
 - The scan square is derived from the viewfinder instead of being fixed at 280 pixels. The library
   drops its shaded region altogether once the square is taller than the video, which is what
   happens on a narrow viewport: mobile web showed a bare camera, with no square and no line. The
