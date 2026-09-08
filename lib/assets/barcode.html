@@ -12,8 +12,16 @@
       top: 0;
     }
     html, body {
-      height: 90%;
+      height: 100%;
       margin: 0;
+      /* The video is sized by the library from the container width. Any
+         rounding leftover must be cropped, never scrolled: a webview host has
+         no business showing scrollbars over a camera. */
+      overflow: hidden;
+    }
+    #reader {
+      width: 100%;
+      height: 100%;
     }
 
     /* The sweeping line. It is appended inside #qr-shaded-region, whose
@@ -110,13 +118,15 @@
     window.parent.postMessage(decodedText, window.location.origin);
   }
 
+  // No aspectRatio on purpose: forcing one makes the library size the video
+  // to a shape the host box does not have, which overflows and brings up
+  // scrollbars. Left out, it follows the camera's own ratio.
   var config = {
     fps: 30,
     qrbox: {
       width: 280,
       height: 280
-    },
-    aspectRatio: 1.1
+    }
   };
 
   setScanLineColor(new URLSearchParams(window.location.search).get('line'));

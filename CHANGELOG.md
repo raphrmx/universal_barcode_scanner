@@ -15,6 +15,10 @@
 
 - On Windows and Linux the webview filled the whole window, stretching the camera across the
   screen. It is capped and centred at 640x480, the same as the web scanner has always been.
+- The scanner page no longer forces an aspect ratio on the camera. Forcing one sized the video to a
+  shape the host box did not have, which overflowed and raised scrollbars over the preview. The
+  page follows the camera's own ratio now, and hides any rounding leftover rather than scrolling
+  it.
 
 ## 1.1.0
 
