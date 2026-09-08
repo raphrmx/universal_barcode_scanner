@@ -22,6 +22,14 @@
     #reader {
       width: 100%;
       height: 100%;
+      /* Centres the video when its ratio leaves room in the host box, rather
+         than pinning it to the top with the slack below. */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      /* Without this the column would stretch the video across the full
+         width, distorting it while the shading keeps its own geometry. */
+      align-items: center;
     }
 
     /* The sweeping line. It is appended inside #qr-shaded-region, whose
@@ -60,6 +68,9 @@
   // the page runs in an iframe instead and answers its parent.
   var CHANNEL = 'UniversalBarcodeScanner';
   var SHADED_REGION_ID = 'qr-shaded-region';
+  // The library refuses anything under 50px; staying above it keeps the box
+  // usable on the smallest viewports.
+  var MIN_QR_BOX = 60;
 
   var scanner = new Html5Qrcode('reader');
   var delivered = false;
@@ -123,9 +134,17 @@
   // scrollbars. Left out, it follows the camera's own ratio.
   var config = {
     fps: 30,
-    qrbox: {
-      width: 280,
-      height: 280
+    // Derived from the viewfinder rather than fixed. The library drops the
+    // shaded region entirely as soon as the box is taller than the video, and
+    // a fixed 280 is taller than the video on a narrow screen, which left the
+    // scanner with no square and no line at all.
+    qrbox: function (viewfinderWidth, viewfinderHeight) {
+      var smallest = Math.min(viewfinderWidth, viewfinderHeight);
+      var size = Math.max(MIN_QR_BOX, Math.floor(smallest * 0.7));
+      if (size > smallest) {
+        size = smallest;
+      }
+      return { width: size, height: size };
     }
   };
 

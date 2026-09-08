@@ -122,27 +122,35 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.sizeOf(context);
-
     return Scaffold(
       appBar: _buildAppBar(context),
       body: Stack(
         children: <Widget>[
-          Center(
-            child: SizedBox(
-              width: size.width > kMaxScannerWidth
+          // Capped against the space actually available, not against the
+          // window: the host may embed the scanner in a panel narrower than
+          // the window itself.
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double width = constraints.maxWidth > kMaxScannerWidth
                   ? kMaxScannerWidth
-                  : size.width,
-              height: size.height > kMaxScannerHeight
+                  : constraints.maxWidth;
+              final double height = constraints.maxHeight > kMaxScannerHeight
                   ? kMaxScannerHeight
-                  : size.height,
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..rotateY(widget.flip ? 3.1416 : 0),
-                child: HtmlElementView(viewType: _viewId),
-              ),
-            ),
+                  : constraints.maxHeight;
+
+              return Center(
+                child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..rotateY(widget.flip ? 3.1416 : 0),
+                    child: HtmlElementView(viewType: _viewId),
+                  ),
+                ),
+              );
+            },
           ),
           if (widget.child != null) widget.child!,
         ],

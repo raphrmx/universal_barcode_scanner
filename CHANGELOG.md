@@ -15,6 +15,13 @@
 
 - On Windows and Linux the webview filled the whole window, stretching the camera across the
   screen. It is capped and centred at 640x480, the same as the web scanner has always been.
+- The scanner is sized against the space actually available rather than against the window. A host
+  embedding it beside a side menu got a webview wider than its panel, clipped, with a scan square
+  that looked stretched.
+- The scan square is derived from the viewfinder instead of being fixed at 280 pixels. The library
+  drops its shaded region altogether once the square is taller than the video, which is what
+  happens on a narrow viewport: mobile web showed a bare camera, with no square and no line. The
+  video is also centred when its ratio leaves room in the host box.
 - The scanner page no longer forces an aspect ratio on the camera. Forcing one sized the video to a
   shape the host box did not have, which overflowed and raised scrollbars over the preview. The
   page follows the camera's own ratio now, and hides any rounding leftover rather than scrolling
