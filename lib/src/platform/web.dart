@@ -146,9 +146,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     if (bar == null) return null;
 
     return AppBar(
-      title: bar.appBarTitle != null
-          ? Text(bar.appBarTitle!, style: const TextStyle(color: Colors.white))
-          : null,
+      // No colour forced here: the app bar belongs to the host's theme, and
+      // hardcoding white made this branch disagree with every other one.
+      title: bar.appBarTitle != null ? Text(bar.appBarTitle!) : null,
       centerTitle: bar.centerTitle ?? false,
       leading: bar.enableBackButton == true
           ? IconButton(

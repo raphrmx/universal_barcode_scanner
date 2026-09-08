@@ -18,6 +18,9 @@
   shading overlay from the width it measures on its own container, so sizing the view from the host
   to a box the page did not lay out for stretched everything, turning the scan square into a
   narrow sliver. The page caps and centres itself, and the view simply fills what it is given.
+- The app bar title was forced to white on web and left to the theme everywhere else, so the same
+  scanner showed a white title in a browser and a dark one on Windows. The plugin imposes no colour
+  now: the app bar follows the host's `AppBarTheme`, as it should.
 - Resizing the window left the scanner on stale geometry. The library measures its container once,
   when starting, and sizes the video and the shading overlay from it; it never measures again, so a
   resized window showed the two at different sizes and offsets. The page watches its container now

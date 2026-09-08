@@ -22,14 +22,19 @@
        reads `#reader.clientWidth` to size the video and every piece of its
        geometry follows from it. A host that sized the view to one box while
        the page laid out for another got the whole overlay stretched. */
+    /* A column: the main axis is vertical, so justify-content centres the
+       reader in the window while flex-shrink cannot touch its width. The flex
+       stops at the body; #reader keeps the library's own layout inside. */
     body {
       background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
-    /* Capped and centred with margins rather than flex: a flex item collapses
-       to zero width while it is still empty, and the library would measure
-       that zero at start and size the video to nothing. A block always takes
-       the width available to it. */
+    /* Capped, never stretched: the library measures this width, so it stays
+       the single source of truth for the video and the shading alike. */
     #reader {
+      width: 100%;
       max-width: 640px;
       margin: 0 auto;
     }
