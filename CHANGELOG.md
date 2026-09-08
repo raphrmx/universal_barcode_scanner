@@ -1,5 +1,21 @@
 # Universal Barcode Scanner Versions
 
+## 1.2.0
+
+### Added
+
+- A sweeping line over the scan square on web, Windows and Linux, so those three look like the
+  native scanners rather than a bare camera feed. It hangs inside the scan region the page already
+  draws, so it tracks the square even when the library shrinks it to fit the video, and it holds
+  still under `prefers-reduced-motion`.
+- `lineColor` now reaches web, Windows and Linux, where it used to be ignored. The web host passes
+  it in the page's query string; the desktop hosts set it once the page is up.
+
+### Fixed
+
+- On Windows and Linux the webview filled the whole window, stretching the camera across the
+  screen. It is capped and centred at 640x480, the same as the web scanner has always been.
+
 ## 1.1.0
 
 Linux, and one webview for both desktops.

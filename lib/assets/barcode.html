@@ -15,6 +15,31 @@
       height: 90%;
       margin: 0;
     }
+
+    /* The sweeping line. It is appended inside #qr-shaded-region, whose
+       borders draw the shading, so its content box is exactly the scan square
+       and the line needs no geometry of its own. */
+    #ubs-scan-line {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--ubs-line-color, #ff6666);
+      box-shadow: 0 0 8px 1px var(--ubs-line-color, #ff6666);
+      opacity: 0.9;
+      animation: ubs-sweep 2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes ubs-sweep {
+      0%   { top: 0; }
+      50%  { top: calc(100% - 2px); }
+      100% { top: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #ubs-scan-line { animation: none; top: calc(50% - 1px); }
+    }
   </style>
   <script src="html5-qrcode.min.js"></script>
 </head>
@@ -26,9 +51,32 @@
   // Desktop hosts register a JavaScript channel under this name. On the web
   // the page runs in an iframe instead and answers its parent.
   var CHANNEL = 'UniversalBarcodeScanner';
+  var SHADED_REGION_ID = 'qr-shaded-region';
 
   var scanner = new Html5Qrcode('reader');
   var delivered = false;
+
+  // The web host passes the colour in the query string, the desktop hosts call
+  // setScanLineColor once the page is up. Either way it lands on the same
+  // custom property.
+  function setScanLineColor(css) {
+    if (css) {
+      document.documentElement.style.setProperty('--ubs-line-color', css);
+    }
+  }
+
+  /// Hangs the sweeping line inside the library's own scan region, so it
+  /// tracks the box even when the library shrinks it to fit the video.
+  function addScanLine() {
+    var region = document.getElementById(SHADED_REGION_ID);
+    if (!region || document.getElementById('ubs-scan-line')) {
+      return !!region;
+    }
+    var line = document.createElement('div');
+    line.id = 'ubs-scan-line';
+    region.appendChild(line);
+    return true;
+  }
 
   function hasChannel() {
     return typeof window[CHANNEL] !== 'undefined'
@@ -63,15 +111,26 @@
   }
 
   var config = {
-    fps: 60,
+    fps: 30,
     qrbox: {
       width: 280,
-      height: 280,
-      aspectRatio: 1.1
-    }
+      height: 280
+    },
+    aspectRatio: 1.1
   };
 
-  scanner.start({ facingMode: 'environment' }, config, deliver);
+  setScanLineColor(new URLSearchParams(window.location.search).get('line'));
+
+  scanner.start({ facingMode: 'environment' }, config, deliver).then(function () {
+    // The shaded region is created while starting, but not always before this
+    // promise settles, hence the short retry rather than a single attempt.
+    var attempts = 0;
+    var timer = setInterval(function () {
+      if (addScanLine() || ++attempts > 20) {
+        clearInterval(timer);
+      }
+    }, 50);
+  });
 </script>
 </body>
 </html>

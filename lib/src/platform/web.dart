@@ -8,14 +8,9 @@ import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:web/web.dart' as html;
 
-/// Largest size the scanner iframe is given, in logical pixels. Below that it
-/// takes the whole viewport.
-const double _maxScannerWidth = 640;
-const double _maxScannerHeight = 480;
-
 /// Barcode scanner for web using iframe
 class BarcodeScannerPage extends StatefulWidget {
-  /// Colour of the scan line. Unused on web, the page draws its own.
+  /// Colour of the sweeping scan line.
   final Color lineColor;
 
   /// Label of the cancel button. Unused on web.
@@ -87,8 +82,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
     _viewId =
         'universal_barcode_scanner_${DateTime.now().microsecondsSinceEpoch}';
+    // The colour rides in the query string: the page is same-origin but a
+    // cross-frame call is not, so this is the one hook available before load.
     _iframe = html.HTMLIFrameElement()
-      ..src = ScannerAsset.webPath
+      ..src =
+          '${ScannerAsset.webPath}'
+          '?line=${Uri.encodeComponent(colorToCssHex(widget.lineColor))}'
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%';
@@ -131,11 +130,11 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         children: <Widget>[
           Center(
             child: SizedBox(
-              width: size.width > _maxScannerWidth
-                  ? _maxScannerWidth
+              width: size.width > kMaxScannerWidth
+                  ? kMaxScannerWidth
                   : size.width,
-              height: size.height > _maxScannerHeight
-                  ? _maxScannerHeight
+              height: size.height > kMaxScannerHeight
+                  ? kMaxScannerHeight
                   : size.height,
               child: Transform(
                 alignment: Alignment.center,

@@ -111,7 +111,7 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 
 | Parameter | Default | Effect |
 | --- | --- | --- |
-| `lineColor` | `Color(0xFFFF6666)` | Colour of the scan line. Android, iOS and macOS only. |
+| `lineColor` | `Color(0xFFFF6666)` | Colour of the scan line, on every platform. |
 | `cancelButtonText` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS only. |
 | `isShowFlashIcon` | `false` | Whether the torch toggle is shown. Android and iOS only. |
 | `scanType` | `ScanType.barcode` | What the scanner looks for. |

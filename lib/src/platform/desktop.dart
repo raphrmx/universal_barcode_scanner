@@ -32,7 +32,7 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
     this.scanFormat = ScanFormat.all,
   });
 
-  /// Colour of the scan line. Unused here, the page draws its own.
+  /// Colour of the sweeping scan line.
   final Color lineColor;
 
   /// Label of the cancel button. Unused here.
@@ -84,6 +84,11 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
     _controller = WebViewController(onPermissionRequest: _onPermissionRequest)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(_channelName, onMessageReceived: _onMessage)
+      // The page is loaded from a file, so there is no query string to carry
+      // the colour the way the web host does. It is set once the page is up.
+      ..setNavigationDelegate(
+        NavigationDelegate(onPageFinished: (String _) => _applyLineColor()),
+      )
       ..loadFlutterAsset(ScannerAsset.desktopPath);
   }
 
@@ -93,6 +98,11 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
     // the app bar, a system gesture for instance.
     _controller.runJavaScript('stopScanner()');
     super.dispose();
+  }
+
+  void _applyLineColor() {
+    final String css = colorToCssHex(widget.lineColor);
+    _controller.runJavaScript("setScanLineColor('$css')");
   }
 
   /// The page we load is our own and asks for exactly one thing, so granting
@@ -120,14 +130,29 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final Size size = MediaQuery.sizeOf(context);
+
     return Scaffold(
       appBar: _buildAppBar(context),
       body: Stack(
         children: <Widget>[
-          Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),
-            child: WebViewWidget(controller: _controller),
+          // Left to fill the window, the webview stretches the camera across
+          // the whole desktop screen. The web host caps it the same way.
+          Center(
+            child: SizedBox(
+              width: size.width > kMaxScannerWidth
+                  ? kMaxScannerWidth
+                  : size.width,
+              height: size.height > kMaxScannerHeight
+                  ? kMaxScannerHeight
+                  : size.height,
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..rotateY(widget.flip ? 3.1416 : 0),
+                child: WebViewWidget(controller: _controller),
+              ),
+            ),
           ),
           if (widget.child != null) widget.child!,
         ],
