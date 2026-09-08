@@ -134,32 +134,14 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
       appBar: _buildAppBar(context),
       body: Stack(
         children: <Widget>[
-          // Left to fill the window, the webview stretches the camera across
-          // the whole screen. Capped against the space actually available, not
-          // against the window: the host may well embed the scanner in a
-          // panel narrower than the window itself.
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final double width = constraints.maxWidth > kMaxScannerWidth
-                  ? kMaxScannerWidth
-                  : constraints.maxWidth;
-              final double height = constraints.maxHeight > kMaxScannerHeight
-                  ? kMaxScannerHeight
-                  : constraints.maxHeight;
-
-              return Center(
-                child: SizedBox(
-                  width: width,
-                  height: height,
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..rotateY(widget.flip ? 3.1416 : 0),
-                    child: WebViewWidget(controller: _controller),
-                  ),
-                ),
-              );
-            },
+          // Fills the space it is given. The framing is the page's job: sizing
+          // the view to a box the page did not lay out for stretches its whole
+          // overlay, since the library derives every dimension from the width
+          // it measured itself.
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),
+            child: WebViewWidget(controller: _controller),
           ),
           if (widget.child != null) widget.child!,
         ],
