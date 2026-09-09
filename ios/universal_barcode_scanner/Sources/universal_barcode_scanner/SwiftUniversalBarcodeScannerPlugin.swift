@@ -12,6 +12,19 @@ enum ScanMode:Int{
     }
 }
 
+/// Where the flash and camera icons live.
+///
+/// Swift Package Manager puts a target's resources in `Bundle.module`, while
+/// CocoaPods leaves them alongside the class. Asking for the bundle instead of
+/// naming one keeps both builds working.
+private var resourceBundle: Bundle {
+  #if SWIFT_PACKAGE
+  return Bundle.module
+  #else
+  return Bundle(for: SwiftUniversalBarcodeScannerPlugin.self)
+  #endif
+}
+
 enum ScanFormat {
   case ALL_FORMATS
   case ONLY_QR_CODE
@@ -243,7 +256,7 @@ class BarcodeScannerViewController: UIViewController {
         flashButton.setTitle("Flash",for:.normal)
         flashButton.translatesAutoresizingMaskIntoConstraints=false
         
-        flashButton.setImage(UIImage(named: "ic_flash_off", in: Bundle(for: SwiftUniversalBarcodeScannerPlugin.self), compatibleWith: nil),for:.normal)
+        flashButton.setImage(UIImage(named: "ic_flash_off", in: resourceBundle, compatibleWith: nil),for:.normal)
         
         flashButton.addTarget(self, action: #selector(BarcodeScannerViewController.flashButtonClicked), for: .touchUpInside)
         return flashButton
@@ -254,7 +267,7 @@ class BarcodeScannerViewController: UIViewController {
         let button = UIButton()
         
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.setImage(UIImage(named: "ic_switch_camera", in: Bundle(for: SwiftUniversalBarcodeScannerPlugin.self), compatibleWith: nil),for: .normal)
+        button.setImage(UIImage(named: "ic_switch_camera", in: resourceBundle, compatibleWith: nil),for: .normal)
         button.addTarget(self, action: #selector(BarcodeScannerViewController.switchCameraButtonClicked), for: .touchUpInside)
         
         return button
@@ -445,11 +458,11 @@ class BarcodeScannerViewController: UIViewController {
     }
     
     private func flashIconOff() {
-        flashIcon.setImage(UIImage(named: "ic_flash_off", in: Bundle(for: SwiftUniversalBarcodeScannerPlugin.self), compatibleWith: nil),for:.normal)
+        flashIcon.setImage(UIImage(named: "ic_flash_off", in: resourceBundle, compatibleWith: nil),for:.normal)
     }
     
     private func flashIconOn() {
-        flashIcon.setImage(UIImage(named: "ic_flash_on", in: Bundle(for: SwiftUniversalBarcodeScannerPlugin.self), compatibleWith: nil),for:.normal)
+        flashIcon.setImage(UIImage(named: "ic_flash_on", in: resourceBundle, compatibleWith: nil),for:.normal)
     }
     
     private func setFlashStatus(device: AVCaptureDevice, mode: AVCaptureDevice.TorchMode) {

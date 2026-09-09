@@ -1,5 +1,29 @@
 # Universal Barcode Scanner Versions
 
+## 1.3.0
+
+### Added
+
+- Swift Package Manager support on iOS and macOS, alongside the existing CocoaPods podspecs. Both
+  build systems work; an app picks whichever it has enabled. This was the only thing left costing
+  the package points on pub.dev, which reported the plugin as CocoaPods-only.
+
+### Removed
+
+- The Objective-C shim on iOS. It forwarded registration to the Swift plugin, but nothing called
+  it: the generated registrant has always referenced the Swift class directly. Swift Package
+  Manager also refuses two languages in one target, so a dead file was standing in the way of a
+  working one.
+
+### Changed
+
+- The Apple sources moved to the layout Swift Package Manager expects,
+  `<platform>/universal_barcode_scanner/Sources/universal_barcode_scanner/`, and the podspecs point
+  at the new paths. Nothing changes for consumers.
+- The iOS icons are looked up through the bundle that the running build system provides,
+  `Bundle.module` under Swift Package Manager and the class bundle under CocoaPods, rather than
+  assuming the latter.
+
 ## 1.2.0
 
 ### Added

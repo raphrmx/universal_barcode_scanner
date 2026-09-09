@@ -3,7 +3,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'universal_barcode_scanner'
-  s.version          = '1.2.0'
+  s.version          = '1.3.0'
   s.summary          = 'Barcode and QR code scanner for Flutter.'
   s.description      = <<-DESC
 Barcode and QR code scanner for Flutter, on Android, iOS, macOS, web and
@@ -13,7 +13,7 @@ Windows, from one widget and one callback.
   s.license          = { :file => '../LICENSE' }
   s.author           = 'COMAPPS.be'
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'universal_barcode_scanner/Sources/universal_barcode_scanner/**/*.swift'
   s.dependency 'FlutterMacOS'
 
   s.platform = :osx, '10.15'
