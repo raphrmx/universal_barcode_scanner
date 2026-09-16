@@ -54,7 +54,7 @@ class _HomePageState extends State<HomePage> {
       isShowFlashIcon: true,
       scanDelay: const Duration(milliseconds: 500),
       cameraFace: CameraFace.back,
-      scanFormat: ScanFormat.onlyBarcode,
+      scanFormat: ScanFormat.all,
     );
     if (!mounted) return;
     setState(() => _result = code ?? 'cancelled');
@@ -83,7 +83,7 @@ class _HomePageState extends State<HomePage> {
           children: <Widget>[
             ElevatedButton(
               onPressed: _scanOnce,
-              child: const Text('Scan once (linear barcodes only)'),
+              child: const Text('Scan once'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
