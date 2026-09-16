@@ -14,6 +14,12 @@
 - A pinch follows the gesture instead of applying its scale once the gesture ends.
 - A tap focuses the camera where it landed.
 
+### Fixed
+
+- The embedded view draws the camera inside the widget. Its preview is a `TextureView`, which a
+  Flutter platform view composes into its texture; a `SurfaceView` is drawn straight to the window
+  instead, beside the widget rather than in it.
+
 ### Removed
 
 - The camera pipeline Mobile Vision came with: `CameraSource`, `CameraSourcePreview`, the graphic

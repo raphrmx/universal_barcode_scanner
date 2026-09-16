@@ -83,7 +83,7 @@ class _HomePageState extends State<HomePage> {
           children: <Widget>[
             ElevatedButton(
               onPressed: _scanOnce,
-              child: const Text('Scan once'),
+              child: const Text('Scan once (linear barcodes only)'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(

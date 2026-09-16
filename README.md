@@ -55,8 +55,15 @@ Camera permission goes in your own manifest, `android/app/src/main/AndroidManife
 <uses-permission android:name="android.permission.CAMERA" />
 ```
 
-The plugin asks for `minSdkVersion 21` and builds against `compileSdk 34`, both below what Flutter
-itself requires, so an app on a current Flutter has nothing to change.
+The plugin asks for `minSdkVersion 21` and builds against `compileSdk 34`. Two of its dependencies,
+`flutter_plugin_android_lifecycle` and `webview_all_android`, are built against 36, and an app has to
+compile against the highest of them:
+
+```gradle
+android {
+    compileSdk = 36
+}
+```
 
 ### iOS
 
