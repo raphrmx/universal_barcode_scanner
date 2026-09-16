@@ -12,9 +12,8 @@ import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
 
 import be.comapps.universal_barcode_scanner.widget.BarcodeViewFactory;
-import com.google.android.gms.common.api.CommonStatusCodes;
-import com.google.android.gms.vision.barcode.Barcode;
 
+import java.util.Locale;
 import java.util.Map;
 
 import io.flutter.embedding.android.FlutterActivity;
@@ -117,7 +116,7 @@ public class UniversalBarcodeScannerPlugin implements MethodCallHandler, Activit
             String scanFormat = (String) arguments.get("scanFormat");
 
             assert scanFormat != null;
-            switch (scanFormat.toUpperCase()) {
+            switch (scanFormat.toUpperCase(Locale.ROOT)) {
                 case "ONLY_QR_CODE":
                     format = BarcodeCaptureActivity.SCAN_FORMAT_ENUM.ONLY_QR_CODE;
                     break;
@@ -155,27 +154,17 @@ public class UniversalBarcodeScannerPlugin implements MethodCallHandler, Activit
      */
     @Override
     public boolean onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == RC_BARCODE_CAPTURE) {
-            if (resultCode == CommonStatusCodes.SUCCESS) {
-                if (data != null) {
-                    try {
-                        Barcode barcode = data.getParcelableExtra(BarcodeCaptureActivity.BarcodeObject);
-                        String barcodeResult = barcode.rawValue;
-                        pendingResult.success(barcodeResult);
-                    } catch (Exception e) {
-                        pendingResult.success("-1");
-                    }
-                } else {
-                    pendingResult.success("-1");
-                }
-                pendingResult = null;
-                arguments = null;
-                return true;
-            } else {
-                pendingResult.success("-1");
-            }
+        if (requestCode != RC_BARCODE_CAPTURE || pendingResult == null) {
+            return false;
         }
-        return false;
+        String barcode = resultCode == Activity.RESULT_OK && data != null
+                ? data.getStringExtra(BarcodeCaptureActivity.BarcodeObject)
+                : null;
+        // -1 stands for no code read, whether the scan failed or was cancelled.
+        pendingResult.success(barcode != null ? barcode : "-1");
+        pendingResult = null;
+        arguments = null;
+        return true;
     }
 
 
@@ -201,13 +190,15 @@ public class UniversalBarcodeScannerPlugin implements MethodCallHandler, Activit
      *
      * @param barcode
      */
-    public static void onBarcodeScanReceiver(final Barcode barcode) {
+    public static void onBarcodeScanReceiver(final String barcode) {
         try {
-            if (barcode != null && !barcode.displayValue.isEmpty()) {
+            if (barcode != null && !barcode.isEmpty() && activity != null) {
                 activity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        barcodeStream.success(barcode.rawValue);
+                        if (barcodeStream != null) {
+                            barcodeStream.success(barcode);
+                        }
                     }
                 });
             }

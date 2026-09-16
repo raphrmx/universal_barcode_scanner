@@ -1,5 +1,30 @@
 # Universal Barcode Scanner Versions
 
+## 1.4.0
+
+### Changed
+
+- Android scans with CameraX and ML Kit. Google Mobile Vision, the
+  `play-services-vision` library the scanner read barcodes with until now, has been deprecated
+  since 2021 and receives neither fixes nor model updates. The Dart API is unchanged.
+- The ML Kit model is bundled rather than fetched, so the scanner reads a code on a device with no
+  Google Play services and downloads nothing before the first scan.
+- `minSdkVersion` moves from 16 to 21, the floor CameraX and ML Kit share. It is below the one
+  Flutter itself sets, so an app on a current Flutter has nothing to change.
+- A pinch follows the gesture instead of applying its scale once the gesture ends.
+- A tap focuses the camera where it landed.
+
+### Removed
+
+- The camera pipeline Mobile Vision came with: `CameraSource`, `CameraSourcePreview`, the graphic
+  overlay and the barcode trackers, about 1700 lines that CameraX replaces.
+- The box drawn around a detected code, and the tap that chose between several. The screen returns
+  on the first code read, so the box was on screen for a frame.
+- `android.permission.FLASHLIGHT` and `android:largeHeap` from the plugin manifest. The torch goes
+  through CameraX, and the heap belongs to the app rather than to one of its plugins.
+- `jcenter()`, read-only since 2021, and the `material` and `legacy-support-v4` dependencies that
+  a single Snackbar held on to.
+
 ## 1.3.0
 
 ### Added

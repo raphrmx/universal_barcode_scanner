@@ -115,3 +115,11 @@ jobs:
       - name: Build
         run: ${{ matrix.command }}
         working-directory: example
+
+      # Compiling is not enough on Android: lint refuses things javac accepts,
+      # such as an opt-in API used without opting in. The wrapper is written by
+      # the build above.
+      - name: Lint the Android plugin
+        if: matrix.target == 'android'
+        run: chmod +x gradlew && ./gradlew :universal_barcode_scanner:lintDebug
+        working-directory: example/android

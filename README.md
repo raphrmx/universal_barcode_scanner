@@ -15,16 +15,16 @@ one entry point.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/raphrmx/universal_barcode_scanner/ci.yml?branch=main&label=build)](https://github.com/raphrmx/universal_barcode_scanner/actions/workflows/ci.yml)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=blue)](https://pub.dev/packages/universal_barcode_scanner)
-![Maintainer](https://img.shields.io/badge/Maintainer-Raphael-purple)
+[![Maintainer](https://img.shields.io/badge/Maintainer-Raphael_Vrient-purple)](https://www.comapps.be)
 [![License](https://img.shields.io/badge/Licence-MIT-blue)](/LICENSE)
 ![Maintenance](https://img.shields.io/badge/Maintained-yes-success)
-![Platforms](https://img.shields.io/badge/Platforms-Android,_iOS,_Linux,_macOS,_Web,_Windows-22375C.svg)
+![Platforms](https://img.shields.io/badge/Platforms-Android,_iOS,_macOS,_Windows,_Linux,_Web-22375C.svg)
 
 ## Platforms
 
 | Platform | How it scans | Embedded view |
 | --- | --- | --- |
-| Android | Native, Play Services Vision | Yes |
+| Android | Native, CameraX and ML Kit | Yes |
 | iOS | Native, AVFoundation | Yes |
 | macOS | Native, AVFoundation and Vision | No |
 | Web | `html5-qrcode` in an iframe, bundled, no CDN call | No |
@@ -54,6 +54,9 @@ Camera permission goes in your own manifest, `android/app/src/main/AndroidManife
 ```xml
 <uses-permission android:name="android.permission.CAMERA" />
 ```
+
+The plugin asks for `minSdkVersion 21` and builds against `compileSdk 34`, both below what Flutter
+itself requires, so an app on a current Flutter has nothing to change.
 
 ### iOS
 
@@ -202,8 +205,9 @@ flutter test
 
 ## Dependencies
 
-`webview_all` for the Windows and Linux scanners, and `web` for the iframe on the web. Nothing on
-Android, iOS or macOS beyond the SDKs.
+`webview_all` for the Windows and Linux scanners, and `web` for the iframe on the web. Android
+carries CameraX and the ML Kit barcode model, which is bundled, so the scanner works on a device
+with no Play services and downloads nothing on first use. Nothing on iOS or macOS beyond the SDKs.
 
 ## Credits
 
