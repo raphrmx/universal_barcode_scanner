@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// App bar shown above the scanner.
 ///
@@ -11,6 +11,8 @@ class BarcodeAppBar {
     this.centerTitle,
     this.enableBackButton,
     this.backButtonIcon,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   /// Title text, or null for no title.
@@ -24,4 +26,10 @@ class BarcodeAppBar {
 
   /// Icon of the back button, when one is shown.
   final Icon? backButtonIcon;
+
+  /// Colour behind the bar. Black when null, to sit over a camera.
+  final Color? backgroundColor;
+
+  /// Colour of the title and of the default back icon. White when null.
+  final Color? foregroundColor;
 }

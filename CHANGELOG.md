@@ -1,5 +1,25 @@
 # Universal Barcode Scanner Versions
 
+## 1.5.0
+
+### Changed
+
+- The package no longer imports `package:flutter/material.dart` anywhere. Every
+  file is on `package:flutter/widgets.dart`, the layer both `material.dart` and
+  the `material_ui` package are built on, so the scanner composes with either
+  and imposes neither on the app that embeds it.
+- The scanner bar is drawn by the package rather than taken from Material. It
+  is black with white text, which suits a camera, and `BarcodeAppBar` gains
+  `backgroundColor` and `foregroundColor` to say otherwise. An application that
+  passed a `BarcodeAppBar` had a bar coloured by its own theme until now, so
+  this one looks different until those two are set.
+- The back button has no ripple. Drawing one would mean picking a design
+  system, which is what this release is getting rid of.
+- The scanner route is a `PageRouteBuilder` rather than a `MaterialPageRoute`,
+  so it fades in instead of using the platform's own page transition.
+- While the native scanner opens, the route behind it is black with a plain
+  spinner rather than a `Scaffold` with a Material one.
+
 ## 1.4.0
 
 ### Changed

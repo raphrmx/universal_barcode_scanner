@@ -216,6 +216,11 @@ flutter test
 carries CameraX and the ML Kit barcode model, which is bundled, so the scanner works on a device
 with no Play services and downloads nothing on first use. Nothing on iOS or macOS beyond the SDKs.
 
+No design system. The package is written against `package:flutter/widgets.dart` alone, so it sits
+under Material, under `material_ui`, or under neither, and imposes none of them on your app. The
+scanner bar is drawn here rather than taken from a widget library; `BarcodeAppBar` carries its
+colours.
+
 ## Credits
 
 Derived from [simple_barcode_scanner](https://pub.dev/packages/simple_barcode_scanner) by Kunchok

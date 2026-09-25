@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -96,25 +96,37 @@ class UniversalBarcodeScanner extends StatelessWidget {
   }) {
     return Navigator.push<String>(
       context,
-      MaterialPageRoute<String>(
-        builder: (BuildContext context) => BarcodeScannerPage(
-          lineColor: lineColor,
-          cancelButtonText: cancelButtonText,
-          isShowFlashIcon: isShowFlashIcon,
-          scanType: scanType,
-          cameraFace: cameraFace,
-          scanFormat: scanFormat,
-          barcodeAppBar: barcodeAppBar,
-          scanDelay: scanDelay,
-          flip: flip,
-          // Android and iOS answer '-1' when the user backs out. That
-          // sentinel has no business reaching the caller.
-          onScanned: (String code) => Navigator.pop(
-            context,
-            code == kNoResultValue || code.isEmpty ? null : code,
-          ),
-          child: child,
-        ),
+      PageRouteBuilder<String>(
+        transitionsBuilder:
+            (
+              BuildContext context,
+              Animation<double> animation,
+              Animation<double> secondary,
+              Widget child,
+            ) => FadeTransition(opacity: animation, child: child),
+        pageBuilder:
+            (
+              BuildContext context,
+              Animation<double> animation,
+              Animation<double> secondary,
+            ) => BarcodeScannerPage(
+              lineColor: lineColor,
+              cancelButtonText: cancelButtonText,
+              isShowFlashIcon: isShowFlashIcon,
+              scanType: scanType,
+              cameraFace: cameraFace,
+              scanFormat: scanFormat,
+              barcodeAppBar: barcodeAppBar,
+              scanDelay: scanDelay,
+              flip: flip,
+              // Android and iOS answer '-1' when the user backs out. That
+              // sentinel has no business reaching the caller.
+              onScanned: (String code) => Navigator.pop(
+                context,
+                code == kNoResultValue || code.isEmpty ? null : code,
+              ),
+              child: child,
+            ),
       ),
     );
   }
@@ -141,21 +153,33 @@ class UniversalBarcodeScanner extends StatelessWidget {
 
     navigator
         .push<void>(
-          MaterialPageRoute<void>(
-            builder: (BuildContext context) => BarcodeScannerPage(
-              lineColor: lineColor,
-              cancelButtonText: cancelButtonText,
-              isShowFlashIcon: isShowFlashIcon,
-              scanType: scanType,
-              cameraFace: cameraFace,
-              scanFormat: scanFormat,
-              barcodeAppBar: barcodeAppBar,
-              scanDelay: scanDelay,
-              flip: flip,
-              onScanned: codes.add,
-              onClose: () => Navigator.pop(context),
-              child: child,
-            ),
+          PageRouteBuilder<void>(
+            transitionsBuilder:
+                (
+                  BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondary,
+                  Widget child,
+                ) => FadeTransition(opacity: animation, child: child),
+            pageBuilder:
+                (
+                  BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondary,
+                ) => BarcodeScannerPage(
+                  lineColor: lineColor,
+                  cancelButtonText: cancelButtonText,
+                  isShowFlashIcon: isShowFlashIcon,
+                  scanType: scanType,
+                  cameraFace: cameraFace,
+                  scanFormat: scanFormat,
+                  barcodeAppBar: barcodeAppBar,
+                  scanDelay: scanDelay,
+                  flip: flip,
+                  onScanned: codes.add,
+                  onClose: () => Navigator.pop(context),
+                  child: child,
+                ),
           ),
         )
         // Closing on the route's own future covers every way out, including

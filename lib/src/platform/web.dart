@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:ui_web' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:web/web.dart' as html;
 
 /// Barcode scanner for web using iframe
@@ -122,8 +123,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(context),
+    return ScannerChrome(
+      bar: widget.barcodeAppBar,
+      onClose: () => Navigator.pop(context),
       body: Stack(
         children: <Widget>[
           // Fills the space it is given. The framing is the page's job: sizing
@@ -138,25 +140,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
           if (widget.child != null) widget.child!,
         ],
       ),
-    );
-  }
-
-  AppBar? _buildAppBar(BuildContext context) {
-    final BarcodeAppBar? bar = widget.barcodeAppBar;
-    if (bar == null) return null;
-
-    return AppBar(
-      // No colour forced here: the app bar belongs to the host's theme, and
-      // hardcoding white made this branch disagree with every other one.
-      title: bar.appBarTitle != null ? Text(bar.appBarTitle!) : null,
-      centerTitle: bar.centerTitle ?? false,
-      leading: bar.enableBackButton == true
-          ? IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: bar.backButtonIcon ?? const Icon(Icons.arrow_back_ios),
-            )
-          : null,
-      automaticallyImplyLeading: false,
     );
   }
 }

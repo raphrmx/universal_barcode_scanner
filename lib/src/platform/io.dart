@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -160,16 +160,68 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     if (!_hasNativeScanner) {
       // Reaching the method channel here would only raise a
       // MissingPluginException, which says nothing useful.
-      return Scaffold(
-        body: Center(
-          child: Text('$defaultTargetPlatform is not supported yet'),
+      return ColoredBox(
+        color: const Color(0xFF000000),
+        child: Center(
+          child: Text(
+            '$defaultTargetPlatform is not supported yet',
+            style: const TextStyle(color: Color(0xFFFFFFFF)),
+          ),
         ),
       );
     }
 
     _startOnce();
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const ColoredBox(
+      color: Color(0xFF000000),
+      child: Center(child: _Spinner()),
+    );
   }
+}
+
+/// Shown for the moment between this route appearing and the native scanner
+/// covering it. Drawn here rather than taken from a design system, so the
+/// package stays on `widgets.dart`.
+class _Spinner extends StatefulWidget {
+  const _Spinner();
+
+  @override
+  State<_Spinner> createState() => _SpinnerState();
+}
+
+class _SpinnerState extends State<_Spinner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _turn = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _turn.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RotationTransition(
+    turns: _turn,
+    child: CustomPaint(size: const Size.square(36), painter: _Arc()),
+  );
+}
+
+class _Arc extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(Offset.zero & size, 0, 4.2, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(_Arc oldDelegate) => false;
 }
 
 /// Embedded scanner view for Android and iOS.

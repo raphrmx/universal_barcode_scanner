@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:webview_all/webview_all.dart';
 
 /// Name of the JavaScript channel the bundled page posts scans on. It has to
@@ -130,8 +131,9 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(context),
+    return ScannerChrome(
+      bar: widget.barcodeAppBar,
+      onClose: _close,
       body: Stack(
         children: <Widget>[
           // Fills the space it is given. The framing is the page's job: sizing
@@ -146,23 +148,6 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
           if (widget.child != null) widget.child!,
         ],
       ),
-    );
-  }
-
-  AppBar? _buildAppBar(BuildContext context) {
-    final BarcodeAppBar? bar = widget.barcodeAppBar;
-    if (bar == null) return null;
-
-    return AppBar(
-      title: bar.appBarTitle != null ? Text(bar.appBarTitle!) : null,
-      centerTitle: bar.centerTitle ?? false,
-      leading: bar.enableBackButton == true
-          ? IconButton(
-              onPressed: _close,
-              icon: bar.backButtonIcon ?? const Icon(Icons.arrow_back_ios),
-            )
-          : null,
-      automaticallyImplyLeading: false,
     );
   }
 }
