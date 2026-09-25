@@ -31,7 +31,12 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
     this.flip = false,
     this.onClose,
     this.scanFormat = ScanFormat.all,
+    this.backgroundColor,
   });
+
+  /// Colour behind the camera. Black when null, which suits a scanner; pass
+  /// your own when the page sits inside a lighter application.
+  final Color? backgroundColor;
 
   /// Colour of the sweeping scan line.
   final Color lineColor;
@@ -132,6 +137,7 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
   @override
   Widget build(BuildContext context) {
     return ScannerChrome(
+      backgroundColor: widget.backgroundColor,
       bar: widget.barcodeAppBar,
       onClose: _close,
       body: Stack(

@@ -1,5 +1,15 @@
 # Universal Barcode Scanner Versions
 
+## 1.5.1
+
+### Added
+
+- `scan` and `stream` take a `backgroundColor`, which is what the page paints
+  behind the camera. 1.5.0 replaced a `Scaffold` with a black box, so a scanner
+  opened inside a light application turned its own background black with no way
+  to say otherwise. Black stays the default, since that is what a camera page
+  usually wants.
+
 ## 1.5.0
 
 ### Changed

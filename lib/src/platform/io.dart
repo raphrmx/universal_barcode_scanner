@@ -37,7 +37,12 @@ class BarcodeScannerPage extends StatefulWidget {
     this.flip = false,
     this.onClose,
     this.scanFormat = ScanFormat.all,
+    this.backgroundColor,
   });
+
+  /// Colour behind the camera. Black when null, which suits a scanner; pass
+  /// your own when the page sits inside a lighter application.
+  final Color? backgroundColor;
 
   /// Colour of the scan line.
   final Color lineColor;
@@ -161,7 +166,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
       // Reaching the method channel here would only raise a
       // MissingPluginException, which says nothing useful.
       return ColoredBox(
-        color: const Color(0xFF000000),
+        color: widget.backgroundColor ?? const Color(0xFF000000),
         child: Center(
           child: Text(
             '$defaultTargetPlatform is not supported yet',
@@ -172,9 +177,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     }
 
     _startOnce();
-    return const ColoredBox(
-      color: Color(0xFF000000),
-      child: Center(child: _Spinner()),
+    return ColoredBox(
+      color: widget.backgroundColor ?? const Color(0xFF000000),
+      child: const Center(child: _Spinner()),
     );
   }
 }

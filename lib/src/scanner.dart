@@ -93,6 +93,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
     Duration? scanDelay,
     bool flip = false,
     Widget? child,
+    Color? backgroundColor,
   }) {
     return Navigator.push<String>(
       context,
@@ -110,6 +111,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
               Animation<double> animation,
               Animation<double> secondary,
             ) => BarcodeScannerPage(
+              backgroundColor: backgroundColor,
               lineColor: lineColor,
               cancelButtonText: cancelButtonText,
               isShowFlashIcon: isShowFlashIcon,
@@ -147,6 +149,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
     Duration? scanDelay,
     bool flip = false,
     Widget? child,
+    Color? backgroundColor,
   }) {
     final StreamController<String> codes = StreamController<String>();
     final NavigatorState navigator = Navigator.of(context);
@@ -167,6 +170,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
                   Animation<double> animation,
                   Animation<double> secondary,
                 ) => BarcodeScannerPage(
+                  backgroundColor: backgroundColor,
                   lineColor: lineColor,
                   cancelButtonText: cancelButtonText,
                   isShowFlashIcon: isShowFlashIcon,

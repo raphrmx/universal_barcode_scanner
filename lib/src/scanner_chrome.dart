@@ -15,7 +15,13 @@ const double _barHeight = 56;
 /// that embeds it.
 class ScannerChrome extends StatelessWidget {
   /// Creates the page around [body].
-  const ScannerChrome({super.key, required this.body, this.bar, this.onClose});
+  const ScannerChrome({
+    super.key,
+    required this.body,
+    this.bar,
+    this.onClose,
+    this.backgroundColor,
+  });
 
   /// The camera and whatever is drawn over it.
   final Widget body;
@@ -26,11 +32,14 @@ class ScannerChrome extends StatelessWidget {
   /// Called by the back button, when the bar shows one.
   final VoidCallback? onClose;
 
+  /// Colour behind the camera. Black when null.
+  final Color? backgroundColor;
+
   @override
   Widget build(BuildContext context) {
     final BarcodeAppBar? bar = this.bar;
     return ColoredBox(
-      color: _barBackground,
+      color: backgroundColor ?? _barBackground,
       child: Column(
         children: <Widget>[
           if (bar != null)

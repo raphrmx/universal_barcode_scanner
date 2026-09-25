@@ -24,7 +24,12 @@ class BarcodeScannerPage extends StatelessWidget {
     this.flip = false,
     this.onClose,
     this.scanFormat = ScanFormat.all,
+    this.backgroundColor,
   });
+
+  /// Colour behind the camera. Black when null, which suits a scanner; pass
+  /// your own when the page sits inside a lighter application.
+  final Color? backgroundColor;
 
   /// Colour of the scan line.
   final Color lineColor;

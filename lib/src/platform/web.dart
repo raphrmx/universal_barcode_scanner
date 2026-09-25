@@ -62,7 +62,12 @@ class BarcodeScannerPage extends StatefulWidget {
     this.onClose,
     this.flip = false,
     this.scanFormat = ScanFormat.all,
+    this.backgroundColor,
   });
+
+  /// Colour behind the camera. Black when null, which suits a scanner; pass
+  /// your own when the page sits inside a lighter application.
+  final Color? backgroundColor;
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
@@ -124,6 +129,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   @override
   Widget build(BuildContext context) {
     return ScannerChrome(
+      backgroundColor: widget.backgroundColor,
       bar: widget.barcodeAppBar,
       onClose: () => Navigator.pop(context),
       body: Stack(
