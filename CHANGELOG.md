@@ -1,5 +1,17 @@
 # Universal Barcode Scanner Versions
 
+## 1.6.0
+
+### Changed
+
+- Windows and Linux keep the scanner webview between two scans instead of
+  building one each time. Reopening the scanner was paying for the engine, the
+  page, its script and a fresh camera request every single time, which is why
+  the second scan was as slow as the first while a browser was instant. The
+  webview is let go after a minute without a scanner on screen.
+- The bundled page can be resumed. Stopping it and delivering a code both
+  latched it shut, so a page kept for reuse would have come back dead.
+
 ## 1.5.2
 
 ### Fixed

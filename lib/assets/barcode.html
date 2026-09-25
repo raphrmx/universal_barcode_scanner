@@ -185,6 +185,22 @@
     }).then(resume, resume);
   }
 
+  // The desktop hosts keep this page loaded between two scans rather than
+  // paying for the engine, the script and the camera again. Both stopping and
+  // delivering latch the page shut, so reopening has to lift both latches.
+  function resumeScanner() {
+    closed = false;
+    delivered = false;
+    busy = true;
+    var resume = function () {
+      busy = false;
+      startScanner();
+    };
+    Promise.resolve().then(function () {
+      return scanner.stop();
+    }).then(resume, resume);
+  }
+
   function hasChannel() {
     return typeof window[CHANNEL] !== 'undefined'
       && typeof window[CHANNEL].postMessage === 'function';
