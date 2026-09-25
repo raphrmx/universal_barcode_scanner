@@ -26,7 +26,7 @@
        reader in the window while flex-shrink cannot touch its width. The flex
        stops at the body; #reader keeps the library's own layout inside. */
     body {
-      background: #000;
+      background: var(--ubs-background, #000);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -112,6 +112,14 @@
   function setScanLineColor(css) {
     if (css) {
       document.documentElement.style.setProperty('--ubs-line-color', css);
+    }
+  }
+
+  // Same path for the colour behind the camera, so the page can sit in a light
+  // application instead of always being black.
+  function setBackgroundColor(css) {
+    if (css) {
+      document.documentElement.style.setProperty('--ubs-background', css);
     }
   }
 
@@ -212,6 +220,8 @@
   }
 
   setScanLineColor(new URLSearchParams(window.location.search).get('line'));
+  setBackgroundColor(
+    new URLSearchParams(window.location.search).get('background'));
   startScanner();
 
   // Debounced, and ignoring the sub-pixel noise: dragging a window edge fires

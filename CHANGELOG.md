@@ -1,5 +1,16 @@
 # Universal Barcode Scanner Versions
 
+## 1.5.2
+
+### Fixed
+
+- `backgroundColor` now reaches the web and desktop scanner. The page those two
+  load paints its own background and covers the whole route, so setting the
+  colour behind it changed nothing: it is handed to the page itself, the way
+  the scan line colour already was.
+- `backgroundColor` reaches the Windows and Linux page at all. It stopped at
+  the delegation from the shared page to the desktop one.
+
 ## 1.5.1
 
 ### Added

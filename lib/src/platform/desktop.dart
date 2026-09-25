@@ -109,6 +109,12 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
   void _applyLineColor() {
     final String css = colorToCssHex(widget.lineColor);
     _controller.runJavaScript("setScanLineColor('$css')");
+    final Color? background = widget.backgroundColor;
+    if (background != null) {
+      _controller.runJavaScript(
+        "setBackgroundColor('${colorToCssHex(background)}')",
+      );
+    }
   }
 
   /// The page we load is our own and asks for exactly one thing, so granting

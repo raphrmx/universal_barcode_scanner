@@ -147,6 +147,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   Widget build(BuildContext context) {
     if (Platform.isWindows || Platform.isLinux) {
       return DesktopBarcodeScannerPage(
+        backgroundColor: widget.backgroundColor,
         lineColor: widget.lineColor,
         cancelButtonText: widget.cancelButtonText,
         isShowFlashIcon: widget.isShowFlashIcon,

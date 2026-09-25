@@ -94,6 +94,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
       ..src =
           '${ScannerAsset.webPath}'
           '?line=${Uri.encodeComponent(colorToCssHex(widget.lineColor))}'
+          '${_backgroundQuery()}'
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%';
@@ -124,6 +125,14 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
     _barcode = data;
     widget.onScanned(data);
+  }
+
+  /// The page paints its own background, so the colour has to reach it rather
+  /// than sit behind it: the iframe covers the route.
+  String _backgroundQuery() {
+    final Color? colour = widget.backgroundColor;
+    if (colour == null) return '';
+    return '&background=${Uri.encodeComponent(colorToCssHex(colour))}';
   }
 
   @override
