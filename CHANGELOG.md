@@ -1,5 +1,11 @@
 # Universal Barcode Scanner Versions
 
+## 1.6.2
+
+### Changed
+
+- `homepage` points at the demo, which runs the package in a browser.
+
 ## 1.6.1
 
 ### Fixed

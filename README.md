@@ -1,5 +1,3 @@
-<a alt="ComApps Logo" href="https://comapps.be" target="_blank" rel="noreferrer"><img src="https://www.comapps.be/wp-content/uploads/2026/09/CompleteLogoHorizontalMini.png" style="margin: 15px"></a>
-
 # Universal Barcode Scanner
 
 Barcode and QR code scanning for Flutter, on Android, iOS, Linux, macOS, web and Windows, from
@@ -13,8 +11,10 @@ one entry point.
 
 <sub>iOS and Android above, web and Windows below.</sub>
 
+[![Live demo](https://img.shields.io/badge/Live_demo-comapps.web.app-3c9a70)](https://comapps.web.app/universal_barcode_scanner/)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=0175C2)](https://pub.dev/packages/universal_barcode_scanner)
-[![Licence](https://img.shields.io/badge/Licence-MIT-5B6470)](LICENSE)
+![Maintainer](https://img.shields.io/badge/Maintainer-Raphael_Vrient-733d90)
+[![Licence](https://img.shields.io/badge/Licence-MIT-8C6A3F)](LICENSE)
 ![Platforms](https://img.shields.io/badge/Platforms-Android,_iOS,_macOS,_Windows,_Linux,_Web-22375C.svg)
 
 ## Platforms
