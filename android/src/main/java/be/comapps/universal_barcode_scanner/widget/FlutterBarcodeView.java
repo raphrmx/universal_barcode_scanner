@@ -106,9 +106,8 @@ public class FlutterBarcodeView implements PlatformView, LifecycleOwner {
 
         previewView = new PreviewView(context);
         previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
-        // A Flutter platform view is composed into a texture, which a
-        // SurfaceView cannot take part in: it would be drawn straight to the
-        // window, beside the widget instead of inside it.
+        // A platform view composes into a texture, which a SurfaceView cannot
+        // join.
         previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
         frameLayout.addView(previewView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -224,7 +223,7 @@ public class FlutterBarcodeView implements PlatformView, LifecycleOwner {
             if (box == null || value == null || value.isEmpty()) {
                 continue;
             }
-            // The whole code has to sit inside the window, as it did before.
+            // The whole code has to sit inside the window.
             if (scanArea.contains(mapToView(box, rotation, frameWidth, frameHeight))) {
                 methodChannel.invokeMethod("onBarcodeDetected", value);
                 return;

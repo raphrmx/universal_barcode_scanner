@@ -1,5 +1,29 @@
 # Universal Barcode Scanner Versions
 
+## 1.6.1
+
+### Fixed
+
+- The web scanner said nothing when the camera did not start. The rejection
+  from `getUserMedia` was swallowed, so a refused permission, a machine with no
+  camera and a camera held by another application all gave the same black
+  rectangle, with the reason only in the console. The page now says which of
+  the three it was and what to do about it.
+- The scanner bar title was underlined in yellow on the web. `ScannerChrome` is
+  built without Material, so a `TextStyle` there has to set `decoration` as
+  well: setting only the colour, the size and the weight left the ambient
+  fallback style and its double underline in place.
+
+### Changed
+
+- The example is one screen rather than three buttons: what the last scan
+  returned with its length and a count, a card per mode saying what that mode
+  hands back, and the embedded view marked mobile only on the web, where the
+  scanner runs in a frame of its own. It also says that a browser needs
+  permission and HTTPS before any of it works.
+- `homepage` points at the package's card on comapps.web.app, where the example
+  runs in the browser.
+
 ## 1.6.0
 
 ### Changed

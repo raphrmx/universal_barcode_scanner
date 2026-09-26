@@ -229,8 +229,7 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
         if (cameraProvider == null) {
             return;
         }
-        // Only what this screen bound: another part of the app may be holding
-        // the camera through CameraX as well.
+        // Only what this screen bound: the camera may be held elsewhere too.
         if (preview != null && analysis != null) {
             cameraProvider.unbind(preview, analysis);
         }

@@ -7,8 +7,7 @@ import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 void main() {
   group('wire format', () {
-    // These strings are compared verbatim by the Android and iOS scanners, so
-    // renaming an enum value must not change them.
+    // The Android and iOS scanners compare these strings verbatim.
     test('ScanFormat carries the names the native scanners expect', () {
       expect(ScanFormat.all.wireName, 'ALL_FORMATS');
       expect(ScanFormat.onlyQrCode.wireName, 'ONLY_QR_CODE');
@@ -43,8 +42,7 @@ void main() {
     testWidgets('says so on a platform with no embedded view', (
       WidgetTester tester,
     ) async {
-      // Reset inside the body: the framework checks foundation debug flags
-      // before tearDowns run.
+      // Reset in the body: debug flags are checked before tearDowns run.
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
 
       await tester.pumpWidget(

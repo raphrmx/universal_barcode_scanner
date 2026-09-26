@@ -256,7 +256,6 @@ public class UniversalBarcodeScannerPlugin implements MethodCallHandler, Activit
         this.applicationContext = applicationContext;
         channel = new MethodChannel(messenger, CHANNEL);
         channel.setMethodCallHandler(this);
-        // V2 embedding setup for activity listeners.
         activityBinding.addActivityResultListener(this);
         lifecycle = FlutterLifecycleAdapter.getActivityLifecycle(activityBinding);
         observer = new LifeCycleObserver(activity);

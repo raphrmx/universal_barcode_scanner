@@ -10,9 +10,7 @@ const double _barHeight = 56;
 
 /// The page the scanner fills: an optional bar above the camera.
 ///
-/// This is what a `Scaffold` was doing, drawn with `widgets.dart` alone so the
-/// package imposes neither Material nor any other design system on the app
-/// that embeds it.
+/// Built from `widgets.dart` alone: no Material, no Cupertino.
 class ScannerChrome extends StatelessWidget {
   /// Creates the page around [body].
   const ScannerChrome({
@@ -74,6 +72,9 @@ class _ScannerBar extends StatelessWidget {
               color: foreground,
               fontSize: 20,
               fontWeight: FontWeight.w500,
+              // Without a Material ancestor the ambient style is Flutter's
+              // fallback, which underlines in yellow.
+              decoration: TextDecoration.none,
             ),
             overflow: TextOverflow.ellipsis,
           );
@@ -103,8 +104,7 @@ class _ScannerBar extends StatelessWidget {
   }
 }
 
-/// A tappable square holding the back icon, in place of Material's
-/// `IconButton`. There is no ripple: drawing one would mean a design system.
+/// A tappable square holding the back icon. No ink ripple.
 class _BackButton extends StatelessWidget {
   const _BackButton({required this.onPressed, this.icon});
 

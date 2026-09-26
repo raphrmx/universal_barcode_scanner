@@ -63,20 +63,36 @@
     @media (prefers-reduced-motion: reduce) {
       #ubs-scan-line { animation: none; top: calc(50% - 1px); }
     }
+
+    /* Shown when the camera never starts. Without it the page is a black
+       rectangle and the reason is only in the console. */
+    #ubs-message {
+      display: none;
+      max-width: 34ch;
+      margin: 0 auto;
+      padding: 0 24px;
+      color: #e8e8ea;
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+    }
+    #ubs-message.shown { display: block; }
+    #ubs-message b { display: block; margin-bottom: 6px; font-size: 16px; }
+    #ubs-message span { color: #9aa0a8; }
   </style>
   <script src="html5-qrcode.min.js"></script>
 </head>
 <body>
 <div id="reader"></div>
+<p id="ubs-message"></p>
 <script>
   // refer doc here https://github.com/mebjas/html5-qrcode
 
-  // Desktop hosts register a JavaScript channel under this name. On the web
-  // the page runs in an iframe instead and answers its parent.
+  // Desktop hosts register a JavaScript channel under this name; on the web
+  // the page answers its parent.
   var CHANNEL = 'UniversalBarcodeScanner';
+  var message = document.getElementById('ubs-message');
   var SHADED_REGION_ID = 'qr-shaded-region';
-  // The library refuses anything under 50px; staying above it keeps the box
-  // usable on the smallest viewports.
+  // The library refuses anything under 50px.
   var MIN_QR_BOX = 60;
 
   var reader = document.getElementById('reader');
@@ -87,15 +103,12 @@
   var lastWidth = 0;
   var resizeTimer = null;
 
-  // No aspectRatio on purpose: forcing one makes the library size the video to
-  // a shape the host box does not have, which overflows and brings up
-  // scrollbars. Left out, it follows the camera's own ratio.
+  // No aspectRatio: forcing one overflows the host box. Left out, the video
+  // follows the camera's own ratio.
   var config = {
     fps: 30,
-    // Derived from the viewfinder rather than fixed. The library drops the
-    // shaded region entirely as soon as the box is taller than the video, and
-    // a fixed 280 is taller than the video on a narrow screen, which left the
-    // scanner with no square and no line at all.
+    // Derived from the viewfinder: the library drops the shaded region as soon
+    // as the box is taller than the video.
     qrbox: function (viewfinderWidth, viewfinderHeight) {
       var smallest = Math.min(viewfinderWidth, viewfinderHeight);
       var size = Math.max(MIN_QR_BOX, Math.floor(smallest * 0.7));
@@ -106,17 +119,15 @@
     }
   };
 
-  // The web host passes the colour in the query string, the desktop hosts call
-  // setScanLineColor once the page is up. Either way it lands on the same
-  // custom property.
+  // The web host passes the colour in the query string, the desktop hosts
+  // call this once the page is up.
   function setScanLineColor(css) {
     if (css) {
       document.documentElement.style.setProperty('--ubs-line-color', css);
     }
   }
 
-  // Same path for the colour behind the camera, so the page can sit in a light
-  // application instead of always being black.
+  // Same for the colour behind the camera.
   function setBackgroundColor(css) {
     if (css) {
       document.documentElement.style.setProperty('--ubs-background', css);
@@ -124,7 +135,7 @@
   }
 
   // Hangs the sweeping line inside the library's own scan region, so it tracks
-  // the box even when the library shrinks it to fit the video.
+  // the box when the library shrinks it.
   function addScanLine() {
     var region = document.getElementById(SHADED_REGION_ID);
     if (!region) {
@@ -139,8 +150,8 @@
     return true;
   }
 
-  // The region is created while starting, but not always before the promise
-  // settles, hence the short retry rather than a single attempt.
+  // The region is not always created before the promise settles, hence the
+  // retry.
   function installScanLine() {
     var attempts = 0;
     var timer = setInterval(function () {
@@ -148,6 +159,51 @@
         clearInterval(timer);
       }
     }, 50);
+  }
+
+  /// What went wrong, in words, rather than a black rectangle.
+  function showMessage(error) {
+    if (!message) {
+      return;
+    }
+    var name = (error && (error.name || error.code)) || '';
+    var text = String((error && error.message) || error || '');
+    var title;
+    var detail;
+
+    if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
+      title = 'Camera blocked';
+      detail = 'The page needs permission to use the camera. Allow it in the '
+        + 'address bar, then reload.';
+    } else if (name === 'NotFoundError' || /no camera|not found/i.test(text)) {
+      title = 'No camera found';
+      detail = 'This device has no camera the browser can open. Try it on a '
+        + 'phone.';
+    } else if (name === 'NotReadableError' || /in use|busy/i.test(text)) {
+      title = 'Camera busy';
+      detail = 'Another application is using it. Close that one and reload.';
+    } else if (!window.isSecureContext) {
+      title = 'Not a secure origin';
+      detail = 'A browser only opens the camera over HTTPS or on localhost.';
+    } else {
+      title = 'The camera did not start';
+      detail = text || 'No reason was given.';
+    }
+
+    message.innerHTML = '';
+    var strong = document.createElement('b');
+    strong.textContent = title;
+    var span = document.createElement('span');
+    span.textContent = detail;
+    message.appendChild(strong);
+    message.appendChild(span);
+    message.className = 'shown';
+  }
+
+  function hideMessage() {
+    if (message) {
+      message.className = '';
+    }
   }
 
   function startScanner() {
@@ -159,18 +215,18 @@
     scanner.start({ facingMode: 'environment' }, config, deliver).then(
       function () {
         busy = false;
+        hideMessage();
         installScanLine();
       },
-      function () {
+      function (error) {
         busy = false;
+        showMessage(error);
       }
     );
   }
 
-  // The library measures its container once, when starting, and sizes both the
-  // video and the shading overlay from it. It never measures again, so a
-  // resized window leaves the two frozen on stale geometry, at different sizes
-  // and offsets. Stopping and starting again is the only way to re-measure.
+  // The library measures its container only when starting, so a resized
+  // window leaves the video and the overlay on stale geometry.
   function restartScanner() {
     if (closed || delivered || busy) {
       return;
@@ -185,9 +241,8 @@
     }).then(resume, resume);
   }
 
-  // The desktop hosts keep this page loaded between two scans rather than
-  // paying for the engine, the script and the camera again. Both stopping and
-  // delivering latch the page shut, so reopening has to lift both latches.
+  // The desktop hosts keep this page loaded between two scans. Stopping and
+  // delivering both latch the page shut, so reopening lifts both latches.
   function resumeScanner() {
     closed = false;
     delivered = false;
@@ -206,8 +261,8 @@
       && typeof window[CHANNEL].postMessage === 'function';
   }
 
-  // Called by the desktop hosts before the scanner goes away, so the camera is
-  // released rather than left running.
+  // Called by the desktop hosts before the scanner goes away, to release the
+  // camera.
   function stopScanner() {
     closed = true;
     clearTimeout(resizeTimer);
@@ -230,8 +285,8 @@
       return;
     }
 
-    // The host page is on our own origin, and naming it keeps the code from
-    // reaching a parent on another one.
+    // Naming the origin keeps the message from reaching a parent on another
+    // one.
     window.parent.postMessage(decodedText, window.location.origin);
   }
 
@@ -240,8 +295,8 @@
     new URLSearchParams(window.location.search).get('background'));
   startScanner();
 
-  // Debounced, and ignoring the sub-pixel noise: dragging a window edge fires
-  // continuously, and every restart tears the camera down and back up.
+  // Debounced, and ignoring sub-pixel noise: every restart tears the camera
+  // down and back up.
   function onContainerResized() {
     if (Math.abs(reader.clientWidth - lastWidth) < 4) {
       return;
@@ -250,10 +305,8 @@
     resizeTimer = setTimeout(restartScanner, 250);
   }
 
-  // Two triggers on purpose. The observer catches a container that changes
-  // without the window doing so, a host panel being dragged for instance, and
-  // the window event covers the webviews where observing an element is
-  // unreliable.
+  // The observer catches a container resized without the window; the window
+  // event covers the webviews where observing an element is unreliable.
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(onContainerResized).observe(reader);
   }

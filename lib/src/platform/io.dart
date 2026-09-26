@@ -164,8 +164,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     }
 
     if (!_hasNativeScanner) {
-      // Reaching the method channel here would only raise a
-      // MissingPluginException, which says nothing useful.
+      // The method channel would only raise a MissingPluginException here.
       return ColoredBox(
         color: widget.backgroundColor ?? const Color(0xFF000000),
         child: Center(
@@ -186,8 +185,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 }
 
 /// Shown for the moment between this route appearing and the native scanner
-/// covering it. Drawn here rather than taken from a design system, so the
-/// package stays on `widgets.dart`.
+/// covering it.
 class _Spinner extends StatefulWidget {
   const _Spinner();
 

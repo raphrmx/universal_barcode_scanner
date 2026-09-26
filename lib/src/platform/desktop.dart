@@ -124,8 +124,7 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
       _shared = true;
       _keptInUse = true;
       _keptListener = _onCode;
-      // The page is still loaded, so `onPageFinished` will not fire again:
-      // everything it would have done is done here instead.
+      // `onPageFinished` does not fire again on a page that is still loaded.
       _applyColours();
       _controller.runJavaScript('resumeScanner()');
       return;
@@ -134,8 +133,7 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
     _controller = WebViewController(onPermissionRequest: _onPermissionRequest)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(_channelName, onMessageReceived: _onMessage)
-      // The page is loaded from a file, so there is no query string to carry
-      // the colour the way the web host does. It is set once the page is up.
+      // A file URL carries no query string, so the colour is set once loaded.
       ..setNavigationDelegate(
         NavigationDelegate(onPageFinished: (String _) => _applyColours()),
       )
@@ -151,18 +149,14 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
 
   @override
   void dispose() {
-    // Releases the camera even when the route is left without going through
-    // the app bar, a system gesture for instance.
     _controller.runJavaScript('stopScanner()');
     if (_shared) {
       _keptListener = null;
       _keptInUse = false;
       _keptRelease?.cancel();
       _keptRelease = Timer(_idleBeforeRelease, () {
-        // `webview_all` exposes no way to dispose a controller, so dropping the
-        // reference is all the host can do. Loading a blank page first at least
-        // lets go of the scanner page and its script rather than leaving them
-        // resident until the platform decides otherwise.
+        // `webview_all` cannot dispose a controller, so the page is blanked and
+        // the reference dropped.
         _kept?.loadHtmlString('<!doctype html><title>.</title>');
         _kept = null;
         _keptRelease = null;
@@ -219,10 +213,8 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
       onClose: _close,
       body: Stack(
         children: <Widget>[
-          // Fills the space it is given. The framing is the page's job: sizing
-          // the view to a box the page did not lay out for stretches its whole
-          // overlay, since the library derives every dimension from the width
-          // it measured itself.
+          // The page sizes its overlay from the width it measures itself, so
+          // the view is scaled and never resized.
           Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),

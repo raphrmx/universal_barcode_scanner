@@ -12,7 +12,6 @@ public class ParamData {
     private final Integer scannerWidth;
     private final Integer scannerHeight;
 
-    // Constructor
     public ParamData(String key, Integer scanType, Integer cameraFace, Long delayMillis, Boolean continuous, Integer scannerWidth, Integer scannerHeight) {
         this.key = key;
         this.scanType = scanType;
@@ -23,7 +22,6 @@ public class ParamData {
         this.scannerHeight = scannerHeight;
     }
 
-    // Getters
     public String getKey() {
         return key;
     }
@@ -52,7 +50,6 @@ public class ParamData {
         return scannerHeight;
     }
 
-    // Method to create an instance from a Map
     public static ParamData fromMap(Map<String, Object> map) {
         String key = (String) map.get("key");
         Integer scanType = (Integer) map.get("scanType");

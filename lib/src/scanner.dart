@@ -121,8 +121,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
               barcodeAppBar: barcodeAppBar,
               scanDelay: scanDelay,
               flip: flip,
-              // Android and iOS answer '-1' when the user backs out. That
-              // sentinel has no business reaching the caller.
+              // Android and iOS answer '-1' when the user backs out.
               onScanned: (String code) => Navigator.pop(
                 context,
                 code == kNoResultValue || code.isEmpty ? null : code,
@@ -186,8 +185,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
                 ),
           ),
         )
-        // Closing on the route's own future covers every way out, including
-        // the ones that never reach onClose.
+        // Covers the ways out that never reach onClose.
         .whenComplete(codes.close);
 
     return codes.stream;

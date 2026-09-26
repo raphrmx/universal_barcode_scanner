@@ -88,8 +88,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
     _viewId =
         'universal_barcode_scanner_${DateTime.now().microsecondsSinceEpoch}';
-    // The colour rides in the query string: the page is same-origin but a
-    // cross-frame call is not, so this is the one hook available before load.
+    // No cross-frame call is possible before load, so the colour rides in the
+    // query string.
     _iframe = html.HTMLIFrameElement()
       ..src =
           '${ScannerAsset.webPath}'
@@ -114,9 +114,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   void _onMessage(html.MessageEvent event) {
-    // The scanner page is served from our own origin, so anything posted from
-    // elsewhere - another embedded frame, a browser extension - is not ours and
-    // must not be taken for a scan.
+    // The scanner page is same-origin: a message from anywhere else is not a
+    // scan.
     if (event.origin != html.window.location.origin) return;
     if (_barcode != null) return;
 
@@ -143,10 +142,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
       onClose: () => Navigator.pop(context),
       body: Stack(
         children: <Widget>[
-          // Fills the space it is given. The framing is the page's job: sizing
-          // the view to a box the page did not lay out for stretches its whole
-          // overlay, since the library derives every dimension from the width
-          // it measured itself.
+          // The page sizes its overlay from the width it measures itself, so
+          // the view is scaled and never resized.
           Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),
