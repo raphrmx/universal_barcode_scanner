@@ -1,5 +1,16 @@
 # Universal Barcode Scanner Versions
 
+## 1.6.3
+
+### Changed
+
+- The README carries its build badge again, pointed at the branch the repository
+  actually builds from.
+- The example test looked for a card the list had never built. It asked for a
+  title the rewritten example no longer uses, and the third card sits below the
+  fold of the test window, where a `ListView` does not build it. The test
+  scrolls to it now.
+
 ## 1.6.2
 
 ### Changed
