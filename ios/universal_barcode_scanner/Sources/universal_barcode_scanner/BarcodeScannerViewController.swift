@@ -5,7 +5,8 @@ import UIKit
 ///
 /// Swift Package Manager puts a target's resources in `Bundle.module`, while
 /// CocoaPods leaves them alongside the class. Asking for the bundle instead of
-/// naming one keeps both builds working.
+/// naming one keeps both builds working. The files carry a `ubs_` prefix: a
+/// static CocoaPods build copies them flat into the app, next to its own.
 var resourceBundle: Bundle {
   #if SWIFT_PACKAGE
     return Bundle.module
@@ -21,7 +22,8 @@ var resourceBundle: Bundle {
 final class BarcodeScannerViewController: UIViewController {
   /// Called with each code worth reporting. A single scan calls it once.
   var onCode: ((String) -> Void)?
-  /// Called when the user leaves without a code.
+  /// Called when the user leaves without a code, or the scanner was taken
+  /// off the screen by someone else.
   var onCancel: (() -> Void)?
   /// Called with an error code and a message when the camera cannot be used.
   var onError: ((String, String) -> Void)?
@@ -38,7 +40,6 @@ final class BarcodeScannerViewController: UIViewController {
 
   private var ready = false
   private var finished = false
-  private var torchOn = false
 
   private static let barHeight: CGFloat = 72
 
@@ -76,7 +77,9 @@ final class BarcodeScannerViewController: UIViewController {
 
     setUpBar()
 
-    camera.onCode = { [weak self] code in self?.handle(code) }
+    camera.onCodes = { [weak self] codes in self?.handle(codes) }
+    camera.onRunning = { [weak self] in self?.updateRectOfInterest() }
+    camera.onInterrupted = { [weak self] in self?.refreshButtons() }
     camera.configure(position: options.position) { [weak self] ready in
       guard let self = self else { return }
       guard ready else {
@@ -87,7 +90,6 @@ final class BarcodeScannerViewController: UIViewController {
       self.refreshButtons()
       self.view.setNeedsLayout()
       if self.view.window != nil { self.camera.start() }
-      self.updateRectOfInterest()
     }
   }
 
@@ -98,8 +100,32 @@ final class BarcodeScannerViewController: UIViewController {
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
-    if torchOn { torchOn = camera.setTorch(false) }
+    if camera.torchIsOn { camera.setTorch(false) }
     camera.stop()
+  }
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    // Dismissed by something other than the plugin: Dart still has to hear
+    // that the scan is over.
+    if isBeingDismissed && !finished {
+      finished = true
+      onCancel?()
+    }
+  }
+
+  override func viewWillTransition(
+    to size: CGSize,
+    with coordinator: UIViewControllerTransitionCoordinator
+  ) {
+    super.viewWillTransition(to: size, with: coordinator)
+    // A half turn keeps the same bounds and so triggers no layout pass, but
+    // the capture orientation still has to follow.
+    coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+      self?.view.setNeedsLayout()
+      self?.view.layoutIfNeeded()
+      self?.applyOrientation()
+    }
   }
 
   override func viewDidLayoutSubviews() {
@@ -110,10 +136,8 @@ final class BarcodeScannerViewController: UIViewController {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     previewLayer.frame = bounds
-    if let connection = previewLayer.connection, connection.isVideoOrientationSupported {
-      connection.videoOrientation = ScannerCamera.videoOrientation(for: view)
-    }
     CATransaction.commit()
+    applyOrientation()
 
     overlay.frame = bounds
     overlay.bottomInset = barHeight
@@ -131,9 +155,13 @@ final class BarcodeScannerViewController: UIViewController {
       width: cancelWidth,
       height: 48
     )
+  }
 
-    // The preview's geometry changed with the rotation: the window has to be
-    // converted again even where it kept its place on screen.
+  /// Turns the preview with the interface, then converts the window again.
+  private func applyOrientation() {
+    if let connection = previewLayer.connection, connection.isVideoOrientationSupported {
+      connection.videoOrientation = ScannerCamera.videoOrientation(for: view)
+    }
     updateRectOfInterest()
   }
 
@@ -144,17 +172,18 @@ final class BarcodeScannerViewController: UIViewController {
     cancelButton.setTitle(options.cancelButtonText, for: .normal)
     cancelButton.setTitleColor(.white, for: .normal)
     cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
+    cancelButton.titleLabel?.lineBreakMode = .byTruncatingTail
     cancelButton.contentHorizontalAlignment = .right
     cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
     bar.addSubview(cancelButton)
 
-    flashButton.setImage(icon("ic_flash_off"), for: .normal)
+    flashButton.setImage(icon("ubs_ic_flash_off"), for: .normal)
     flashButton.accessibilityLabel = "Torch"
     flashButton.addTarget(self, action: #selector(flashTapped), for: .touchUpInside)
     flashButton.isHidden = true
     bar.addSubview(flashButton)
 
-    switchButton.setImage(icon("ic_switch_camera"), for: .normal)
+    switchButton.setImage(icon("ubs_ic_switch_camera"), for: .normal)
     switchButton.accessibilityLabel = "Switch camera"
     switchButton.addTarget(self, action: #selector(switchTapped), for: .touchUpInside)
     switchButton.isHidden = true
@@ -165,9 +194,14 @@ final class BarcodeScannerViewController: UIViewController {
     return UIImage(named: name, in: resourceBundle, compatibleWith: nil)
   }
 
+  /// Shows the torch as the camera has it, which an interruption changes
+  /// behind the app's back.
   private func refreshButtons() {
+    let on = camera.torchIsOn
     flashButton.isHidden = !(options.showFlashIcon && camera.hasTorch)
-    flashButton.setImage(icon(torchOn ? "ic_flash_on" : "ic_flash_off"), for: .normal)
+    flashButton.setImage(icon(on ? "ubs_ic_flash_on" : "ubs_ic_flash_off"), for: .normal)
+    // Read out as selected when on.
+    flashButton.isSelected = on
     switchButton.isHidden = !camera.canSwitch
   }
 
@@ -177,12 +211,17 @@ final class BarcodeScannerViewController: UIViewController {
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 
-  private func handle(_ code: String) {
+  private func handle(_ codes: [String]) {
     guard !finished else { return }
     if options.continuous {
-      if gate.accept(code) { onCode?(code) }
+      // Every code of the frame goes through the gate, which follows each
+      // one on its own.
+      for code in codes where gate.accept(code) {
+        onCode?(code)
+      }
       return
     }
+    guard let code = codes.first else { return }
     finished = true
     camera.stop()
     onCode?(code)
@@ -194,6 +233,13 @@ final class BarcodeScannerViewController: UIViewController {
     onError?(code, message)
   }
 
+  /// Called by the plugin when it closes the scanner, so that its own
+  /// dismissal is not taken for someone else's.
+  func markFinished() {
+    finished = true
+    camera.stop()
+  }
+
   @objc private func cancelTapped() {
     guard !finished else { return }
     finished = true
@@ -202,16 +248,18 @@ final class BarcodeScannerViewController: UIViewController {
   }
 
   @objc private func flashTapped() {
-    torchOn = camera.setTorch(!torchOn)
+    camera.setTorch(!camera.torchIsOn)
     refreshButtons()
   }
 
   @objc private func switchTapped() {
+    // Both, since a switch replaces the device the torch belongs to.
     switchButton.isEnabled = false
+    flashButton.isEnabled = false
     camera.switchCamera { [weak self] _ in
       guard let self = self else { return }
       self.switchButton.isEnabled = true
-      self.torchOn = false
+      self.flashButton.isEnabled = true
       self.refreshButtons()
       self.updateRectOfInterest()
     }

@@ -232,7 +232,9 @@ class UniversalBarcodeScanner extends StatelessWidget {
     if (route.isCurrent) {
       navigator.pop<T>(result);
     } else {
-      navigator.removeRoute(route);
+      // With the result: a code read while another route sat on top of the
+      // scanner still reaches the caller.
+      navigator.removeRoute<T>(route, result);
     }
   }
 

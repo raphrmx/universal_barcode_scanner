@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
+import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
@@ -46,17 +47,40 @@ Future<void> _on(TargetPlatform platform, Future<void> Function() body) async {
   }
 }
 
+/// Lets events sent to the event channel reach the stream. The channel hands
+/// them on outside the test's fake time, so a moment of real time is needed
+/// before the frames that react to them.
+Future<void> _deliver(WidgetTester tester) async {
+  await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  await _frames(tester);
+}
+
+int _sessionOf(MethodCall call) =>
+    (call.arguments as Map<Object?, Object?>)['session']! as int;
+
 void main() {
   late List<MethodCall> calls;
   late Future<Object?> Function(MethodCall call) answer;
 
+  /// The event sink of the current continuous scan, once Dart listens.
+  MockStreamHandlerEventSink? sink;
+
   setUp(() {
     calls = <MethodCall>[];
+    sink = null;
     answer = (MethodCall call) async => null;
     _messenger.setMockMethodCallHandler(_channel, (MethodCall call) {
       calls.add(call);
       return answer(call);
     });
+    _messenger.setMockStreamHandler(
+      _events,
+      MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+          sink = events;
+        },
+      ),
+    );
   });
 
   tearDown(() {
@@ -111,8 +135,9 @@ void main() {
         continuous: true,
       );
       expect(
-        config.toPage(background: const Color(0xFFFFFFFF)),
+        config.toPage(host: 'desktop', background: const Color(0xFFFFFFFF)),
         <String, String>{
+          'host': 'desktop',
           'line': '#112233',
           'background': '#FFFFFF',
           'continuous': '1',
@@ -122,12 +147,36 @@ void main() {
           'formats': 'barcode',
         },
       );
-      expect(const ScannerConfig().toPage()['window'], 'wide');
       expect(
-        const ScannerConfig(scanType: ScanType.qr).toPage()['window'],
+        const ScannerConfig(
+          scanType: ScanType.qr,
+        ).toPage(host: 'web')['window'],
         'square',
       );
-      expect(const ScannerConfig().toPage().containsKey('background'), false);
+    });
+
+    // The desktop page is kept between two scans: a background left out
+    // would keep the previous scan's.
+    test('the page always gets a background', () {
+      expect(
+        const ScannerConfig().toPage(host: 'web')['background'],
+        '#000000',
+      );
+    });
+
+    test('page messages are JSON, so no code reads as a command', () {
+      expect(
+        PageMessage.parse('{"code":"{\\"close\\":true}"}'),
+        isA<PageCode>().having(
+          (PageCode m) => m.code,
+          'code',
+          '{"close":true}',
+        ),
+      );
+      expect(PageMessage.parse('{"close":true}'), isA<PageClose>());
+      expect(PageMessage.parse('plain text'), isNull);
+      expect(PageMessage.parse('{"code":""}'), isNull);
+      expect(PageMessage.parse(42), isNull);
     });
   });
 
@@ -192,6 +241,7 @@ void main() {
             calls.single.arguments as Map<Object?, Object?>;
         expect(arguments['continuous'], false);
         expect(arguments['scanFormat'], 'ONLY_QR_CODE');
+        expect(arguments['session'], isA<int>());
         expect(find.text('home'), findsOneWidget);
       });
     });
@@ -242,7 +292,7 @@ void main() {
       });
     });
 
-    testWidgets('closes the native scanner when the app pops the route', (
+    testWidgets('closes the native scanner as soon as the route is popped', (
       WidgetTester tester,
     ) async {
       await _on(TargetPlatform.android, () async {
@@ -255,32 +305,62 @@ void main() {
         unawaited(UniversalBarcodeScanner.scan(home));
         await _frames(tester);
         Navigator.of(home).pop();
-        await _frames(tester);
+        // One frame: well before the exit transition has run.
+        await tester.pump();
 
         expect(calls.map((MethodCall call) => call.method), <String>[
           'scanBarcode',
           'close',
         ]);
+        // The close names the scan it means.
+        expect(_sessionOf(calls[1]), _sessionOf(calls[0]));
+        await _frames(tester);
+      });
+    });
+
+    testWidgets('keeps a code read while another route covers the scanner', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        final Completer<Object?> read = Completer<Object?>();
+        answer = (MethodCall call) => call.method == 'scanBarcode'
+            ? read.future
+            : Future<Object?>.value();
+        final BuildContext home = await pumpHome(tester);
+
+        String? code;
+        unawaited(
+          UniversalBarcodeScanner.scan(
+            home,
+          ).then((String? value) => code = value),
+        );
+        await _frames(tester);
+        Navigator.of(
+          home,
+        ).push(MaterialPageRoute<void>(builder: (_) => const Text('on top')));
+        await _frames(tester);
+
+        read.complete('behind');
+        await _frames(tester);
+
+        expect(code, 'behind');
+        expect(find.text('on top'), findsOneWidget);
       });
     });
   });
 
   group('stream', () {
+    // Events are sent from the test body once the scan has asked for them:
+    // sent from inside a mock handler, they are delivered outside the test's
+    // fake time and only after it ends.
+    int openedSession() => _sessionOf(
+      calls.firstWhere((MethodCall call) => call.method == 'scanBarcode'),
+    );
+
     testWidgets('emits every code, then closes with the scanner', (
       WidgetTester tester,
     ) async {
       await _on(TargetPlatform.android, () async {
-        _messenger.setMockStreamHandler(
-          _events,
-          MockStreamHandler.inline(
-            onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
-              sink
-                ..success('A')
-                ..success('B')
-                ..success(<String, String>{'event': 'closed'});
-            },
-          ),
-        );
         final BuildContext home = await pumpHome(tester);
 
         final List<String> codes = <String>[];
@@ -290,6 +370,19 @@ void main() {
           scanDelay: const Duration(seconds: 1),
         ).listen(codes.add, onDone: () => done = true);
         await _frames(tester);
+
+        final int session = openedSession();
+        sink!
+          ..success(<String, Object?>{'session': session, 'code': 'A'})
+          // Another scan's leftovers are not this one's.
+          ..success(<String, Object?>{'session': session + 99, 'code': 'X'})
+          ..success(<String, Object?>{
+            'session': session + 99,
+            'event': 'closed',
+          })
+          ..success(<String, Object?>{'session': session, 'code': 'B'})
+          ..success(<String, Object?>{'session': session, 'event': 'closed'});
+        await _deliver(tester);
 
         expect(codes, <String>['A', 'B']);
         expect(done, true);
@@ -305,16 +398,6 @@ void main() {
       WidgetTester tester,
     ) async {
       await _on(TargetPlatform.iOS, () async {
-        _messenger.setMockStreamHandler(
-          _events,
-          MockStreamHandler.inline(
-            onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
-              sink
-                ..success('first')
-                ..success('second');
-            },
-          ),
-        );
         final BuildContext home = await pumpHome(tester);
 
         String? code;
@@ -325,22 +408,23 @@ void main() {
         );
         await _frames(tester);
 
+        final int session = openedSession();
+        sink!
+          ..success(<String, Object?>{'session': session, 'code': 'first'})
+          ..success(<String, Object?>{'session': session, 'code': 'second'});
+        await _deliver(tester);
+
         expect(code, 'first');
-        expect(calls.map((MethodCall call) => call.method), contains('close'));
+        final MethodCall close = calls.firstWhere(
+          (MethodCall call) => call.method == 'close',
+        );
+        expect(_sessionOf(close), session);
         expect(find.text('home'), findsOneWidget);
       });
     });
 
     testWidgets('emits a failure, then closes', (WidgetTester tester) async {
       await _on(TargetPlatform.android, () async {
-        _messenger.setMockStreamHandler(
-          _events,
-          MockStreamHandler.inline(
-            onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
-              sink.error(code: 'camera_unavailable', message: 'gone');
-            },
-          ),
-        );
         final BuildContext home = await pumpHome(tester);
 
         final List<Object> errors = <Object>[];
@@ -350,14 +434,42 @@ void main() {
         ).listen((_) {}, onError: errors.add, onDone: () => done = true);
         await _frames(tester);
 
+        final int session = openedSession();
+        sink!
+          // Meant for another scan: ignored.
+          ..error(code: 'camera_unavailable', details: session + 99)
+          ..error(
+            code: 'camera_unavailable',
+            message: 'gone',
+            details: session,
+          );
+        await _deliver(tester);
+
         expect(errors.single, isA<ScannerException>());
-        expect(
-          (errors.single as ScannerException).code,
-          ScannerErrorCode.cameraUnavailable,
-        );
+        expect((errors.single as ScannerException).message, 'gone');
         expect(done, true);
         expect(find.text('home'), findsOneWidget);
       });
+    });
+  });
+
+  group('ScannerChrome', () {
+    testWidgets('offers a way out when there is no bar', (
+      WidgetTester tester,
+    ) async {
+      bool closed = false;
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ScannerChrome(
+            body: const SizedBox.expand(),
+            onClose: () => closed = true,
+          ),
+        ),
+      );
+
+      await tester.tap(find.bySemanticsLabel('Close'));
+      expect(closed, true);
     });
   });
 
@@ -382,24 +494,40 @@ void main() {
   });
 
   group('BarcodeViewController', () {
+    Future<void> send(int id, String method, Object? arguments) =>
+        _messenger.handlePlatformMessage(
+          'universal_barcode_scanner/view_$id',
+          const StandardMethodCodec().encodeMethodCall(
+            MethodCall(method, arguments),
+          ),
+          (ByteData? _) {},
+        );
+
     test('turns an error from the view into a ScannerException', () async {
       final BarcodeViewController controller = BarcodeViewController.data(7);
       ScannerException? received;
       controller.onError = (ScannerException error) => received = error;
 
-      await _messenger.handlePlatformMessage(
-        'universal_barcode_scanner/view_7',
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('onError', <String, String>{
-            'code': 'camera_permission_denied',
-            'message': 'refused',
-          }),
-        ),
-        (ByteData? _) {},
-      );
+      await send(7, 'onError', <String, String>{
+        'code': 'camera_permission_denied',
+        'message': 'refused',
+      });
 
       expect(received?.code, ScannerErrorCode.permissionDenied);
       expect(received?.message, 'refused');
+      controller.dispose();
+    });
+
+    test('hands on codes until it is disposed', () async {
+      final BarcodeViewController controller = BarcodeViewController.data(8);
+      final List<String> codes = <String>[];
+      controller.onScanned = codes.add;
+
+      await send(8, 'onBarcodeDetected', 'before');
+      controller.dispose();
+      await send(8, 'onBarcodeDetected', 'after');
+
+      expect(codes, <String>['before']);
     });
   });
 }

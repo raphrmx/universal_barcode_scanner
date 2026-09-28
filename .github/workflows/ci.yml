@@ -116,10 +116,49 @@ jobs:
         run: ${{ matrix.command }}
         working-directory: example
 
-      # Compiling is not enough on Android: lint refuses things javac accepts,
-      # such as an opt-in API used without opting in. The wrapper is written by
-      # the build above.
-      - name: Lint the Android plugin
+      # Compiling is not enough on Android: lint refuses things the compiler
+      # accepts, such as an opt-in API used without opting in. The wrapper is
+      # written by the build above. The unit tests run in the same Gradle call.
+      - name: Lint and test the Android plugin
         if: matrix.target == 'android'
-        run: chmod +x gradlew && ./gradlew :universal_barcode_scanner:lintDebug
+        run: >-
+          chmod +x gradlew &&
+          ./gradlew :universal_barcode_scanner:lintDebug
+          :universal_barcode_scanner:testDebugUnitTest
         working-directory: example/android
+
+  # The example was created by an older Flutter and still builds with AGP 8.
+  # An app created today gets AGP 9, where the plugin compiles with the
+  # built-in Kotlin support instead of applying the Kotlin plugin, and where
+  # checks the example never meets apply, such as a module's compileSdk
+  # against its dependencies'. This job is that new app.
+  new-app:
+    name: build android (new app, built-in Kotlin)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Create an app that uses the plugin
+        run: |
+          flutter create --platforms=android new_app
+          cd new_app
+          flutter pub add universal_barcode_scanner --path ../plugin
+          # The template may still opt out of built-in Kotlin: opt back in.
+          sed -i '/^android.builtInKotlin=/d' android/gradle.properties
+          echo 'android.builtInKotlin=true' >> android/gradle.properties
+
+      - name: Build
+        run: flutter build apk --debug
+        working-directory: new_app

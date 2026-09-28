@@ -70,11 +70,19 @@ class BarcodeScannerPage extends StatefulWidget {
 }
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+  /// Tags every call and event of this page's scan, so that a late close or
+  /// event from it never reaches the next scanner.
+  final int _session = NativeScanner.newSession();
+
   StreamSubscription<String>? _codes;
+  ModalRoute<Object?>? _route;
 
   /// Whether the native scanner has answered for good, so there is nothing
   /// left to close.
   bool _settled = false;
+
+  /// Whether the page has let the native scanner go.
+  bool _stopped = false;
 
   @override
   void initState() {
@@ -87,22 +95,41 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ModalRoute<Object?>? route = ModalRoute.of(context);
+    if (route != null && !identical(route, _route)) {
+      _route = route;
+      // The moment the route is popped or removed, not once its exit
+      // transition has run: a scan opened right after this one would find
+      // the native scanner still up.
+      unawaited(route.popped.then((_) => _stop()));
+    }
+  }
+
+  @override
   void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  /// Closes the native scanner unless it already answered.
+  void _stop() {
+    if (_stopped) return;
+    _stopped = true;
     // Cancelling the stream closes the native scanner.
     final Future<void>? cancelling = _codes?.cancel();
     if (cancelling != null) {
       unawaited(cancelling);
     } else if (_hasNativeScanner && !_settled) {
-      // The route went away under an open scanner.
-      unawaited(NativeScanner.close());
+      unawaited(NativeScanner.close(_session));
     }
-    super.dispose();
   }
 
   void _start() {
-    if (!mounted) return;
+    if (!mounted || _stopped) return;
     if (widget.config.continuous) {
-      _codes = NativeScanner.stream(widget.config).listen(
+      _codes = NativeScanner.stream(widget.config, session: _session).listen(
         widget.onScanned,
         onError: (Object error) => _fail(ScannerException.from(error)),
         onDone: () {
@@ -117,9 +144,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
   Future<void> _scanOnce() async {
     try {
-      final String? code = await NativeScanner.scan(widget.config);
+      final String? code = await NativeScanner.scan(
+        widget.config,
+        session: _session,
+      );
       _settled = true;
-      if (!mounted) return;
+      if (!mounted || _stopped) return;
       if (code == null) {
         widget.onClose();
       } else {
@@ -132,7 +162,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   void _fail(ScannerException error) {
-    if (!mounted) return;
+    if (!mounted || _stopped) return;
     final ValueChanged<ScannerException>? onError = widget.onError;
     if (onError == null) {
       widget.onClose();
@@ -220,7 +250,11 @@ class _Arc extends CustomPainter {
 }
 
 /// Embedded scanner view for Android and iOS.
-class BarcodeScannerView extends StatelessWidget {
+///
+/// What to scan is read once, when the platform view is created: give the
+/// widget a new key to apply a different configuration. The callbacks are
+/// always the current widget's.
+class BarcodeScannerView extends StatefulWidget {
   /// Creates the embedded view.
   const BarcodeScannerView({
     super.key,
@@ -254,19 +288,44 @@ class BarcodeScannerView extends StatelessWidget {
   /// Whether the preview is mirrored.
   final bool flip;
 
+  @override
+  State<BarcodeScannerView> createState() => _BarcodeScannerViewState();
+}
+
+class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   static const String _viewType = 'universal_barcode_scanner/view';
 
+  BarcodeViewController? _controller;
+
+  @override
+  void didUpdateWidget(BarcodeScannerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _controller
+      ?..onScanned = widget.onScanned
+      ..onError = widget.onError;
+  }
+
+  @override
+  void dispose() {
+    // A code or an error still in flight must not reach a widget that is
+    // gone.
+    _controller?.dispose();
+    super.dispose();
+  }
+
   Map<String, Object?> get _creationParams => <String, Object?>{
-    ...config.toNative(),
-    'scanWindowWidth': scanWindowSize?.width,
-    'scanWindowHeight': scanWindowSize?.height,
+    ...widget.config.toNative(),
+    'scanWindowWidth': widget.scanWindowSize?.width,
+    'scanWindowHeight': widget.scanWindowSize?.height,
   };
 
   void _onPlatformViewCreated(int id) {
+    if (!mounted) return;
     final BarcodeViewController controller = BarcodeViewController.data(id)
-      ..onScanned = onScanned
-      ..onError = onError;
-    onBarcodeViewCreated(controller);
+      ..onScanned = widget.onScanned
+      ..onError = widget.onError;
+    _controller = controller;
+    widget.onBarcodeViewCreated(controller);
   }
 
   @override
@@ -293,8 +352,8 @@ class BarcodeScannerView extends StatelessWidget {
         );
     }
 
-    final Widget? child = this.child;
-    final Widget camera = flip
+    final Widget? child = widget.child;
+    final Widget camera = widget.flip
         ? Transform(
             alignment: Alignment.center,
             transform: Matrix4.diagonal3Values(-1, 1, 1),

@@ -10,6 +10,8 @@ enum ScanError {
 
 /// The arguments the Dart side sends, parsed once.
 struct ScanOptions {
+  /// Tags every answer and event of this scan; see `NativeScanner`.
+  let session: Int
   let lineColor: UIColor
   let cancelButtonText: String
   let showFlashIcon: Bool
@@ -23,6 +25,7 @@ struct ScanOptions {
   let windowSize: CGSize?
 
   init(arguments: [String: Any]) {
+    session = ScanOptions.session(in: arguments)
     lineColor =
       UIColor(hex: arguments["lineColor"] as? String ?? "")
       ?? UIColor(red: 1, green: 0.4, blue: 0.4, alpha: 1)
@@ -44,6 +47,14 @@ struct ScanOptions {
     } else {
       windowSize = nil
     }
+  }
+
+  /// Marks a call that named no session.
+  static let noSession = -1
+
+  /// The session a channel call names, or `noSession`.
+  static func session(in arguments: [String: Any]) -> Int {
+    return (arguments["session"] as? NSNumber)?.intValue ?? noSession
   }
 
   /// Symbologies to read. Fewer is less work on every frame.
@@ -91,14 +102,21 @@ struct ScanOptions {
 /// Decides which of the codes read frame after frame are worth reporting.
 ///
 /// A code held in front of the camera is read on every frame. It is reported
-/// once, and again only after it has been out of sight for `sameCodeGap`. On
-/// top of that, no two codes are reported less than `delay` apart.
+/// once, and again only after it has been out of sight for `sameCodeGap`. Each
+/// code is followed on its own, so two codes in sight are each reported once
+/// rather than alternately. No two codes are reported less than `delay` apart;
+/// a code the delay held back goes out as soon as the delay allows, if it is
+/// still in sight.
 final class ReadGate {
   static let sameCodeGap: TimeInterval = 1.0
 
+  private struct Sighting {
+    var seen: TimeInterval
+    var reported: Bool
+  }
+
   private let delay: TimeInterval
-  private var lastValue: String?
-  private var lastSeen: TimeInterval = 0
+  private var sightings: [String: Sighting] = [:]
   private var lastEmit: TimeInterval?
 
   init(delay: TimeInterval) {
@@ -106,23 +124,26 @@ final class ReadGate {
   }
 
   func accept(_ value: String, now: TimeInterval = CACurrentMediaTime()) -> Bool {
-    if value == lastValue {
-      let held = now - lastSeen < ReadGate.sameCodeGap
-      lastSeen = now
-      if held { return false }
-    }
-    if let last = lastEmit, now - last < delay {
+    sightings = sightings.filter { now - $0.value.seen < ReadGate.sameCodeGap }
+    var sighting = sightings[value] ?? Sighting(seen: now, reported: false)
+    sighting.seen = now
+    if sighting.reported {
+      sightings[value] = sighting
       return false
     }
-    lastValue = value
-    lastSeen = now
+    if let last = lastEmit, now - last < delay {
+      sightings[value] = sighting
+      return false
+    }
+    sighting.reported = true
+    sightings[value] = sighting
     lastEmit = now
     return true
   }
 
-  /// Forgets the last code, so the same one is reported again.
+  /// Forgets every code, so the ones in sight are reported again.
   func reset() {
-    lastValue = nil
+    sightings.removeAll()
     lastEmit = nil
   }
 }

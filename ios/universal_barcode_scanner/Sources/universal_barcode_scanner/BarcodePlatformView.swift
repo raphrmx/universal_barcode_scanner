@@ -55,7 +55,7 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
 
   private var ready = false
   private var detecting = true
-  private var torchOn = false
+  private var orientationObserver: NSObjectProtocol?
 
   init(
     frame: CGRect,
@@ -97,7 +97,41 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
       self.onMethodCall(call, result: result)
     }
 
-    camera.onCode = { [weak self] code in self?.onCode(code) }
+    camera.onCodes = { [weak self] codes in self?.onCodes(codes) }
+    camera.onRunning = { [weak self] in self?.updateRectOfInterest() }
+
+    // A half turn keeps the same bounds and so triggers no layout pass, but
+    // the capture orientation still has to follow.
+    UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+    orientationObserver = NotificationCenter.default.addObserver(
+      forName: UIDevice.orientationDidChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      // After the interface has turned, which follows the device.
+      DispatchQueue.main.async { self?.layout() }
+    }
+
+    // On the next turn of the main loop: a refused or restricted permission
+    // answers at once, before Flutter has even received this view, and an
+    // error sent then would reach no listener.
+    DispatchQueue.main.async { [weak self] in self?.requestCamera() }
+  }
+
+  deinit {
+    if let observer = orientationObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    UIDevice.current.endGeneratingDeviceOrientationNotifications()
+    camera.stop()
+    channel.setMethodCallHandler(nil)
+  }
+
+  func view() -> UIView {
+    return container
+  }
+
+  private func requestCamera() {
     CameraAccess.request { [weak self] granted in
       guard let self = self else { return }
       guard granted else {
@@ -115,15 +149,6 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
         self.layout()
       }
     }
-  }
-
-  deinit {
-    camera.stop()
-    channel.setMethodCallHandler(nil)
-  }
-
-  func view() -> UIView {
-    return container
   }
 
   private func layout() {
@@ -144,10 +169,15 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 
-  private func onCode(_ code: String) {
-    guard detecting, gate.accept(code) else { return }
-    if !options.continuous { detecting = false }
-    channel.invokeMethod("onBarcodeDetected", arguments: code)
+  private func onCodes(_ codes: [String]) {
+    // Every code of the frame goes through the gate, which follows each one
+    // on its own.
+    for code in codes {
+      guard detecting else { return }
+      guard gate.accept(code) else { continue }
+      if !options.continuous { detecting = false }
+      channel.invokeMethod("onBarcodeDetected", arguments: code)
+    }
   }
 
   private func reportError(_ code: String, _ message: String) {
@@ -165,8 +195,9 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
       detecting = true
       result(nil)
     case "toggleFlash":
-      torchOn = camera.setTorch(!torchOn)
-      result(torchOn)
+      // From the camera's own state, which an interruption changes behind
+      // the app's back.
+      result(camera.setTorch(!camera.torchIsOn))
     default:
       result(FlutterMethodNotImplemented)
     }

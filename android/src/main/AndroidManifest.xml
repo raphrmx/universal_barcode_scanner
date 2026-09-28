@@ -6,8 +6,13 @@
         android:required="false" />
 
     <application>
+        <!-- Handles its own configuration changes: a rotation would otherwise
+             restart the camera, forget the lens and torch the user chose,
+             and report a code still in sight a second time. The preview
+             follows the display by itself. -->
         <activity
             android:name="be.comapps.universal_barcode_scanner.BarcodeCaptureActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
     </application>
 </manifest>

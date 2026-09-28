@@ -127,12 +127,14 @@
     delay: 0,
     facing: 'environment',
     formats: 'all',
-    window: 'square'
+    window: 'square',
+    host: 'web'
   };
   var stopped = true;
   var delivered = false;
-  var lastValue = null;
-  var lastSeen = 0;
+  // Every code in sight, by value: when it was last read and whether it has
+  // been reported since it came into view.
+  var sightings = {};
   var lastEmit = null;
   var lastWidth = 0;
   var resizeTimer = null;
@@ -221,18 +223,28 @@
     var title;
     var detail;
 
+    // A desktop webview has no address bar and nothing to reload: what the
+    // user can do there is change the system settings and reopen.
+    var desktop = settings.host === 'desktop';
     if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
       title = 'Camera blocked';
-      detail = 'The page needs permission to use the camera. Allow it in the '
-        + 'address bar, then reload.';
+      detail = desktop
+        ? 'Allow this application to use the camera in the system settings, '
+          + 'then open the scanner again.'
+        : 'The page needs permission to use the camera. Allow it in the '
+          + 'address bar, then reload.';
     } else if (name === 'NotFoundError' || /no camera|not found/i.test(text)) {
       title = 'No camera found';
-      detail = 'This device has no camera the browser can open. Try it on a '
-        + 'phone.';
+      detail = desktop
+        ? 'This computer has no camera the scanner can open.'
+        : 'This device has no camera the browser can open. Try it on a phone.';
     } else if (name === 'NotReadableError' || /in use|busy/i.test(text)) {
       title = 'Camera busy';
-      detail = 'Another application is using it. Close that one and reload.';
-    } else if (!window.isSecureContext) {
+      detail = desktop
+        ? 'Another application is using it. Close that one and open the '
+          + 'scanner again.'
+        : 'Another application is using it. Close that one and reload.';
+    } else if (!desktop && !window.isSecureContext) {
       title = 'Not a secure origin';
       detail = 'A browser only opens the camera over HTTPS or on localhost.';
     } else {
@@ -337,11 +349,11 @@
     settings.formats = FORMATS.hasOwnProperty(options.formats)
       ? options.formats : 'all';
     settings.window = options.window === 'wide' ? 'wide' : 'square';
+    settings.host = options.host === 'desktop' ? 'desktop' : 'web';
 
     stopped = false;
     delivered = false;
-    lastValue = null;
-    lastSeen = 0;
+    sightings = {};
     lastEmit = null;
     restartScanner();
   }
@@ -359,20 +371,28 @@
     enqueue(stopCamera);
   }
 
-  // Whether a code read on this frame is worth reporting.
+  // Whether a code read on this frame is worth reporting. Each code is
+  // followed on its own, so two codes in sight are each reported once rather
+  // than alternately. A code the delay held back stays unreported and goes
+  // out as soon as the delay allows, if it is still in sight.
   function accept(text, now) {
-    if (text === lastValue) {
-      var held = now - lastSeen < SAME_CODE_GAP_MS;
-      lastSeen = now;
-      if (held) {
-        return false;
+    for (var key in sightings) {
+      if (now - sightings[key].seen >= SAME_CODE_GAP_MS) {
+        delete sightings[key];
       }
+    }
+    var sighting = sightings[text];
+    if (!sighting) {
+      sighting = sightings[text] = { seen: now, reported: false };
+    }
+    sighting.seen = now;
+    if (sighting.reported) {
+      return false;
     }
     if (lastEmit !== null && now - lastEmit < settings.delay) {
       return false;
     }
-    lastValue = text;
-    lastSeen = now;
+    sighting.reported = true;
     lastEmit = now;
     return true;
   }
@@ -385,22 +405,33 @@
       delivered = true;
       enqueue(stopCamera);
     }
-    post(text);
+    post({ code: text });
   }
 
-  function post(text) {
+  // JSON rather than the bare code, so that no code reads as a command.
+  function post(message) {
+    var data = JSON.stringify(message);
     if (hasChannel()) {
-      window[CHANNEL].postMessage(text);
+      window[CHANNEL].postMessage(data);
       return;
     }
     // Naming the origin keeps the message from reaching a parent on another
     // one.
-    window.parent.postMessage(text, window.location.origin);
+    window.parent.postMessage(data, window.location.origin);
   }
+
+  // The page holds the keyboard, so Escape has to be caught here to reach
+  // the host.
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      post({ close: true });
+    }
+  });
 
   var query = new URLSearchParams(window.location.search);
   if (query.has('start')) {
     configure({
+      host: query.get('host'),
       line: query.get('line'),
       background: query.get('background'),
       continuous: query.get('continuous'),

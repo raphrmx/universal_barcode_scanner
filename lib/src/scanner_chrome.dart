@@ -36,19 +36,82 @@ class ScannerChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BarcodeAppBar? bar = this.bar;
-    return ColoredBox(
+    final EdgeInsets padding = MediaQuery.paddingOf(context);
+    final Widget page = ColoredBox(
       color: backgroundColor ?? _barBackground,
       child: Column(
         children: <Widget>[
           if (bar != null)
             _ScannerBar(bar: bar, onClose: onClose)
           else
-            SizedBox(height: MediaQuery.paddingOf(context).top),
+            SizedBox(height: padding.top),
           Expanded(child: body),
         ],
       ),
     );
+    if (bar != null) return page;
+
+    // Without a bar there has to be another way out: a desktop has no back
+    // gesture, and the page the camera runs in holds the keyboard.
+    return Stack(
+      children: <Widget>[
+        page,
+        Positioned(
+          top: padding.top + 12,
+          left: padding.left + 12,
+          child: _CloseButton(onPressed: onClose),
+        ),
+      ],
+    );
   }
+}
+
+/// A round button with a cross, over the camera.
+class _CloseButton extends StatelessWidget {
+  const _CloseButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Close',
+    child: GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: const SizedBox.square(
+        dimension: 44,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0x99000000),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: CustomPaint(size: Size.square(14), painter: _Cross()),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _Cross extends CustomPainter {
+  const _Cross();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = _barForeground
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas
+      ..drawLine(Offset.zero, Offset(size.width, size.height), paint)
+      ..drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(_Cross oldDelegate) => false;
 }
 
 /// The bar itself: a title, and a back button when one is asked for.

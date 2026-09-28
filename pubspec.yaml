@@ -24,14 +24,14 @@ platforms:
 
 environment:
   sdk: ^3.9.0
-  flutter: '>=3.27.0'
+  flutter: '>=3.35.0'
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_plugin_android_lifecycle: ^2.0.35
   web: ^1.1.1
-  webview_all: ^1.4.1
+  webview_all: ^1.4.2
 
 dev_dependencies:
   flutter_test:

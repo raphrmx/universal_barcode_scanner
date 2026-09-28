@@ -2,7 +2,8 @@ import AVFoundation
 import Cocoa
 import Vision
 
-/// The scanner itself: a camera preview, a scan line, and a cancel button.
+/// The scanner itself: a camera preview, a scan window with its sweeping
+/// line, and a cancel button that Escape also presses.
 ///
 /// macOS has no equivalent of `AVCaptureMetadataOutput`'s barcode types, so
 /// frames go through Vision's `VNDetectBarcodesRequest` instead. That is also
@@ -26,13 +27,16 @@ class BarcodeScannerViewController: NSViewController {
   )
 
   private var previewLayer: AVCaptureVideoPreviewLayer?
-  private var lineLayer: CALayer?
+  private let dimLayer = CAShapeLayer()
+  private let outlineLayer = CAShapeLayer()
+  private let lineLayer = CALayer()
+  private var scanWindow: CGRect = .zero
 
   // Touched on the frame queue only.
   private var hasResult = false
-  private var lastValue: String?
-  private var lastSeen: TimeInterval = 0
-  private var lastEmit: TimeInterval?
+  private var gate: ReadGate
+  /// Where Vision looks, in its normalised space, origin at the bottom left.
+  private var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
 
   /// Built once: a request per frame was an allocation per frame.
   private lazy var request: VNDetectBarcodesRequest = {
@@ -44,12 +48,9 @@ class BarcodeScannerViewController: NSViewController {
     return request
   }()
 
-  /// A code held in front of the camera is reported once, and again only
-  /// after it has been out of sight this long.
-  private static let sameCodeGap: TimeInterval = 1.0
-
   init(options: ScannerOptions) {
     self.options = options
+    gate = ReadGate(delay: options.delay)
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -66,24 +67,29 @@ class BarcodeScannerViewController: NSViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    configurePreview()
+    configureLayers()
     configureCancelButton()
-    if !configureSession() {
+
+    // Opening the device and committing the configuration both block; the
+    // main thread is kept out of it, as it is of startRunning.
+    sessionQueue.async { [weak self] in
+      guard let self = self else { return }
+      let ready = self.configureSession()
+      if ready { self.session.startRunning() }
       DispatchQueue.main.async { [weak self] in
-        self?.onFailed?("camera_unavailable", "The camera could not be opened.")
+        guard let self = self else { return }
+        if ready {
+          self.updateRegionOfInterest()
+        } else {
+          self.onFailed?("camera_unavailable", "The camera could not be opened.")
+        }
       }
     }
   }
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    previewLayer?.frame = view.bounds
-    lineLayer?.frame = CGRect(
-      x: view.bounds.width * 0.1,
-      y: view.bounds.midY,
-      width: view.bounds.width * 0.8,
-      height: 2
-    )
+    layoutLayers()
   }
 
   override func viewWillDisappear() {
@@ -93,8 +99,12 @@ class BarcodeScannerViewController: NSViewController {
 
   // MARK: - Capture
 
+  /// Runs on the session queue. False when the camera or the frame output
+  /// cannot be added: a preview that runs without decoding would look like a
+  /// scanner that never reads anything.
   private func configureSession() -> Bool {
     session.beginConfiguration()
+    defer { session.commitConfiguration() }
     // Vision works on every frame it is given; 720p reads a code as well as
     // full HD, for less than half the pixels.
     session.sessionPreset = session.canSetSessionPreset(.hd1280x720) ? .hd1280x720 : .high
@@ -102,49 +112,119 @@ class BarcodeScannerViewController: NSViewController {
     guard let device = AVCaptureDevice.default(for: .video),
       let input = try? AVCaptureDeviceInput(device: device),
       session.canAddInput(input)
-    else {
-      session.commitConfiguration()
-      return false
-    }
+    else { return false }
     session.addInput(input)
 
     output.alwaysDiscardsLateVideoFrames = true
     output.setSampleBufferDelegate(self, queue: frameQueue)
-    if session.canAddOutput(output) {
-      session.addOutput(output)
-    }
-
-    session.commitConfiguration()
-
-    // startRunning blocks; keeping it off the main thread stops the window
-    // from opening frozen.
-    let capture = session
-    sessionQueue.async {
-      capture.startRunning()
-    }
+    guard session.canAddOutput(output) else { return false }
+    session.addOutput(output)
     return true
   }
 
   func stop() {
-    let session = self.session
+    let capture = session
     sessionQueue.async {
-      if session.isRunning { session.stopRunning() }
+      if capture.isRunning { capture.stopRunning() }
     }
   }
 
   // MARK: - Chrome
 
-  private func configurePreview() {
-    let layer = AVCaptureVideoPreviewLayer(session: session)
-    layer.videoGravity = .resizeAspectFill
-    layer.frame = view.bounds
-    view.layer?.addSublayer(layer)
-    previewLayer = layer
+  private func configureLayers() {
+    let preview = AVCaptureVideoPreviewLayer(session: session)
+    preview.videoGravity = .resizeAspectFill
+    view.layer?.addSublayer(preview)
+    previewLayer = preview
 
-    let line = CALayer()
-    line.backgroundColor = options.lineColor.cgColor
-    view.layer?.addSublayer(line)
-    lineLayer = line
+    dimLayer.fillRule = .evenOdd
+    dimLayer.fillColor = NSColor(white: 0, alpha: 0.5).cgColor
+    outlineLayer.fillColor = nil
+    outlineLayer.strokeColor = NSColor(white: 1, alpha: 0.8).cgColor
+    outlineLayer.lineWidth = 2
+    lineLayer.backgroundColor = options.lineColor.cgColor
+    view.layer?.addSublayer(dimLayer)
+    view.layer?.addSublayer(outlineLayer)
+    view.layer?.addSublayer(lineLayer)
+  }
+
+  /// The window, square for QR codes and wide for barcodes, above the cancel
+  /// button's strip.
+  private func layoutLayers() {
+    let bounds = view.bounds
+    let reserved: CGFloat = 56
+    let area = CGRect(
+      x: 0,
+      y: reserved,
+      width: bounds.width,
+      height: max(0, bounds.height - reserved)
+    )
+    let size: CGSize
+    if options.squareWindow {
+      let side = min(area.width, area.height) * 0.75
+      size = CGSize(width: side, height: side)
+    } else {
+      let width = area.width * 0.85
+      size = CGSize(width: width, height: min(width * 0.5, area.height * 0.8))
+    }
+    let window = CGRect(
+      x: area.midX - size.width / 2,
+      y: area.midY - size.height / 2,
+      width: size.width,
+      height: size.height
+    )
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    previewLayer?.frame = bounds
+    dimLayer.frame = bounds
+    let path = CGMutablePath()
+    path.addRect(bounds)
+    path.addRect(window)
+    dimLayer.path = path
+    outlineLayer.frame = bounds
+    outlineLayer.path = CGPath(rect: window, transform: nil)
+    lineLayer.frame = CGRect(x: window.minX, y: window.midY, width: window.width, height: 2)
+    CATransaction.commit()
+
+    if window != scanWindow {
+      scanWindow = window
+      sweep()
+      updateRegionOfInterest()
+    }
+  }
+
+  private func sweep() {
+    lineLayer.removeAllAnimations()
+    guard scanWindow.height > 4,
+      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    else { return }
+    let animation = CABasicAnimation(keyPath: "position.y")
+    animation.fromValue = scanWindow.minY + 1
+    animation.toValue = scanWindow.maxY - 1
+    animation.duration = 1.5
+    animation.autoreverses = true
+    animation.repeatCount = .infinity
+    animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    animation.isRemovedOnCompletion = false
+    lineLayer.add(animation, forKey: "sweep")
+  }
+
+  /// Makes Vision look inside the window only, as the other platforms do.
+  private func updateRegionOfInterest() {
+    guard let preview = previewLayer, scanWindow.width > 0, scanWindow.height > 0 else { return }
+    let converted = preview.metadataOutputRectConverted(fromLayerRect: scanWindow)
+    guard converted.width > 0, converted.height > 0 else { return }
+    // Metadata space has its origin at the top left, Vision's at the bottom
+    // left.
+    let region = CGRect(
+      x: converted.minX,
+      y: 1 - converted.maxY,
+      width: converted.width,
+      height: converted.height
+    ).intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+    guard !region.isEmpty else { return }
+    frameQueue.async { [weak self] in self?.regionOfInterest = region }
   }
 
   private func configureCancelButton() {
@@ -154,6 +234,8 @@ class BarcodeScannerViewController: NSViewController {
       action: #selector(cancelClicked)
     )
     button.bezelStyle = .rounded
+    // Escape: a sheet has no close button of its own.
+    button.keyEquivalent = "\u{1b}"
     button.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(button)
 
@@ -192,28 +274,22 @@ class BarcodeScannerViewController: NSViewController {
     }
   }
 
-  /// Runs on the frame queue.
-  private func handle(_ barcode: String) {
-    guard !barcode.isEmpty, !hasResult else { return }
+  /// Runs on the frame queue with the codes of one frame.
+  private func handle(_ codes: [String]) {
+    guard !hasResult, let first = codes.first else { return }
 
     if options.isContinuousScan {
-      let now = CACurrentMediaTime()
-      if barcode == lastValue {
-        let held = now - lastSeen < Self.sameCodeGap
-        lastSeen = now
-        if held { return }
+      // Every code of the frame goes through the gate, which follows each
+      // one on its own.
+      for code in codes where gate.accept(code) {
+        DispatchQueue.main.async { [weak self] in self?.onScanned?(code) }
       }
-      if let last = lastEmit, now - last < options.delay { return }
-      lastValue = barcode
-      lastSeen = now
-      lastEmit = now
-      DispatchQueue.main.async { [weak self] in self?.onScanned?(barcode) }
       return
     }
 
     hasResult = true
     stop()
-    DispatchQueue.main.async { [weak self] in self?.onScanned?(barcode) }
+    DispatchQueue.main.async { [weak self] in self?.onScanned?(first) }
   }
 }
 
@@ -227,16 +303,54 @@ extension BarcodeScannerViewController: AVCaptureVideoDataOutputSampleBufferDele
       let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
     else { return }
 
+    request.regionOfInterest = regionOfInterest
     let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
     guard (try? handler.perform([request])) != nil,
       let results = request.results as? [VNBarcodeObservation]
     else { return }
 
-    for observation in results {
-      if let payload = observation.payloadStringValue {
-        handle(payload)
-        return
-      }
+    let codes = results.compactMap { $0.payloadStringValue }.filter { !$0.isEmpty }
+    handle(codes)
+  }
+}
+
+/// Decides which of the codes read frame after frame are worth reporting.
+///
+/// The same rule as on every other platform: a code held in front of the
+/// camera is reported once, and again only after a second out of sight; each
+/// code is followed on its own; no two codes are reported less than `delay`
+/// apart, and one the delay held back goes out as soon as it allows.
+final class ReadGate {
+  static let sameCodeGap: TimeInterval = 1.0
+
+  private struct Sighting {
+    var seen: TimeInterval
+    var reported: Bool
+  }
+
+  private let delay: TimeInterval
+  private var sightings: [String: Sighting] = [:]
+  private var lastEmit: TimeInterval?
+
+  init(delay: TimeInterval) {
+    self.delay = max(0, delay)
+  }
+
+  func accept(_ value: String, now: TimeInterval = CACurrentMediaTime()) -> Bool {
+    sightings = sightings.filter { now - $0.value.seen < ReadGate.sameCodeGap }
+    var sighting = sightings[value] ?? Sighting(seen: now, reported: false)
+    sighting.seen = now
+    if sighting.reported {
+      sightings[value] = sighting
+      return false
     }
+    if let last = lastEmit, now - last < delay {
+      sightings[value] = sighting
+      return false
+    }
+    sighting.reported = true
+    sightings[value] = sighting
+    lastEmit = now
+    return true
   }
 }

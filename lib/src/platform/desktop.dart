@@ -30,7 +30,7 @@ class _Webview {
       ..addJavaScriptChannel(
         _channelName,
         onMessageReceived: (JavaScriptMessage message) =>
-            owner?._onCode(message.message),
+            owner?._onMessage(message.message),
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -185,18 +185,26 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
   /// Hands the page its settings, which also starts the camera.
   void _configure() {
     final Map<String, String> settings = widget.config.toPage(
+      host: 'desktop',
       background: widget.backgroundColor,
     );
     unawaited(_webview.run('configure(${jsonEncode(settings)})'));
   }
 
-  void _onCode(String code) {
-    if (code.isEmpty || !mounted) return;
-    if (!widget.config.continuous) {
-      if (_delivered) return;
-      _delivered = true;
+  void _onMessage(String data) {
+    if (!mounted) return;
+    switch (PageMessage.parse(data)) {
+      case PageCode(:final String code):
+        if (!widget.config.continuous) {
+          if (_delivered) return;
+          _delivered = true;
+        }
+        widget.onScanned(code);
+      case PageClose():
+        _close();
+      case null:
+        break;
     }
-    widget.onScanned(code);
   }
 
   void _close() {

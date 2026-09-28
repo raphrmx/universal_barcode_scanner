@@ -14,9 +14,6 @@ abstract final class ScannerAsset {
       'assets/packages/universal_barcode_scanner/assets/barcode.html';
 }
 
-/// Title shown when the caller does not provide one.
-const String kScanPageTitle = 'Scan barcode/qrcode';
-
 /// Default colour of the scan line.
 const Color kDefaultLineColor = Color(0xFFFF6666);
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:js_interop';
-import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
@@ -55,10 +54,8 @@ class BarcodeScannerPage extends StatefulWidget {
 }
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
-  /// Registered once, in [initState]. Building it in `build` would register a
-  /// new view factory and leak an iframe on every rebuild.
-  late final String _viewId;
-  late final html.HTMLIFrameElement _iframe;
+  /// The frame, once Flutter has created it.
+  html.HTMLIFrameElement? _iframe;
 
   StreamSubscription<html.MessageEvent>? _messages;
   bool _delivered = false;
@@ -66,30 +63,6 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   @override
   void initState() {
     super.initState();
-
-    _viewId =
-        'universal_barcode_scanner_${DateTime.now().microsecondsSinceEpoch}';
-    // No cross-frame call is possible before load, so the settings ride in
-    // the query string; `start` tells the page not to wait for `configure`.
-    final Uri page = Uri(
-      path: ScannerAsset.webPath,
-      queryParameters: <String, String>{
-        ...widget.config.toPage(background: widget.backgroundColor),
-        'start': '1',
-      },
-    );
-    _iframe = html.HTMLIFrameElement()
-      ..src = page.toString()
-      ..allow = 'camera'
-      ..style.border = 'none'
-      ..style.width = '100%'
-      ..style.height = '100%';
-
-    ui.platformViewRegistry.registerViewFactory(
-      _viewId,
-      (int viewId) => _iframe,
-    );
-
     _messages = html.window.onMessage.listen(_onMessage);
   }
 
@@ -99,25 +72,61 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     super.dispose();
   }
 
+  /// Sets the frame up. No cross-frame call is possible before it loads, so
+  /// the settings ride in the query string; `start` tells the page not to
+  /// wait for `configure`.
+  ///
+  /// Created through the element callback rather than a view factory: a
+  /// factory is registered for good, and one per scan kept every page it had
+  /// built alive.
+  void _onElementCreated(Object element) {
+    final html.HTMLIFrameElement iframe = element as html.HTMLIFrameElement;
+    final Uri page = Uri(
+      path: ScannerAsset.webPath,
+      queryParameters: <String, String>{
+        ...widget.config.toPage(
+          host: 'web',
+          background: widget.backgroundColor,
+        ),
+        'start': '1',
+      },
+    );
+    iframe
+      ..src = page.toString()
+      ..allow = 'camera'
+      ..style.border = 'none'
+      ..style.width = '100%'
+      ..style.height = '100%';
+    _iframe = iframe;
+  }
+
   void _onMessage(html.MessageEvent event) {
     // Only our own frame speaks for the scanner: any other window of the same
     // origin, or the app itself, may post messages too.
-    if (event.origin != html.window.location.origin) return;
-    if (!event.source.strictEquals(_iframe.contentWindow).toDart) return;
+    final html.HTMLIFrameElement? iframe = _iframe;
+    if (iframe == null || event.origin != html.window.location.origin) return;
+    if (!event.source.strictEquals(iframe.contentWindow).toDart) return;
 
-    final Object? code = event.data.dartify();
-    if (code is! String || code.isEmpty) return;
-
-    if (!widget.config.continuous) {
-      if (_delivered) return;
-      _delivered = true;
+    switch (PageMessage.parse(event.data.dartify())) {
+      case PageCode(:final String code):
+        if (!widget.config.continuous) {
+          if (_delivered) return;
+          _delivered = true;
+        }
+        widget.onScanned(code);
+      case PageClose():
+        widget.onClose();
+      case null:
+        break;
     }
-    widget.onScanned(code);
   }
 
   @override
   Widget build(BuildContext context) {
-    final Widget view = HtmlElementView(viewType: _viewId);
+    final Widget view = HtmlElementView.fromTagName(
+      tagName: 'iframe',
+      onElementCreated: _onElementCreated,
+    );
     return ScannerChrome(
       backgroundColor: widget.backgroundColor,
       bar: widget.barcodeAppBar,

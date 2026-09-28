@@ -6,10 +6,10 @@ one entry point.
 <p>
   <img src="https://public.comapps.be/packages/universal_barcode_scanner/ios.webp" alt="Scanning on iOS" height="360">
   &nbsp;&nbsp;
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp" alt="Scanning on Android" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp" alt="Scanning in a browser" height="360">
 </p>
 
-<sub>iOS and Android above, web and Windows below.</sub>
+<sub>On iOS, and in a browser.</sub>
 
 [![Live demo](https://img.shields.io/badge/Live_demo-comapps.web.app-3c9a70)](https://comapps.web.app/universal_barcode_scanner/)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=0175C2)](https://pub.dev/packages/universal_barcode_scanner)
@@ -43,7 +43,7 @@ media request the embedder does not handle.
 flutter pub add universal_barcode_scanner
 ```
 
-Requires Flutter 3.27 or later.
+Requires Flutter 3.35 or later.
 
 ### Android
 
@@ -53,9 +53,9 @@ Camera permission goes in your own manifest, `android/app/src/main/AndroidManife
 <uses-permission android:name="android.permission.CAMERA" />
 ```
 
-The plugin asks for `minSdkVersion 21` and builds against `compileSdk 34`. Two of its dependencies,
-`flutter_plugin_android_lifecycle` and `webview_all_android`, are built against 36, and an app has to
-compile against the highest of them:
+The plugin asks for `minSdkVersion 21` and builds against `compileSdk 36`, the level two of its
+dependencies, `flutter_plugin_android_lifecycle` and `webview_all_android`, already require. An app
+has to compile against the highest of them:
 
 ```gradle
 android {
@@ -125,13 +125,14 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `cameraFace` | `CameraFace.back` | Which camera to open. |
 | `cancelButtonText` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS. |
 | `isShowFlashIcon` | `false` | Whether the torch toggle is shown, when the camera has a flash. Android and iOS. |
-| `barcodeAppBar` | `null` | App bar above the scanner. Web, Windows and Linux. |
+| `barcodeAppBar` | `null` | App bar above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux. |
 | `child` | `null` | Drawn over the scanner, for instance a manual entry field. Web, Windows and Linux. |
 | `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
 | `flip` | `false` | Mirrors the preview. Web, Windows and Linux. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
-Flutter page do nothing there.
+Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
+popping the route from your own code closes it on every platform.
 
 ### When the camera cannot be used
 
@@ -207,7 +208,9 @@ await controller.resumeScanning();
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanType`. |
 | `lineColor`, `scanType`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |
 
-The view fills the constraints it is given.
+The view fills the constraints it is given. What to scan is read once, when the view is created:
+give the widget a new key to change it. The callbacks are always the current widget's, and none is
+called once the widget is gone.
 
 ## App bar
 
@@ -234,7 +237,7 @@ The breaking changes of 2.0 and what to write instead are listed at the top of t
 
 ## Example
 
-`example/` is one app with the three ways to scan, one screen each.
+`example/` is one screen with the three ways to scan, and what each one returns.
 
 ```sh
 cd example && flutter run
@@ -250,7 +253,9 @@ flutter test
 
 `webview_all` for the Windows and Linux scanners, and `web` for the iframe on the web. Android
 carries CameraX and the ML Kit barcode model, which is bundled, so the scanner works on a device
-with no Play services and downloads nothing on first use. Nothing on iOS or macOS beyond the SDKs.
+with no Play services and downloads nothing on first use. The Android code is Kotlin: under AGP 9
+it uses the built-in Kotlin support, and under earlier versions the Kotlin plugin every Flutter app
+already has. Nothing on iOS or macOS beyond the SDKs.
 
 No design system. The package is written against `package:flutter/widgets.dart` alone, so it sits
 under Material, under `material_ui`, or under neither, and imposes none of them on your app. The

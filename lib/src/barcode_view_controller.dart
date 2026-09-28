@@ -59,4 +59,12 @@ class BarcodeViewController {
   /// not continuous.
   Future<void> resumeScanning() =>
       _channel.invokeMethod<void>('resumeScanning');
+
+  /// Stops listening to the view. The widget calls it when it goes away; the
+  /// controller does nothing useful afterwards.
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    onScanned = null;
+    onError = null;
+  }
 }

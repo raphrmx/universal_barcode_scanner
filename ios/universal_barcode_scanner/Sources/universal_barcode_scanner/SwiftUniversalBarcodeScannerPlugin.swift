@@ -2,17 +2,47 @@ import AVFoundation
 import Flutter
 import UIKit
 
+/// Where a scan stands. UIKit ignores a dismissal asked for while a
+/// presentation is still animating, and refuses a presentation while a
+/// dismissal is: each stage waits for the previous one.
+private enum ScanPhase {
+  case requestingAccess, presenting, shown, dismissing
+}
+
+/// How a scan ended.
+private enum ScanOutcome {
+  case code(String)
+  case cancelled
+  case failed(FlutterError)
+}
+
+/// One scan, from the call that opened it to its answer.
+private final class Scan {
+  let options: ScanOptions
+  let result: FlutterResult
+  var phase = ScanPhase.requestingAccess
+  var controller: BarcodeScannerViewController?
+  /// Decided while the scanner was still appearing, applied once it has.
+  var pendingOutcome: ScanOutcome?
+
+  init(options: ScanOptions, result: @escaping FlutterResult) {
+    self.options = options
+    self.result = result
+  }
+}
+
 /// Entry point on iOS.
 ///
 /// `scanBarcode` presents the scanner over whatever is on screen. A single
 /// scan answers with the code, or nil when cancelled; a continuous one answers
-/// once the scanner is up and sends its codes on the event channel, then
-/// `{"event": "closed"}`. `close` dismisses whichever scanner is open.
+/// once the scanner is up and sends `{"session": n, "code": ...}` on the event
+/// channel, then `{"session": n, "event": "closed"}`. `close` ends the scan of
+/// the session it names, at whatever stage it is.
 public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
-  private var pendingResult: FlutterResult?
   private var eventSink: FlutterEventSink?
-  private var scanner: BarcodeScannerViewController?
-  private var continuous = false
+  private var scan: Scan?
+  /// A scan asked for while the previous one was being dismissed.
+  private var queued: (() -> Void)?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     // Nothing here reads a window or a view controller: under the scene life
@@ -55,112 +85,187 @@ public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, Flutte
   // MARK: - FlutterPlugin
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
     switch call.method {
     case "scanBarcode":
-      scan(arguments: call.arguments as? [String: Any] ?? [:], result: result)
+      requestScan(ScanOptions(arguments: arguments), result: result)
     case "close":
-      finish(code: nil, error: nil)
+      let session = ScanOptions.session(in: arguments)
+      if let current = scan,
+        session == ScanOptions.noSession || session == current.options.session
+      {
+        finish(current, .cancelled)
+      }
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
   }
 
-  private func scan(arguments: [String: Any], result: @escaping FlutterResult) {
-    guard scanner == nil, pendingResult == nil else {
-      result(Self.error(ScanError.alreadyActive, "A scanner is already open."))
+  private func requestScan(_ options: ScanOptions, result: @escaping FlutterResult) {
+    if let current = scan {
+      // The previous scanner is on its way out: this one opens once it has
+      // gone rather than being refused.
+      if current.phase == .dismissing && queued == nil {
+        queued = { [weak self] in self?.requestScan(options, result: result) }
+      } else {
+        result(Self.error(ScanError.alreadyActive, "A scanner is already open.", options))
+      }
       return
     }
-    let options = ScanOptions(arguments: arguments)
 
+    let scan = Scan(options: options, result: result)
+    self.scan = scan
     CameraAccess.request { [weak self] granted in
-      guard let self = self else { return }
+      // Closed while the user was being asked: it already answered.
+      guard let self = self, self.scan === scan else { return }
       guard granted else {
-        result(
-          Self.error(
-            ScanError.permissionDenied,
-            "Camera access was denied. Grant it in Settings, and check that the "
-              + "app declares NSCameraUsageDescription."
+        self.finish(
+          scan,
+          .failed(
+            Self.error(
+              ScanError.permissionDenied,
+              "Camera access was denied. Grant it in Settings, and check that the "
+                + "app declares NSCameraUsageDescription.",
+              options
+            )
           )
         )
         return
       }
       guard AVCaptureDevice.default(for: .video) != nil else {
-        result(Self.error(ScanError.cameraUnavailable, "No camera is available on this device."))
+        self.finish(
+          scan,
+          .failed(Self.error(ScanError.cameraUnavailable, "No camera is available.", options))
+        )
         return
       }
       guard let host = Self.topViewController() else {
-        result(Self.error(ScanError.cameraUnavailable, "No view controller to present from."))
+        self.finish(
+          scan,
+          .failed(
+            Self.error(ScanError.cameraUnavailable, "No view controller to present from.", options)
+          )
+        )
         return
       }
-      // The permission prompt may have let another call in.
-      guard self.scanner == nil, self.pendingResult == nil else {
-        result(Self.error(ScanError.alreadyActive, "A scanner is already open."))
+      self.present(scan, from: host)
+    }
+  }
+
+  private func present(_ scan: Scan, from host: UIViewController) {
+    let controller = BarcodeScannerViewController(options: scan.options)
+    // Every callback checks that it comes from the scanner still in charge:
+    // a closed one may have frames in flight.
+    controller.onCode = { [weak self, weak controller] code in
+      guard let self = self, let current = self.scan, current.controller === controller else {
         return
       }
-      self.present(options: options, from: host, result: result)
-    }
-  }
-
-  private func present(
-    options: ScanOptions,
-    from host: UIViewController,
-    result: @escaping FlutterResult
-  ) {
-    let controller = BarcodeScannerViewController(options: options)
-    controller.onCode = { [weak self] code in self?.deliver(code) }
-    controller.onCancel = { [weak self] in self?.finish(code: nil, error: nil) }
-    controller.onError = { [weak self] code, message in
-      self?.finish(code: nil, error: Self.error(code, message))
-    }
-
-    scanner = controller
-    continuous = options.continuous
-    if options.continuous {
-      result(nil)
-    } else {
-      pendingResult = result
-    }
-    host.present(controller, animated: true)
-  }
-
-  private func deliver(_ code: String) {
-    if continuous {
-      eventSink?(code)
-    } else {
-      finish(code: code, error: nil)
-    }
-  }
-
-  /// Dismisses the scanner, then tells Dart how it ended. Does nothing when
-  /// no scanner is open.
-  private func finish(code: String?, error: FlutterError?) {
-    guard let controller = scanner else { return }
-    scanner = nil
-    let result = pendingResult
-    pendingResult = nil
-    let wasContinuous = continuous
-
-    let answer = { [weak self] in
-      if wasContinuous {
-        if let error = error { self?.eventSink?(error) }
-        self?.eventSink?(["event": "closed"])
-      } else if let error = error {
-        result?(error)
+      if current.options.continuous {
+        self.eventSink?(["session": current.options.session, "code": code])
       } else {
-        result?(code)
+        self.finish(current, .code(code))
       }
     }
+    controller.onCancel = { [weak self, weak controller] in
+      guard let self = self, let current = self.scan, current.controller === controller else {
+        return
+      }
+      self.finish(current, .cancelled)
+    }
+    controller.onError = { [weak self, weak controller] code, message in
+      guard let self = self, let current = self.scan, current.controller === controller else {
+        return
+      }
+      self.finish(current, .failed(Self.error(code, message, current.options)))
+    }
 
-    if controller.presentingViewController != nil {
-      controller.dismiss(animated: true, completion: answer)
-    } else {
-      answer()
+    scan.controller = controller
+    scan.phase = .presenting
+    if scan.options.continuous { scan.result(nil) }
+    host.present(controller, animated: true) { [weak self] in
+      self?.didPresent(scan)
     }
   }
 
-  private static func error(_ code: String, _ message: String) -> FlutterError {
-    return FlutterError(code: code, message: message, details: nil)
+  private func didPresent(_ scan: Scan) {
+    guard self.scan === scan, scan.phase == .presenting else { return }
+    scan.phase = .shown
+    if let outcome = scan.pendingOutcome {
+      finish(scan, outcome)
+    }
+  }
+
+  /// Takes the scanner down, then gives Dart the outcome.
+  private func finish(_ scan: Scan, _ outcome: ScanOutcome) {
+    guard self.scan === scan else { return }
+    switch scan.phase {
+    case .requestingAccess:
+      self.scan = nil
+      answer(scan, outcome)
+      runQueued()
+    case .presenting:
+      // Dismissing now would be ignored; done once the scanner is up.
+      if scan.pendingOutcome == nil { scan.pendingOutcome = outcome }
+    case .shown:
+      scan.phase = .dismissing
+      scan.controller?.markFinished()
+      let done = { [weak self] in
+        guard let self = self else { return }
+        if self.scan === scan { self.scan = nil }
+        self.answer(scan, outcome)
+        self.runQueued()
+      }
+      // From the presenter: asked of the scanner itself, a dismissal would
+      // only close whatever it presents in turn.
+      if let presenter = scan.controller?.presentingViewController {
+        presenter.dismiss(animated: true, completion: done)
+      } else {
+        done()
+      }
+    case .dismissing:
+      break
+    }
+  }
+
+  private func answer(_ scan: Scan, _ outcome: ScanOutcome) {
+    let session = scan.options.session
+    if scan.options.continuous {
+      if scan.phase == .requestingAccess {
+        // Never presented: the call itself is still waiting for its answer.
+        if case .failed(let error) = outcome {
+          scan.result(error)
+          return
+        }
+        scan.result(nil)
+      } else if case .failed(let error) = outcome {
+        eventSink?(error)
+      }
+      eventSink?(["session": session, "event": "closed"])
+      return
+    }
+    switch outcome {
+    case .code(let code):
+      scan.result(code)
+    case .cancelled:
+      scan.result(nil)
+    case .failed(let error):
+      scan.result(error)
+    }
+  }
+
+  private func runQueued() {
+    let next = queued
+    queued = nil
+    next?()
+  }
+
+  private static func error(_ code: String, _ message: String, _ options: ScanOptions)
+    -> FlutterError
+  {
+    // The session rides in the details, so the Dart side can tell which
+    // scan an error on the event channel belongs to.
+    return FlutterError(code: code, message: message, details: options.session)
   }
 
   /// The view controller on top of the key window, found when needed rather

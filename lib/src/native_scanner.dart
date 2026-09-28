@@ -6,11 +6,14 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// The Android, iOS and macOS scanners, over their method and event channels.
 ///
-/// `scanBarcode` answers with the code read, or null when the user backs out.
-/// In continuous mode it answers as soon as the scanner is up, and the event
-/// channel carries every code as a string, a failure as an error, and the end
-/// of the scan as `{'event': 'closed'}`. No payload is reserved: a code that
-/// reads `-1` is a code.
+/// Every scan carries a session number. `scanBarcode` answers with the code
+/// read, or null when the user backs out. In continuous mode it answers as
+/// soon as the scanner is up, and the event channel carries
+/// `{'session': n, 'code': ...}` for every code, an error whose details are
+/// the session for a failure, and `{'session': n, 'event': 'closed'}` at the
+/// end. `close` takes the session it means, so a late close or a late event
+/// from a scanner that is going away never reaches the next one. No payload
+/// is reserved: a code that reads `-1` is a code.
 ///
 /// Derived from https://github.com/AmolGangadhare/flutter_barcode_scanner.
 abstract final class NativeScanner {
@@ -22,13 +25,24 @@ abstract final class NativeScanner {
     'universal_barcode_scanner/events',
   );
 
+  static int _lastSession = 0;
+
+  /// A number no earlier scan used.
+  static int newSession() => ++_lastSession;
+
+  static Map<String, Object?> _arguments(ScannerConfig config, int session) =>
+      <String, Object?>{...config.toNative(), 'session': session};
+
   /// Scans until a code is read, then returns it. Null when the user backs
   /// out; a [ScannerException] when the camera cannot be used.
-  static Future<String?> scan(ScannerConfig config) async {
+  static Future<String?> scan(
+    ScannerConfig config, {
+    required int session,
+  }) async {
     try {
       final Object? code = await _channel.invokeMethod<Object?>(
         'scanBarcode',
-        config.toNative(),
+        _arguments(config, session),
       );
       return code is String && code.isNotEmpty ? code : null;
     } on Object catch (error) {
@@ -40,7 +54,7 @@ abstract final class NativeScanner {
   ///
   /// Cancelling the subscription closes the scanner. A failure is emitted as a
   /// [ScannerException], after which the stream closes.
-  static Stream<String> stream(ScannerConfig config) {
+  static Stream<String> stream(ScannerConfig config, {required int session}) {
     StreamSubscription<dynamic>? events;
     late final StreamController<String> codes;
 
@@ -53,6 +67,12 @@ abstract final class NativeScanner {
     }
 
     void fail(Object error) {
+      // An error meant for another scan.
+      if (error is PlatformException &&
+          error.details is int &&
+          error.details != session) {
+        return;
+      }
       if (!codes.isClosed) codes.addError(ScannerException.from(error));
       finish();
     }
@@ -63,33 +83,39 @@ abstract final class NativeScanner {
         // once the event channel is open.
         events = _events.receiveBroadcastStream().listen(
           (dynamic event) {
-            if (event is String) {
-              if (event.isNotEmpty && !codes.isClosed) codes.add(event);
-            } else if (event is Map && event['event'] == 'closed') {
+            if (event is! Map || event['session'] != session) return;
+            final Object? code = event['code'];
+            if (code is String && code.isNotEmpty) {
+              if (!codes.isClosed) codes.add(code);
+            } else if (event['event'] == 'closed') {
               finish();
             }
           },
           onError: fail,
           onDone: finish,
         );
-        _channel
-            .invokeMethod<void>('scanBarcode', config.toNative())
-            .catchError(fail);
+        unawaited(
+          _channel
+              .invokeMethod<void>('scanBarcode', _arguments(config, session))
+              .catchError(fail),
+        );
       },
       onCancel: () {
         final bool open = events != null;
         finish();
-        if (open) unawaited(close());
+        if (open) unawaited(close(session));
       },
     );
     return codes.stream;
   }
 
-  /// Closes whichever native scanner is on screen, if any. A single scan in
-  /// progress completes with null.
-  static Future<void> close() async {
+  /// Closes the scanner of [session] if it is still open, even if it is still
+  /// being opened. A single scan closed this way completes with null.
+  static Future<void> close(int session) async {
     try {
-      await _channel.invokeMethod<void>('close');
+      await _channel.invokeMethod<void>('close', <String, Object?>{
+        'session': session,
+      });
     } on MissingPluginException {
       // No scanner to close on this platform.
     } on PlatformException {
