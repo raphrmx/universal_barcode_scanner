@@ -1,0 +1,163 @@
+import AVFoundation
+import UIKit
+
+/// Error codes shared with the Dart side's `ScannerErrorCode`.
+enum ScanError {
+  static let permissionDenied = "camera_permission_denied"
+  static let cameraUnavailable = "camera_unavailable"
+  static let alreadyActive = "already_active"
+}
+
+/// The arguments the Dart side sends, parsed once.
+struct ScanOptions {
+  let lineColor: UIColor
+  let cancelButtonText: String
+  let showFlashIcon: Bool
+  let continuous: Bool
+  /// Square for QR codes, wide for barcodes.
+  let squareWindow: Bool
+  let position: AVCaptureDevice.Position
+  let scanFormat: String
+  let delay: TimeInterval
+  /// Scan window asked for by the embedded view, in points.
+  let windowSize: CGSize?
+
+  init(arguments: [String: Any]) {
+    lineColor =
+      UIColor(hex: arguments["lineColor"] as? String ?? "")
+      ?? UIColor(red: 1, green: 0.4, blue: 0.4, alpha: 1)
+    let cancel = arguments["cancelButtonText"] as? String ?? ""
+    cancelButtonText = cancel.isEmpty ? "Cancel" : cancel
+    showFlashIcon = arguments["showFlashIcon"] as? Bool ?? false
+    continuous = arguments["continuous"] as? Bool ?? false
+    squareWindow = (arguments["scanType"] as? String) != "barcode"
+    position = (arguments["cameraFace"] as? String) == "front" ? .front : .back
+    scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
+    let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
+    delay = max(0, millis) / 1000.0
+
+    if let width = (arguments["scanWindowWidth"] as? NSNumber)?.doubleValue,
+      let height = (arguments["scanWindowHeight"] as? NSNumber)?.doubleValue,
+      width > 0, height > 0
+    {
+      windowSize = CGSize(width: width, height: height)
+    } else {
+      windowSize = nil
+    }
+  }
+
+  /// Symbologies to read. Fewer is less work on every frame.
+  var metadataTypes: [AVMetadataObject.ObjectType] {
+    let barcodes: [AVMetadataObject.ObjectType] = [
+      .code128, .code39, .code39Mod43, .code93, .ean13, .ean8,
+      .interleaved2of5, .itf14, .pdf417, .upce,
+    ]
+    switch scanFormat {
+    case "ONLY_QR_CODE":
+      return [.qr]
+    case "ONLY_BARCODE":
+      return barcodes
+    default:
+      return barcodes + [.aztec, .dataMatrix, .qr]
+    }
+  }
+
+  /// The scan window inside `area`: the requested size, or one that suits
+  /// the shape.
+  static func window(in area: CGRect, requested: CGSize?, square: Bool) -> CGRect {
+    guard area.width > 0, area.height > 0 else { return .zero }
+    let size: CGSize
+    if let requested = requested {
+      size = CGSize(
+        width: min(requested.width, area.width),
+        height: min(requested.height, area.height)
+      )
+    } else if square {
+      let side = min(min(area.width, area.height) * 0.75, 320)
+      size = CGSize(width: side, height: side)
+    } else {
+      let width = min(area.width * 0.85, 416)
+      size = CGSize(width: width, height: min(width * 0.5, area.height * 0.8))
+    }
+    return CGRect(
+      x: area.midX - size.width / 2,
+      y: area.midY - size.height / 2,
+      width: size.width,
+      height: size.height
+    )
+  }
+}
+
+/// Decides which of the codes read frame after frame are worth reporting.
+///
+/// A code held in front of the camera is read on every frame. It is reported
+/// once, and again only after it has been out of sight for `sameCodeGap`. On
+/// top of that, no two codes are reported less than `delay` apart.
+final class ReadGate {
+  static let sameCodeGap: TimeInterval = 1.0
+
+  private let delay: TimeInterval
+  private var lastValue: String?
+  private var lastSeen: TimeInterval = 0
+  private var lastEmit: TimeInterval?
+
+  init(delay: TimeInterval) {
+    self.delay = max(0, delay)
+  }
+
+  func accept(_ value: String, now: TimeInterval = CACurrentMediaTime()) -> Bool {
+    if value == lastValue {
+      let held = now - lastSeen < ReadGate.sameCodeGap
+      lastSeen = now
+      if held { return false }
+    }
+    if let last = lastEmit, now - last < delay {
+      return false
+    }
+    lastValue = value
+    lastSeen = now
+    lastEmit = now
+    return true
+  }
+
+  /// Forgets the last code, so the same one is reported again.
+  func reset() {
+    lastValue = nil
+    lastEmit = nil
+  }
+}
+
+/// Asks for the camera if needed. Completes on the main thread.
+enum CameraAccess {
+  static func request(_ completion: @escaping (Bool) -> Void) {
+    switch AVCaptureDevice.authorizationStatus(for: .video) {
+    case .authorized:
+      completion(true)
+    case .notDetermined:
+      AVCaptureDevice.requestAccess(for: .video) { granted in
+        DispatchQueue.main.async { completion(granted) }
+      }
+    default:
+      completion(false)
+    }
+  }
+}
+
+extension UIColor {
+  /// Reads `#AARRGGBB` or `#RRGGBB`, the two forms the Dart side sends.
+  convenience init?(hex: String) {
+    var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.hasPrefix("#") { value.removeFirst() }
+    guard value.count == 6 || value.count == 8,
+      let raw = UInt32(value, radix: 16)
+    else { return nil }
+
+    let alpha: CGFloat = value.count == 8 ? CGFloat((raw >> 24) & 0xFF) / 255 : 1
+    self.init(
+      red: CGFloat((raw >> 16) & 0xFF) / 255,
+      green: CGFloat((raw >> 8) & 0xFF) / 255,
+      blue: CGFloat(raw & 0xFF) / 255,
+      alpha: alpha
+    )
+  }
+}
