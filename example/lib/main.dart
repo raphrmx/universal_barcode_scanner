@@ -12,12 +12,6 @@ const Color _line = Color(0xFF272C36);
 const Color _dim = Color(0xFF8B929E);
 const Color _accent = Color(0xFF39B37A);
 
-/// The embedded view is a native platform view, on Android and iOS only.
-bool get _hasEmbeddedView =>
-    !kIsWeb &&
-    (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS);
-
 const ScannerBar _appBar = ScannerBar(
   title: 'Point at a barcode',
   centerTitle: false,
@@ -181,14 +175,10 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _Mode(
                   title: 'Embedded view',
-                  body: _hasEmbeddedView
-                      ? 'Puts the camera inside your own layout, with a '
-                          'controller for the torch and for pausing.'
-                      : 'Puts the camera inside your own layout, on Android '
-                          'and iOS. Elsewhere the scanner is a page of its '
-                          'own rather than a widget.',
+                  body: 'Puts the camera inside your own layout, with a '
+                      'controller for the torch and for pausing.',
                   action: 'Open',
-                  onPressed: _hasEmbeddedView ? _openEmbedded : null,
+                  onPressed: _openEmbedded,
                 ),
                 const SizedBox(height: 8),
                 const _Note(),
@@ -377,6 +367,13 @@ class _EmbeddedPageState extends State<EmbeddedPage> {
   ScannerController? _controller;
   String _result = '';
   bool _paused = false;
+  bool _torch = false;
+
+  /// Most webcams have no torch an app can drive: the answer says so.
+  Future<void> _toggleTorch() async {
+    final bool on = await _controller?.toggleFlash() ?? false;
+    if (mounted) setState(() => _torch = on);
+  }
 
   void _togglePause() {
     if (_paused) {
@@ -434,8 +431,11 @@ class _EmbeddedPageState extends State<EmbeddedPage> {
                   spacing: 10,
                   children: <Widget>[
                     OutlinedButton.icon(
-                      onPressed: () => _controller?.toggleFlash(),
-                      icon: const Icon(Icons.flashlight_on, size: 18),
+                      onPressed: _toggleTorch,
+                      icon: Icon(
+                        _torch ? Icons.flashlight_on : Icons.flashlight_off,
+                        size: 18,
+                      ),
                       label: const Text('Torch'),
                     ),
                     OutlinedButton.icon(

@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
+import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 const MethodChannel _channel = MethodChannel('universal_barcode_scanner');
@@ -183,6 +185,166 @@ void main() {
       expect(PageMessage.parse('plain text'), isNull);
       expect(PageMessage.parse('{"code":""}'), isNull);
       expect(PageMessage.parse(42), isNull);
+    });
+
+    test('reads a camera error and the torch state', () {
+      expect(
+        PageMessage.parse(
+          '{"error":{"code":"camera_permission_denied","message":"no"}}',
+        ),
+        isA<PageError>()
+            .having((PageError m) => m.code, 'code', 'camera_permission_denied')
+            .having((PageError m) => m.message, 'message', 'no'),
+      );
+      expect(
+        PageMessage.parse('{"torch":true}'),
+        isA<PageTorch>().having((PageTorch m) => m.on, 'on', true),
+      );
+      expect(PageMessage.parse('{"torch":"yes"}'), isNull);
+      expect(PageMessage.parse('{"ready":true}'), isA<PageReady>());
+    });
+  });
+
+  group('the embedded page', () {
+    test('sends the embedded settings with the scan window', () {
+      final Map<String, String> page = const ScannerConfig(
+        scanWindow: ScanWindow.square,
+      ).toEmbeddedPage(host: 'web', window: const Size(240.4, 240.6));
+
+      expect(page['embedded'], '1');
+      expect(page['window'], 'square');
+      expect(page['windowWidth'], '240');
+      expect(page['windowHeight'], '241');
+    });
+
+    test('places the window as the native views do', () {
+      expect(
+        scanWindowRect(const Size(400, 300), ScanWindow.none, null),
+        isNull,
+      );
+      expect(
+        scanWindowRect(const Size(400, 300), ScanWindow.square, null),
+        Rect.fromCenter(
+          center: const Offset(200, 150),
+          width: 225,
+          height: 225,
+        ),
+      );
+      // Capped on a wide view.
+      expect(
+        scanWindowRect(const Size(1000, 800), ScanWindow.wide, null)?.size,
+        const Size(416, 208),
+      );
+      // A requested size, clamped to the view.
+      expect(
+        scanWindowRect(
+          const Size(200, 100),
+          ScanWindow.wide,
+          const Size(300, 60),
+        )?.size,
+        const Size(200, 60),
+      );
+    });
+
+    test('drives the page and hears back from it', () async {
+      final List<PageCall> calls = <PageCall>[];
+      final PageScannerController controller = PageScannerController(calls.add);
+      final List<String> codes = <String>[];
+      ScannerException? error;
+      controller
+        ..onScanned = codes.add
+        ..onError = (ScannerException e) => error = e;
+      controller.pageReady();
+
+      await controller.pauseScanning();
+      await controller.resumeScanning();
+      final Future<bool> torch = controller.toggleFlash();
+      controller
+        ..handle(const PageCode('A'))
+        ..handle(const PageError('camera_unavailable', 'busy'))
+        ..handle(const PageTorch(on: true));
+
+      expect(calls, <PageCall>[
+        PageCall.pauseScanning,
+        PageCall.resumeScanning,
+        PageCall.toggleTorch,
+      ]);
+      expect(await torch, isTrue);
+      expect(codes, <String>['A']);
+      expect(error?.code, ScannerErrorCode.cameraUnavailable);
+
+      controller
+        ..dispose()
+        ..handle(const PageCode('B'));
+      await controller.pauseScanning();
+      expect(codes, <String>['A']);
+      expect(calls, hasLength(3));
+      expect(await controller.toggleFlash(), isFalse);
+    });
+
+    test('holds calls back until the page is up', () async {
+      final List<PageCall> calls = <PageCall>[];
+      final PageScannerController controller = PageScannerController(calls.add);
+
+      await controller.resumeScanning();
+      await controller.pauseScanning();
+      final Future<bool> torch = controller.toggleFlash();
+      expect(calls, isEmpty);
+
+      controller.handle(const PageReady());
+      expect(calls, <PageCall>[PageCall.pauseScanning, PageCall.toggleTorch]);
+      controller.handle(const PageTorch(on: false));
+      expect(await torch, isFalse);
+
+      // A resume after a pause, both before the page was up, sends nothing.
+      final List<PageCall> later = <PageCall>[];
+      final PageScannerController other = PageScannerController(later.add);
+      await other.pauseScanning();
+      await other.resumeScanning();
+      other.pageReady();
+      expect(later, isEmpty);
+    });
+
+    testWidgets('reports the window it draws over the page', (
+      WidgetTester tester,
+    ) async {
+      Size? window;
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 400,
+              height: 300,
+              child: EmbeddedPageFrame(
+                view: const SizedBox.expand(),
+                config: const ScannerConfig(),
+                onWindow: (Size size) => window = size,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(window, const Size(340, 170));
+      expect(find.byType(ScanWindowOverlay), findsOneWidget);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 400,
+            height: 300,
+            child: EmbeddedPageFrame(
+              view: const SizedBox.expand(),
+              config: const ScannerConfig(scanWindow: ScanWindow.none),
+              onWindow: (Size size) => window = size,
+            ),
+          ),
+        ),
+      );
+      expect(window, Size.zero);
+      expect(find.byType(ScanWindowOverlay), findsNothing);
     });
   });
 
@@ -483,7 +645,7 @@ void main() {
     testWidgets('says so on a platform with no embedded view', (
       WidgetTester tester,
     ) async {
-      await _on(TargetPlatform.linux, () async {
+      await _on(TargetPlatform.fuchsia, () async {
         await tester.pumpWidget(
           MaterialApp(
             home: UniversalBarcodeScanner(
@@ -510,7 +672,7 @@ void main() {
         );
 
     test('turns an error from the view into a ScannerException', () async {
-      final ScannerController controller = ScannerController(7);
+      final ScannerController controller = ChannelScannerController(7);
       ScannerException? received;
       controller.onError = (ScannerException error) => received = error;
 
@@ -525,7 +687,7 @@ void main() {
     });
 
     test('hands on codes until it is disposed', () async {
-      final ScannerController controller = ScannerController(8);
+      final ScannerController controller = ChannelScannerController(8);
       final List<String> codes = <String>[];
       controller.onScanned = codes.add;
 

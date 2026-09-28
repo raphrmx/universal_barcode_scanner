@@ -249,11 +249,14 @@ class _Arc extends CustomPainter {
   bool shouldRepaint(_Arc oldDelegate) => false;
 }
 
-/// Embedded scanner view for Android and iOS.
+/// Embedded scanner view for the platforms that have `dart:io`.
 ///
-/// What to scan is read once, when the platform view is created: give the
-/// widget a new key to apply a different configuration. The callbacks are
-/// always the current widget's.
+/// Android, iOS and macOS show their native camera in a platform view;
+/// Windows and Linux the bundled page in a webview.
+///
+/// What to scan is read once, when the view is created: give the widget a
+/// new key to apply a different configuration. The callbacks are always the
+/// current widget's.
 class EmbeddedScanner extends StatefulWidget {
   /// Creates the embedded view.
   const EmbeddedScanner({
@@ -321,7 +324,7 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
 
   void _onPlatformViewCreated(int id) {
     if (!mounted) return;
-    final ScannerController controller = ScannerController(id)
+    final ScannerController controller = ChannelScannerController(id)
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
     _controller = controller;
@@ -330,6 +333,18 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hasWebviewScanner) {
+      return DesktopEmbeddedScanner(
+        config: widget.config,
+        onCreated: widget.onCreated,
+        onScanned: widget.onScanned,
+        onError: widget.onError,
+        scanWindowSize: widget.scanWindowSize,
+        flip: widget.flip,
+        child: widget.child,
+      );
+    }
+
     final Widget view;
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -341,6 +356,13 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
         );
       case TargetPlatform.iOS:
         view = UiKitView(
+          viewType: _viewType,
+          onPlatformViewCreated: _onPlatformViewCreated,
+          creationParams: _creationParams,
+          creationParamsCodec: const StandardMessageCodec(),
+        );
+      case TargetPlatform.macOS:
+        view = AppKitView(
           viewType: _viewType,
           onPlatformViewCreated: _onPlatformViewCreated,
           creationParams: _creationParams,

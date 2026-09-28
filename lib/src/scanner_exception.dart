@@ -28,11 +28,13 @@ enum ScannerErrorCode {
   }
 }
 
-/// Thrown by `UniversalBarcodeScanner.scan`, and emitted on the stream of
-/// `UniversalBarcodeScanner.stream`, when the scanner cannot do its job.
+/// Thrown by `UniversalBarcodeScanner.scan`, emitted on the stream of
+/// `UniversalBarcodeScanner.stream`, and handed to the embedded view's
+/// `onError`, when the scanner cannot do its job.
 ///
-/// Only the native scanners raise it: Android, iOS and macOS. The web, Windows
-/// and Linux scanner explains a missing camera on its own page instead.
+/// `scan` and `stream` raise it on Android, iOS and macOS; on the web,
+/// Windows and Linux their page explains a missing camera itself. The
+/// embedded view reports it on every platform.
 class ScannerException implements Exception {
   /// Creates an exception with a [code] and an optional [message].
   const ScannerException(this.code, [this.message]);

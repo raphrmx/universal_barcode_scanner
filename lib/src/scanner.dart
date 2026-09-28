@@ -17,8 +17,8 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 /// final String? code = await UniversalBarcodeScanner.scan(context);
 /// ```
 ///
-/// Or as a widget, when the camera has to sit inside your own layout. That
-/// form is Android and iOS only; elsewhere use [scan] or [stream].
+/// Or as a widget, when the camera has to sit inside your own layout, on
+/// every platform:
 ///
 /// ```dart
 /// UniversalBarcodeScanner(
@@ -44,14 +44,14 @@ class UniversalBarcodeScanner extends StatelessWidget {
     this.flip = false,
   });
 
-  /// Called once the platform view exists, with the controller that drives it.
+  /// Called once the view exists, with the controller that drives it.
   final ScannerCreatedCallback onCreated;
 
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
 
   /// Called when the camera cannot be used, for instance when the user
-  /// refuses it.
+  /// refuses it. On the web, Windows and Linux the view also says so itself.
   final ValueChanged<ScannerException>? onError;
 
   /// Size of the scan window in logical pixels. A code is only read when it

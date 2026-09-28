@@ -91,6 +91,24 @@
     #ubs-message.shown { display: block; }
     #ubs-message b { display: block; margin-bottom: 6px; font-size: 16px; }
     #ubs-message span { color: #9aa0a8; }
+
+    /* Embedded in a Flutter view: the camera fills the view, cropped rather
+       than letterboxed, as the native views do, and Flutter draws the scan
+       window over it. */
+    .ubs-embedded body { display: block; }
+    .ubs-embedded #stage { position: absolute; left: 0; top: 0; margin: 0; }
+    .ubs-embedded #qr-shaded-region { display: none !important; }
+    .ubs-embedded #ubs-message.shown {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      max-width: none;
+      padding: 0 16px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
   </style>
   <script src="html5-qrcode.min.js"></script>
 </head>
@@ -148,10 +166,23 @@
     facing: 'environment',
     formats: 'all',
     window: 'square',
-    host: 'web'
+    host: 'web',
+    // Embedded in a Flutter view, which draws the scan window and passes its
+    // size, in CSS pixels of the view.
+    embedded: false,
+    windowWidth: 0,
+    windowHeight: 0
   };
   var stopped = true;
   var delivered = false;
+  // An embedded view pauses rather than stops: on the first code when it is
+  // not continuous, and when the app asks.
+  var paused = false;
+  var torchOn = false;
+  // The view's size when the camera last started: an embedded view's scan
+  // box follows from it.
+  var startedWidth = 0;
+  var startedHeight = 0;
   // Every code in sight, by value: when it was last read and whether it has
   // been reported since it came into view.
   var sightings = {};
@@ -173,6 +204,17 @@
     // The library only decodes inside this box, so a linear barcode gets a
     // wide one rather than a square it may not fit in.
     qrbox: function (viewfinderWidth, viewfinderHeight) {
+      if (settings.embedded) {
+        // The window Flutter draws, brought back to the scale #reader is
+        // laid out at.
+        var scale = coverScale(viewfinderWidth, viewfinderHeight);
+        return {
+          width: Math.min(viewfinderWidth,
+            Math.max(MIN_QR_BOX, Math.round(settings.windowWidth / scale))),
+          height: Math.min(viewfinderHeight,
+            Math.max(MIN_QR_BOX, Math.round(settings.windowHeight / scale)))
+        };
+      }
       if (settings.window === 'wide') {
         var width = Math.max(MIN_QR_BOX, Math.floor(viewfinderWidth * 0.85));
         var height = Math.max(MIN_QR_BOX, Math.min(
@@ -242,11 +284,14 @@
     var text = String((error && error.message) || error || '');
     var title;
     var detail;
+    // The wire names of ScannerErrorCode, for an embedded view's onError.
+    var code = 'camera_unavailable';
 
     // A desktop webview has no address bar and nothing to reload: what the
     // user can do there is change the system settings and reopen.
     var desktop = settings.host === 'desktop';
     if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
+      code = 'camera_permission_denied';
       title = 'Camera blocked';
       detail = desktop
         ? 'Allow this application to use the camera in the system settings, '
@@ -268,8 +313,12 @@
       title = 'Not a secure origin';
       detail = 'A browser only opens the camera over HTTPS or on localhost.';
     } else {
+      code = 'unknown';
       title = 'The camera did not start';
       detail = text || 'No reason was given.';
+    }
+    if (settings.embedded) {
+      post({ error: { code: code, message: text || name || title } });
     }
 
     message.innerHTML = '';
@@ -347,12 +396,17 @@
       // No box: the library reads the whole frame and shades nothing.
       delete scanConfig.qrbox;
     }
+    // A restarted camera comes back with its torch off.
+    torchOn = false;
+    startedWidth = document.body.clientWidth;
+    startedHeight = document.body.clientHeight;
     return Promise.resolve().then(function () {
       return scanner.start({ facingMode: settings.facing }, scanConfig, onDecoded);
     }).then(
       function () {
         hideMessage();
-        if (settings.window !== 'none') {
+        // Embedded, the scan window is Flutter's.
+        if (settings.window !== 'none' && !settings.embedded) {
           installScanLine();
         }
         // Stopped or answered while the camera was opening.
@@ -391,12 +445,80 @@
     settings.window = options.window === 'wide' || options.window === 'none'
       ? options.window : 'square';
     settings.host = options.host === 'desktop' ? 'desktop' : 'web';
+    // Set or cleared every time: a kept desktop page may have been a view
+    // before and a full page now, or the other way round.
+    settings.embedded = options.embedded === true || options.embedded === '1';
+    settings.windowWidth = Math.max(0, parseInt(options.windowWidth, 10) || 0);
+    settings.windowHeight = Math.max(0, parseInt(options.windowHeight, 10) || 0);
+    document.documentElement.classList.toggle('ubs-embedded', settings.embedded);
 
     stopped = false;
     delivered = false;
+    paused = false;
     sightings = {};
     lastEmit = null;
     restartScanner();
+  }
+
+  // An embedded view's scan window, when its layout changes it. The library
+  // takes the box only when starting, hence the restart.
+  function setWindow(width, height) {
+    width = Math.max(0, Math.round(width) || 0);
+    height = Math.max(0, Math.round(height) || 0);
+    if (width === settings.windowWidth && height === settings.windowHeight) {
+      return;
+    }
+    settings.windowWidth = width;
+    settings.windowHeight = height;
+    scheduleRestart();
+  }
+
+  // Debounced: a view being resized changes its size on every frame.
+  function scheduleRestart() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (!stopped) {
+        restartScanner();
+      }
+    }, 250);
+  }
+
+  // What an embedded view's controller asks for.
+  function pauseScanning() {
+    paused = true;
+  }
+
+  // Every code in sight counts as new again, as on the native views.
+  function resumeScanning() {
+    paused = false;
+    sightings = {};
+    lastEmit = null;
+  }
+
+  // Answers with the torch's state, which stays off where the camera has no
+  // torch the browser lets a page drive, as on most webcams.
+  function toggleTorch() {
+    var wanted = !torchOn;
+    var answer = function (on) {
+      torchOn = on;
+      post({ torch: on });
+    };
+    var feature = null;
+    try {
+      feature = scanner && scanner.isScanning
+        ? scanner.getRunningTrackCameraCapabilities().torchFeature()
+        : null;
+    } catch (error) {
+      feature = null;
+    }
+    if (!feature || !feature.isSupported()) {
+      answer(false);
+      return;
+    }
+    feature.apply(wanted).then(
+      function () { answer(wanted); },
+      function () { answer(torchOn); }
+    );
   }
 
   function hasChannel() {
@@ -439,12 +561,17 @@
   }
 
   function onDecoded(text) {
-    if (stopped || delivered || !text || !accept(text, Date.now())) {
+    if (stopped || delivered || paused || !text || !accept(text, Date.now())) {
       return;
     }
     if (!settings.continuous) {
-      delivered = true;
-      enqueue(stopCamera);
+      if (settings.embedded) {
+        // The view stays on screen: it waits for resumeScanning.
+        paused = true;
+      } else {
+        delivered = true;
+        enqueue(stopCamera);
+      }
     }
     post({ code: text });
   }
@@ -469,6 +596,29 @@
     }
   });
 
+  // On the web, the embedded view's controller reaches the page through its
+  // parent: only that window, on this origin, and only these calls.
+  var CALLS = {
+    pauseScanning: function () { pauseScanning(); },
+    resumeScanning: function () { resumeScanning(); },
+    toggleTorch: function () { toggleTorch(); },
+    setWindow: function (data) { setWindow(data.width, data.height); }
+  };
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || event.origin !== window.location.origin) {
+      return;
+    }
+    var data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (error) {
+      return;
+    }
+    if (data && typeof data.call === 'string' && CALLS.hasOwnProperty(data.call)) {
+      CALLS[data.call](data);
+    }
+  });
+
   var query = new URLSearchParams(window.location.search);
   if (query.has('start')) {
     configure({
@@ -479,12 +629,30 @@
       delay: query.get('delay'),
       facing: query.get('facing'),
       formats: query.get('formats'),
-      window: query.get('window')
+      window: query.get('window'),
+      embedded: query.get('embedded'),
+      windowWidth: query.get('windowWidth'),
+      windowHeight: query.get('windowHeight')
     });
+    // The embedded view holds its calls back until the page listens.
+    if (settings.embedded) {
+      post({ ready: true });
+    }
   }
 
+  // Embedded, the camera is shown at the view's width, however wide.
   function shownWidth() {
-    return Math.min(document.body.clientWidth, MAX_SHOWN);
+    return settings.embedded
+      ? document.body.clientWidth
+      : Math.min(document.body.clientWidth, MAX_SHOWN);
+  }
+
+  // The scale that makes a frame of this size cover the whole view, cropping
+  // what overflows, as the native views' aspect fill does.
+  function coverScale(width, height) {
+    var body = document.body;
+    return Math.max(body.clientWidth / Math.max(1, width),
+      body.clientHeight / Math.max(1, height)) || 1;
   }
 
   // The camera's width, as far as it can be known before it starts. A webcam
@@ -508,6 +676,10 @@
   // Scales #reader to the stage. Cheap, and all a resize needs unless the
   // decoding width itself has to change.
   function fit() {
+    if (settings.embedded) {
+      fitCover();
+      return;
+    }
     var shown = shownWidth();
     var scale = shown / Math.max(1, reader.offsetWidth);
     reader.style.transform = 'scale(' + scale + ')';
@@ -516,19 +688,39 @@
     stage.style.height = Math.round(reader.offsetHeight * scale) + 'px';
   }
 
+  // Embedded: #reader scaled to cover the view and centred in it. Until the
+  // video is in, its height is guessed from the camera's usual 16:9.
+  function fitCover() {
+    var width = document.body.clientWidth;
+    var height = document.body.clientHeight;
+    var readerWidth = Math.max(1, reader.offsetWidth);
+    var readerHeight = reader.offsetHeight > 1
+      ? reader.offsetHeight : readerWidth * 9 / 16;
+    var scale = coverScale(readerWidth, readerHeight);
+    var left = (width - readerWidth * scale) / 2;
+    var top = (height - readerHeight * scale) / 2;
+    reader.style.transform = 'translate(' + left + 'px, ' + top + 'px) scale('
+      + scale + ')';
+    reader.style.setProperty('--ubs-scale', String(scale));
+    stage.style.width = width + 'px';
+    stage.style.height = height + 'px';
+  }
+
   // A restart tears the camera down and back up, so it happens only when the
-  // decoding width changes, as when a phone turns; debounced.
+  // decoding width changes, as when a phone turns, or when an embedded view
+  // with a scan window changes size, which changes the box; debounced.
   function onResized() {
     fit();
-    if (stopped || decodeWidth() === lastWidth) {
+    if (stopped) {
       return;
     }
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      if (!stopped) {
-        restartScanner();
-      }
-    }, 250);
+    var resized = settings.embedded && settings.window !== 'none'
+      && (document.body.clientWidth !== startedWidth
+        || document.body.clientHeight !== startedHeight);
+    if (!resized && decodeWidth() === lastWidth) {
+      return;
+    }
+    scheduleRestart();
   }
 
   // #reader grows once the video is in, which changes the stage's height;
@@ -542,6 +734,10 @@
   // What the hosts call from outside.
   window.configure = configure;
   window.stopScanner = stopScanner;
+  window.setWindow = setWindow;
+  window.pauseScanning = pauseScanning;
+  window.resumeScanning = resumeScanning;
+  window.toggleTorch = toggleTorch;
 })();
 </script>
 </body>

@@ -40,6 +40,11 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
       binaryMessenger: registrar.messenger
     )
     events.setStreamHandler(instance)
+
+    registrar.register(
+      EmbeddedScannerFactory(messenger: registrar.messenger),
+      withId: "universal_barcode_scanner/view"
+    )
   }
 
   // MARK: - FlutterStreamHandler
@@ -85,7 +90,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
 
     // Asking before opening the window: a denied permission should say so
     // rather than show a black rectangle.
-    requestCameraAccess { [weak self] granted in
+    CameraAccess.request { [weak self] granted in
       // Closed while the user was being asked: it already answered.
       guard let self = self, self.options?.session == options.session,
         self.scannerWindow == nil
@@ -128,19 +133,6 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     self.options = nil
     pendingResult = nil
     result(error)
-  }
-
-  private func requestCameraAccess(_ completion: @escaping (Bool) -> Void) {
-    switch AVCaptureDevice.authorizationStatus(for: .video) {
-    case .authorized:
-      completion(true)
-    case .notDetermined:
-      AVCaptureDevice.requestAccess(for: .video) { granted in
-        DispatchQueue.main.async { completion(granted) }
-      }
-    default:
-      completion(false)
-    }
   }
 
   // MARK: - Scanner window
@@ -235,7 +227,8 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
   }
 }
 
-/// The arguments the Dart side sends with `scanBarcode`.
+/// The arguments the Dart side sends with `scanBarcode`, or to create an
+/// embedded view.
 struct ScannerOptions {
   let session: Int
   let lineColor: NSColor
@@ -246,6 +239,8 @@ struct ScannerOptions {
   let hasWindow: Bool
   let scanFormat: String
   let delay: TimeInterval
+  /// Scan window asked for by the embedded view, in points.
+  let windowSize: CGSize?
 
   init(arguments: [String: Any]) {
     session = (arguments["session"] as? NSNumber)?.intValue ?? -1
@@ -260,6 +255,41 @@ struct ScannerOptions {
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
     let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
     delay = max(0, millis) / 1000.0
+
+    if let width = (arguments["scanWindowWidth"] as? NSNumber)?.doubleValue,
+      let height = (arguments["scanWindowHeight"] as? NSNumber)?.doubleValue,
+      width > 0, height > 0
+    {
+      windowSize = CGSize(width: width, height: height)
+    } else {
+      windowSize = nil
+    }
+  }
+
+  /// The scan window in `area`, as every platform places it: centred,
+  /// `requested` when given, otherwise square for QR codes and wide for
+  /// barcodes, capped so a large window does not get a huge one.
+  static func window(in area: CGRect, requested: CGSize?, square: Bool) -> CGRect {
+    guard area.width > 0, area.height > 0 else { return .zero }
+    let size: CGSize
+    if let requested = requested {
+      size = CGSize(
+        width: min(requested.width, area.width),
+        height: min(requested.height, area.height)
+      )
+    } else if square {
+      let side = min(min(area.width, area.height) * 0.75, 320)
+      size = CGSize(width: side, height: side)
+    } else {
+      let width = min(area.width * 0.85, 416)
+      size = CGSize(width: width, height: min(width * 0.5, area.height * 0.8))
+    }
+    return CGRect(
+      x: area.midX - size.width / 2,
+      y: area.midY - size.height / 2,
+      width: size.width,
+      height: size.height
+    )
   }
 }
 

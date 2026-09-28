@@ -22,12 +22,12 @@ one entry point.
 
 | Platform | How it scans | Embedded view |
 | --- | --- | --- |
-| Android | Native, CameraX and ML Kit | Yes |
-| iOS | Native, AVFoundation | Yes |
-| macOS | Native, AVFoundation and Vision | No |
-| Web | `html5-qrcode` in an iframe, bundled, no CDN call | No |
-| Windows | `html5-qrcode` in a WebView2 | No |
-| Linux | `html5-qrcode` in a WebKitGTK view | No |
+| Android | Native, CameraX and ML Kit | Native view |
+| iOS | Native, AVFoundation | Native view |
+| macOS | Native, AVFoundation and Vision | Native view |
+| Web | `html5-qrcode` in an iframe, bundled, no CDN call | The same page in an iframe |
+| Windows | `html5-qrcode` in a WebView2 | The same page in a WebView2 |
+| Linux | `html5-qrcode` in a WebKitGTK view | The same page in a WebKitGTK view |
 
 Windows needs the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/),
 which ships with Windows 11 and with any recent Edge. Linux needs WebKitGTK, `libwebkit2gtk-4.1-0`
@@ -175,7 +175,7 @@ emitted as a `ScannerException`, then the stream closes.
 
 ## Embed the camera
 
-To put the camera inside your own layout rather than on its own route. Android and iOS only:
+To put the camera inside your own layout rather than on its own route, on every platform:
 
 ```dart
 UniversalBarcodeScanner(
@@ -188,8 +188,10 @@ UniversalBarcodeScanner(
 );
 ```
 
-The view asks for the camera permission itself, stops the camera while the app is in the
-background, and only reads codes that sit entirely inside its scan window.
+The view asks for the camera permission itself and only reads codes that sit entirely inside its
+scan window. The camera fills the view, cropped rather than letterboxed, and the scan window is
+drawn the same way everywhere. On Android and iOS the camera also stops while the app is in the
+background.
 
 The controller drives the running camera:
 
@@ -199,11 +201,14 @@ await controller.pauseScanning();
 await controller.resumeScanning();
 ```
 
+`toggleFlash` answers false where there is no torch to drive: a Mac camera, and most webcams, which
+browsers and webviews give a page no control over.
+
 | Parameter | Default | Effect |
 | --- | --- | --- |
-| `onCreated` | required | Called once the platform view exists, with its `ScannerController`. |
+| `onCreated` | required | Called once the view exists, with its `ScannerController`. |
 | `onScanned` | `null` | Called with every code read. |
-| `onError` | `null` | Called when the camera cannot be used. |
+| `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
 | `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |

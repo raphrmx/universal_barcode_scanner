@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:ui' show Color;
+import 'dart:ui' show Color, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -84,9 +84,28 @@ class ScannerConfig {
           ScanFormat.onlyBarcode => 'barcode',
         },
       };
+
+  /// Settings of the bundled page run as an embedded view. The camera fills
+  /// the view, and the page reads inside [window], the scan window Flutter
+  /// draws over it, in logical pixels and centred.
+  Map<String, String> toEmbeddedPage({
+    required String host,
+    required Size window,
+  }) => <String, String>{
+    ...toPage(host: host),
+    'embedded': '1',
+    ...windowToPage(window),
+  };
+
+  /// The scan window as the page reads it.
+  static Map<String, String> windowToPage(Size window) => <String, String>{
+    'windowWidth': '${window.width.round()}',
+    'windowHeight': '${window.height.round()}',
+  };
 }
 
-/// A message from the bundled page: a code, or the user asking to close.
+/// A message from the bundled page: a code, the user asking to close, a
+/// camera that would not start, or the torch's new state.
 ///
 /// The page posts JSON rather than the bare code, so that no code can be
 /// mistaken for a command.
@@ -106,6 +125,13 @@ sealed class PageMessage {
     final Object? code = decoded['code'];
     if (code is String && code.isNotEmpty) return PageCode(code);
     if (decoded['close'] == true) return const PageClose();
+    final Object? error = decoded['error'];
+    if (error is Map) {
+      return PageError('${error['code']}', error['message'] as String?);
+    }
+    final Object? torch = decoded['torch'];
+    if (torch is bool) return PageTorch(on: torch);
+    if (decoded['ready'] == true) return const PageReady();
     return null;
   }
 }
@@ -123,4 +149,32 @@ final class PageCode extends PageMessage {
 final class PageClose extends PageMessage {
   /// Creates the message.
   const PageClose();
+}
+
+/// The camera did not start. [code] is one of the wire names of
+/// `ScannerErrorCode`.
+final class PageError extends PageMessage {
+  /// Wraps an error.
+  const PageError(this.code, this.message);
+
+  /// What went wrong.
+  final String code;
+
+  /// The browser's own words, for a log.
+  final String? message;
+}
+
+/// The page has loaded and taken its settings: it takes calls from now on.
+final class PageReady extends PageMessage {
+  /// Creates the message.
+  const PageReady();
+}
+
+/// The torch was toggled, or could not be.
+final class PageTorch extends PageMessage {
+  /// Wraps the torch's state.
+  const PageTorch({required this.on});
+
+  /// Whether the torch is now on.
+  final bool on;
 }

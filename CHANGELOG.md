@@ -21,10 +21,13 @@ or assets from the packages it started from.
 | A code reading `-1` or `-2` was taken for a cancel | Every payload is a code |
 | `scanDelay` delayed a single scan's result | It is the least time between two codes of a continuous scan |
 | An embedded view that is not `continuous` kept reporting | It pauses on the first code until `resumeScanning()` |
+| `BarcodeViewController(id)` could be built by hand | `ScannerController` is abstract: the widget hands one to `onCreated` |
 
 ### Added
 
-- The iOS embedded view, which the README promised but did not exist.
+- The embedded view on every platform: iOS and macOS as native views, and
+  the web, Windows and Linux as the bundled page in a view the size of the
+  widget. It was Android only, although the README promised iOS.
 - `ScannerException`, with `permissionDenied`, `cameraUnavailable` and
   `alreadyActive`, instead of dialogs and futures that never completed.
 - `ScanWindow.none`: nothing drawn over the camera, the whole frame read.
