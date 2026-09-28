@@ -1,5 +1,10 @@
 # Universal Barcode Scanner Versions
 
+## 2.0.1
+
+- The README shows the embedded view at the top of the page, with the other
+  two animations.
+
 ## 2.0.0
 
 A rewrite: every platform was reworked, and the package no longer carries code

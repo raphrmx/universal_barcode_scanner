@@ -6,10 +6,13 @@ one entry point.
 <p>
   <img src="https://public.comapps.be/packages/universal_barcode_scanner/android.webp" alt="Scanning a barcode on Android" width="171">
   &nbsp;&nbsp;
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/embedded.webp" alt="The camera opening inside a tile of the example app, on Android" width="171">
+</p>
+<p>
   <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp?v=2" alt="Scanning a QR code in a browser" width="537">
 </p>
 
-<sub>A barcode on Android, and a QR code in a browser.</sub>
+<sub>A barcode on Android, the camera inside the app's own layout, and a QR code in a browser.</sub>
 
 [![Live demo](https://img.shields.io/badge/Live_demo-comapps.web.app-3c9a70)](https://comapps.web.app/universal_barcode_scanner/)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=0175C2)](https://pub.dev/packages/universal_barcode_scanner)
