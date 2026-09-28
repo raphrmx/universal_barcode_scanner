@@ -14,6 +14,16 @@ topics:
   - camera
   - reader
 
+screenshots:
+  - description: The native scanner reading a barcode on Android.
+    path: screenshots/android_scan.webp
+  - description: The code read, back in the app.
+    path: screenshots/android_result.webp
+  - description: The scanner reading a QR code with a webcam, in a browser.
+    path: screenshots/web_scan.webp
+  - description: The QR code read, back in the web app.
+    path: screenshots/web_result.webp
+
 platforms:
   android:
   ios:

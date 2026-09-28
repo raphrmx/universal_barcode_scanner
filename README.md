@@ -4,12 +4,12 @@ Barcode and QR code scanning for Flutter, on Android, iOS, Linux, macOS, web and
 one entry point.
 
 <p>
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/ios.webp" alt="Scanning on iOS" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/android.webp" alt="Scanning a barcode on Android" height="360">
   &nbsp;&nbsp;
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp" alt="Scanning in a browser" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp?v=2" alt="Scanning a QR code in a browser" height="360">
 </p>
 
-<sub>On iOS, and in a browser.</sub>
+<sub>A barcode on Android, and a QR code in a browser.</sub>
 
 [![Live demo](https://img.shields.io/badge/Live_demo-comapps.web.app-3c9a70)](https://comapps.web.app/universal_barcode_scanner/)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=0175C2)](https://pub.dev/packages/universal_barcode_scanner)
