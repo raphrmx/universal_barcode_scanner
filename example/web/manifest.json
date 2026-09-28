@@ -1,11 +1,11 @@
 {
-    "name": "example",
-    "short_name": "example",
+    "name": "Universal Barcode Scanner",
+    "short_name": "Barcode Scanner",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Simple Barcode Scanner Package Example",
+    "description": "Universal Barcode Scanner example",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

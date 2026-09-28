@@ -31,22 +31,35 @@
       flex-direction: column;
       justify-content: center;
     }
-    /* Capped, never stretched: the library measures this width, so it stays
-       the single source of truth for the video and the shading alike. */
-    #reader {
-      width: 100%;
-      max-width: 640px;
+    /* The library draws the scan box of each frame at the size the box is
+       laid out, not at the camera's: laid out 640 wide, it decoded 640 pixels
+       of a 1280 camera. So #reader is laid out at the decoding width and
+       scaled down to the stage for display. A transform leaves the layout
+       size the library measures untouched. */
+    #stage {
+      position: relative;
+      flex: none;
       margin: 0 auto;
+      overflow: hidden;
+    }
+    #reader {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
     }
 
     /* The sweeping line. It is appended inside #qr-shaded-region, whose
        borders draw the shading, so its content box is exactly the scan square
        and the line needs no geometry of its own. */
+    /* Sized against the scale #reader is shown at, so it stays two pixels
+       thick on screen. */
     #ubs-scan-line {
+      --ubs-line: calc(2px / var(--ubs-scale, 1));
       position: absolute;
       left: 0;
       width: 100%;
-      height: 2px;
+      height: var(--ubs-line);
       background: var(--ubs-line-color, #ff6666);
       box-shadow: 0 0 8px 1px var(--ubs-line-color, #ff6666);
       opacity: 0.9;
@@ -56,12 +69,12 @@
 
     @keyframes ubs-sweep {
       0%   { top: 0; }
-      50%  { top: calc(100% - 2px); }
+      50%  { top: calc(100% - var(--ubs-line)); }
       100% { top: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      #ubs-scan-line { animation: none; top: calc(50% - 1px); }
+      #ubs-scan-line { animation: none; top: calc(50% - var(--ubs-line) / 2); }
     }
 
     /* Shown when the camera never starts. Without it the page is a black
@@ -82,7 +95,7 @@
   <script src="html5-qrcode.min.js"></script>
 </head>
 <body>
-<div id="reader"></div>
+<div id="stage"><div id="reader"></div></div>
 <p id="ubs-message"></p>
 <script>
 // refer doc here https://github.com/mebjas/html5-qrcode
@@ -115,6 +128,13 @@
   };
 
   var reader = document.getElementById('reader');
+  var stage = document.getElementById('stage');
+  // Widest the scanner is shown, in CSS pixels.
+  var MAX_SHOWN = 640;
+  // Widths #reader is laid out at, and so decoded at: the camera's, as asked
+  // for below, landscape or portrait.
+  var DECODE_LANDSCAPE = 1280;
+  var DECODE_PORTRAIT = 720;
   // Built on the first configure, and again only when the formats change:
   // the library takes them at construction.
   var scanner = null;
@@ -308,9 +328,26 @@
       scanner = new Html5Qrcode('reader', options);
       scannerFormats = settings.formats;
     }
-    lastWidth = reader.clientWidth;
+    layOut();
+    // Asked for explicitly: a browser hands out 640x480 when nothing is said,
+    // about two pixels per bar for a barcode held at arm's length, where the
+    // decoder gives up on the slightest blur. 1280x720 doubles that for a few
+    // milliseconds more per frame; 1080p would cost twice as much again.
+    // Continuous focus, where the camera has it, keeps a close code sharp.
+    var camera = {
+      videoConstraints: {
+        facingMode: settings.facing,
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        advanced: [{ focusMode: 'continuous' }]
+      }
+    };
     return Promise.resolve().then(function () {
-      return scanner.start({ facingMode: settings.facing }, config, onDecoded);
+      return scanner.start(
+        { facingMode: settings.facing },
+        Object.assign({}, config, camera),
+        onDecoded
+      );
     }).then(
       function () {
         hideMessage();
@@ -442,22 +479,61 @@
     });
   }
 
-  // Debounced, and ignoring sub-pixel noise: every restart tears the camera
-  // down and back up.
-  function onContainerResized() {
-    if (stopped || Math.abs(reader.clientWidth - lastWidth) < 4) {
+  function shownWidth() {
+    return Math.min(document.body.clientWidth, MAX_SHOWN);
+  }
+
+  // The camera's width, as far as it can be known before it starts. A webcam
+  // films in landscape whatever the window's shape; only a phone or a tablet
+  // held upright films in portrait. Decoding at less than the shown width
+  // would throw pixels away.
+  function decodeWidth() {
+    var handheld = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    var portrait = handheld && window.innerHeight > window.innerWidth;
+    return Math.max(shownWidth(), portrait ? DECODE_PORTRAIT : DECODE_LANDSCAPE);
+  }
+
+  // Sets the width #reader is laid out, and decoded, at. Only before a start:
+  // the library measures it once.
+  function layOut() {
+    lastWidth = decodeWidth();
+    reader.style.width = lastWidth + 'px';
+    fit();
+  }
+
+  // Scales #reader to the stage. Cheap, and all a resize needs unless the
+  // decoding width itself has to change.
+  function fit() {
+    var shown = shownWidth();
+    var scale = shown / Math.max(1, reader.offsetWidth);
+    reader.style.transform = 'scale(' + scale + ')';
+    reader.style.setProperty('--ubs-scale', String(scale));
+    stage.style.width = shown + 'px';
+    stage.style.height = Math.round(reader.offsetHeight * scale) + 'px';
+  }
+
+  // A restart tears the camera down and back up, so it happens only when the
+  // decoding width changes, as when a phone turns; debounced.
+  function onResized() {
+    fit();
+    if (stopped || decodeWidth() === lastWidth) {
       return;
     }
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(restartScanner, 250);
+    resizeTimer = setTimeout(function () {
+      if (!stopped) {
+        restartScanner();
+      }
+    }, 250);
   }
 
-  // The observer catches a container resized without the window; the window
-  // event covers the webviews where observing an element is unreliable.
+  // #reader grows once the video is in, which changes the stage's height;
+  // the body follows the window or the host view.
   if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(onContainerResized).observe(reader);
+    new ResizeObserver(fit).observe(reader);
+    new ResizeObserver(onResized).observe(document.body);
   }
-  window.addEventListener('resize', onContainerResized);
+  window.addEventListener('resize', onResized);
 
   // What the hosts call from outside.
   window.configure = configure;

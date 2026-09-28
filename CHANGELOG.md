@@ -169,6 +169,21 @@ answer, event and `close` names the one it belongs to.
 - The page decodes 12 frames a second instead of 30. Decoding runs on the main
   thread there, which 30 kept busy for nothing. It uses the browser's own
   `BarcodeDetector` where there is one, such as Chrome on Android and macOS.
+- The web, Windows and Linux scanner decodes at the camera's resolution
+  rather than the size it is shown at. `html5-qrcode` redraws the scan box of
+  every frame at its laid out size before decoding, and the page was laid out
+  at most 640 wide: a small barcode came down to under two pixels per bar,
+  where the decoder gives up on the slightest blur. The reader is now laid out
+  at the decoding width and scaled down for display. On synthetic frames of a
+  small EAN-8, reads went from 2 in 20 to 20 in 20. The page also asks the
+  camera for 1280 by 720 and continuous focus: given no size, a browser hands
+  out 640 by 480.
+- A resize of the scanner only rescales it now; the camera restarts only
+  when a phone turns.
+- The web scanner is checked under WebAssembly as well: `flutter build web
+  --wasm` works, and so does the page's message filtering.
+- The example's `web/index.html` loads through `flutter_bootstrap.js`: the
+  service worker and `loadEntrypoint` it used are deprecated.
 - Restricting `scanFormat` makes every platform faster: ML Kit, AVFoundation,
   Vision and the web decoder only look for the formats asked for.
 - The embedded Android view draws its scan line at 30 frames a second: each
