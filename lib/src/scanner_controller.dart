@@ -2,18 +2,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
-/// Called once the embedded scanner view exists, with the controller that
-/// drives it.
-typedef BarcodeScannerViewCreated =
-    void Function(BarcodeViewController controller);
+/// Called once the embedded scanner exists, with the controller that drives
+/// it.
+typedef ScannerCreatedCallback = void Function(ScannerController controller);
 
-/// Drives an embedded scanner view: flash, pause, resume.
+/// Drives an embedded scanner: torch, pause, resume.
 ///
-/// An instance is handed to `onBarcodeViewCreated` once the platform view is
-/// up. There is one channel per view, keyed on the view id.
-class BarcodeViewController {
-  /// Binds to the platform view with the given [id].
-  BarcodeViewController.data(int id)
+/// An instance is handed to `onCreated` once the platform view is up. There is
+/// one channel per view, keyed on the view id.
+class ScannerController {
+  /// Binds to the platform view with the given [id]. The widget creates it.
+  ScannerController(int id)
     : _channel = MethodChannel('universal_barcode_scanner/view_$id') {
     _channel.setMethodCallHandler(_handleMethodCall);
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 
 /// Default colours of the scanner bar, dark because it sits over a camera.
 const Color _barBackground = Color(0xFF000000);
@@ -25,7 +25,7 @@ class ScannerChrome extends StatelessWidget {
   final Widget body;
 
   /// The bar to show, or null for a camera that fills the page.
-  final BarcodeAppBar? bar;
+  final ScannerBar? bar;
 
   /// Called by the back button, when the bar shows one.
   final VoidCallback? onClose;
@@ -35,7 +35,7 @@ class ScannerChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BarcodeAppBar? bar = this.bar;
+    final ScannerBar? bar = this.bar;
     final EdgeInsets padding = MediaQuery.paddingOf(context);
     final Widget page = ColoredBox(
       color: backgroundColor ?? _barBackground,
@@ -118,14 +118,14 @@ class _Cross extends CustomPainter {
 class _ScannerBar extends StatelessWidget {
   const _ScannerBar({required this.bar, this.onClose});
 
-  final BarcodeAppBar bar;
+  final ScannerBar bar;
   final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
     final Color foreground = bar.foregroundColor ?? _barForeground;
-    final String? title = bar.appBarTitle;
-    final bool back = bar.enableBackButton == true;
+    final String? title = bar.title;
+    final bool back = bar.showBackButton;
 
     final Widget label = title == null
         ? const SizedBox.shrink()
@@ -151,10 +151,10 @@ class _ScannerBar extends StatelessWidget {
           child: Row(
             children: <Widget>[
               if (back)
-                _BackButton(onPressed: onClose, icon: bar.backButtonIcon)
+                _BackButton(onPressed: onClose, icon: bar.backIcon)
               else
                 const SizedBox(width: 16),
-              if (bar.centerTitle ?? false) ...<Widget>[
+              if (bar.centerTitle) ...<Widget>[
                 Expanded(child: Center(child: label)),
                 SizedBox(width: back ? _barHeight : 16),
               ] else
@@ -172,7 +172,7 @@ class _BackButton extends StatelessWidget {
   const _BackButton({required this.onPressed, this.icon});
 
   final VoidCallback? onPressed;
-  final Icon? icon;
+  final Widget? icon;
 
   @override
   Widget build(BuildContext context) => GestureDetector(

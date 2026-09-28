@@ -13,11 +13,13 @@ struct ScanOptions {
   /// Tags every answer and event of this scan; see `NativeScanner`.
   let session: Int
   let lineColor: UIColor
-  let cancelButtonText: String
-  let showFlashIcon: Bool
+  let cancelLabel: String
+  let showTorchButton: Bool
   let continuous: Bool
   /// Square for QR codes, wide for barcodes.
   let squareWindow: Bool
+  /// False for no window: nothing is drawn, and the whole frame is read.
+  let hasWindow: Bool
   let position: AVCaptureDevice.Position
   let scanFormat: String
   let delay: TimeInterval
@@ -29,11 +31,13 @@ struct ScanOptions {
     lineColor =
       UIColor(hex: arguments["lineColor"] as? String ?? "")
       ?? UIColor(red: 1, green: 0.4, blue: 0.4, alpha: 1)
-    let cancel = arguments["cancelButtonText"] as? String ?? ""
-    cancelButtonText = cancel.isEmpty ? "Cancel" : cancel
-    showFlashIcon = arguments["showFlashIcon"] as? Bool ?? false
+    let cancel = arguments["cancelLabel"] as? String ?? ""
+    cancelLabel = cancel.isEmpty ? "Cancel" : cancel
+    showTorchButton = arguments["showTorchButton"] as? Bool ?? false
     continuous = arguments["continuous"] as? Bool ?? false
-    squareWindow = (arguments["scanType"] as? String) != "barcode"
+    let window = arguments["scanWindow"] as? String ?? "wide"
+    squareWindow = window == "square"
+    hasWindow = window != "none"
     position = (arguments["cameraFace"] as? String) == "front" ? .front : .back
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
     let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0

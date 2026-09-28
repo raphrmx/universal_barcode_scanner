@@ -37,8 +37,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import be.comapps.universal_barcode_scanner.camera.CameraSetup
-import be.comapps.universal_barcode_scanner.camera.ScannerOverlay
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -56,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * cancelled, or an error code. A continuous scan pushes every code to the
  * event channel and says so when it closes, whichever way it closes.
  */
-class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
+class ScannerActivity : AppCompatActivity(), View.OnClickListener {
 
     private lateinit var options: ScanOptions
     private lateinit var gate: ReadGate
@@ -113,31 +111,31 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
             return
         }
 
-        setContentView(R.layout.barcode_capture)
+        setContentView(R.layout.ubs_scanner)
         applyInsets()
 
         gate = ReadGate(options.delayMillis.toLong())
         lensFacing = options.lensFacing
 
-        findViewById<Button>(R.id.btnBarcodeCaptureCancel).apply {
-            text = options.cancelButtonText
-            setOnClickListener(this@BarcodeCaptureActivity)
+        findViewById<Button>(R.id.ubs_cancel).apply {
+            text = options.cancelLabel
+            setOnClickListener(this@ScannerActivity)
         }
 
         // Both shown once the camera says it has a flash, or another lens.
-        flashButton = findViewById<ImageView>(R.id.imgViewBarcodeCaptureUseFlash).apply {
-            setOnClickListener(this@BarcodeCaptureActivity)
+        flashButton = findViewById<ImageView>(R.id.ubs_torch).apply {
+            setOnClickListener(this@ScannerActivity)
             visibility = View.GONE
         }
-        switchButton = findViewById<ImageView>(R.id.imgViewSwitchCamera).apply {
-            setOnClickListener(this@BarcodeCaptureActivity)
+        switchButton = findViewById<ImageView>(R.id.ubs_switch_camera).apply {
+            setOnClickListener(this@ScannerActivity)
             visibility = View.GONE
         }
 
-        findViewById<ScannerOverlay>(R.id.scannerOverlay)
-            .configure(options.lineColor, options.squareWindow)
+        findViewById<ScanWindowOverlay>(R.id.ubs_overlay)
+            .configure(options.lineColor, options.squareWindow, options.hasWindow)
 
-        previewView = findViewById(R.id.preview)
+        previewView = findViewById(R.id.ubs_preview)
         scanner = BarcodeScanning.getClient(options.mlKitOptions())
         analysisExecutor = Executors.newSingleThreadExecutor()
 
@@ -165,9 +163,9 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
 
     /** Pads the bottom bar by the navigation bar and any display cutout. */
     private fun applyInsets() {
-        val bar = findViewById<View>(R.id.layoutBottom)
+        val bar = findViewById<View>(R.id.ubs_bar)
         val barHeight = bar.layoutParams.height
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.topLayout)) { _, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.ubs_root)) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
             )
@@ -261,7 +259,7 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
 
         val hasFlash = bound.cameraInfo.hasFlashUnit()
         flashButton.visibility =
-            if (options.showFlashIcon && hasFlash) View.VISIBLE else View.GONE
+            if (options.showTorchButton && hasFlash) View.VISIBLE else View.GONE
         bound.cameraInfo.torchState.observe(this) { state ->
             torchOn = state == TorchState.ON
             renderTorch()
@@ -335,12 +333,12 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onClick(v: View) {
         when (v.id) {
-            R.id.imgViewBarcodeCaptureUseFlash -> {
+            R.id.ubs_torch -> {
                 val bound = camera ?: return
                 if (bound.cameraInfo.hasFlashUnit()) bound.cameraControl.enableTorch(!torchOn)
             }
-            R.id.btnBarcodeCaptureCancel -> finishCancelled()
-            R.id.imgViewSwitchCamera -> {
+            R.id.ubs_cancel -> finishCancelled()
+            R.id.ubs_switch_camera -> {
                 val previous = lensFacing
                 lensFacing = otherLens(lensFacing)
                 if (!bindCamera()) {
@@ -353,7 +351,7 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun renderTorch() {
         flashButton.setImageResource(
-            if (torchOn) R.drawable.ubs_ic_flash_on else R.drawable.ubs_ic_flash_off,
+            if (torchOn) R.drawable.ubs_torch_on else R.drawable.ubs_torch_off,
         )
         // Read out as selected when on, for a screen reader.
         flashButton.isSelected = torchOn
@@ -399,7 +397,7 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     internal companion object {
-        private const val TAG = "BarcodeCaptureActivity"
+        private const val TAG = "ScannerActivity"
 
         /** Key of the string extra carrying the code back to the plugin. */
         const val EXTRA_CODE = "be.comapps.universal_barcode_scanner.code"
@@ -410,7 +408,7 @@ class BarcodeCaptureActivity : AppCompatActivity(), View.OnClickListener {
         private const val LAUNCH_TIMEOUT_MS = 5000L
 
         /** The scanner on screen, so the plugin can close it. Weak: never kept. */
-        private var current = WeakReference<BarcodeCaptureActivity>(null)
+        private var current = WeakReference<ScannerActivity>(null)
 
         /** The session whose activity was started but not created yet. */
         private var launchingSession: Int? = null

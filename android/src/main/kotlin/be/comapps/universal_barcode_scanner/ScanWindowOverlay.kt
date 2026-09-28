@@ -1,4 +1,4 @@
-package be.comapps.universal_barcode_scanner.camera
+package be.comapps.universal_barcode_scanner
 
 import android.content.Context
 import android.graphics.Canvas
@@ -18,7 +18,7 @@ import android.view.View
  * per frame, so it sweeps at the same speed on a 60 Hz and a 120 Hz screen.
  * Everything it draws with is allocated once.
  */
-class ScannerOverlay @JvmOverloads constructor(
+class ScanWindowOverlay @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
@@ -40,6 +40,9 @@ class ScannerOverlay @JvmOverloads constructor(
 
     private var square = true
 
+    /** False for no window: nothing is drawn, and the whole view counts. */
+    private var shown = true
+
     /**
      * Least time between two frames of the line, zero for every display
      * frame. Inside a platform view every frame of the line is a frame
@@ -51,10 +54,11 @@ class ScannerOverlay @JvmOverloads constructor(
     private var requestedWidth = 0f
     private var requestedHeight = 0f
 
-    /** Colour of the line, and whether the window is square or wide. */
-    fun configure(lineColor: Int, squareWindow: Boolean) {
+    /** Colour of the line, and whether the window is square, wide or absent. */
+    fun configure(lineColor: Int, squareWindow: Boolean, hasWindow: Boolean) {
         linePaint.color = lineColor
         square = squareWindow
+        shown = hasWindow
         updateWindow(width, height)
         invalidate()
     }
@@ -82,6 +86,10 @@ class ScannerOverlay @JvmOverloads constructor(
             window.setEmpty()
             return
         }
+        if (!shown) {
+            window.set(0f, 0f, w.toFloat(), h.toFloat())
+            return
+        }
         val boxWidth: Float
         val boxHeight: Float
         if (requestedWidth > 0 && requestedHeight > 0) {
@@ -101,6 +109,7 @@ class ScannerOverlay @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (!shown) return
         val box = copyWindow()
         if (box.isEmpty) return
         val w = width.toFloat()

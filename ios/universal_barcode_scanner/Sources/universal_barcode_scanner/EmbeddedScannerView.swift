@@ -3,7 +3,7 @@ import Flutter
 import UIKit
 
 /// Builds the embedded scanner views of `UniversalBarcodeScanner`.
-final class BarcodeViewFactory: NSObject, FlutterPlatformViewFactory {
+final class EmbeddedScannerFactory: NSObject, FlutterPlatformViewFactory {
   private let messenger: FlutterBinaryMessenger
 
   init(messenger: FlutterBinaryMessenger) {
@@ -16,7 +16,7 @@ final class BarcodeViewFactory: NSObject, FlutterPlatformViewFactory {
     viewIdentifier viewId: Int64,
     arguments args: Any?
   ) -> FlutterPlatformView {
-    return BarcodePlatformView(
+    return EmbeddedScannerView(
       frame: frame,
       viewId: viewId,
       arguments: args as? [String: Any] ?? [:],
@@ -44,7 +44,7 @@ private final class LayoutReportingView: UIView {
 ///
 /// Only codes inside the scan window are read. When the view is not
 /// continuous, it pauses on the first code until `resumeScanning`.
-final class BarcodePlatformView: NSObject, FlutterPlatformView {
+final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   private let container: LayoutReportingView
   private let options: ScanOptions
   private let camera: ScannerCamera
@@ -84,6 +84,7 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
 
     overlay.lineColor = options.lineColor
     overlay.squareWindow = options.squareWindow
+    overlay.isHidden = !options.hasWindow
     overlay.windowSize = options.windowSize
     overlay.onWindowChange = { [weak self] _ in self?.updateRectOfInterest() }
     container.addSubview(overlay)
@@ -164,8 +165,9 @@ final class BarcodePlatformView: NSObject, FlutterPlatformView {
   }
 
   private func updateRectOfInterest() {
+    // Without a window the output keeps its default: the whole frame.
     let window = overlay.scanWindow
-    guard ready, window.width > 0, window.height > 0 else { return }
+    guard ready, options.hasWindow, window.width > 0, window.height > 0 else { return }
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 

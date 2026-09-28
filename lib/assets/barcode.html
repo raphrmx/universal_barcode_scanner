@@ -342,16 +342,19 @@
         advanced: [{ focusMode: 'continuous' }]
       }
     };
+    var scanConfig = Object.assign({}, config, camera);
+    if (settings.window === 'none') {
+      // No box: the library reads the whole frame and shades nothing.
+      delete scanConfig.qrbox;
+    }
     return Promise.resolve().then(function () {
-      return scanner.start(
-        { facingMode: settings.facing },
-        Object.assign({}, config, camera),
-        onDecoded
-      );
+      return scanner.start({ facingMode: settings.facing }, scanConfig, onDecoded);
     }).then(
       function () {
         hideMessage();
-        installScanLine();
+        if (settings.window !== 'none') {
+          installScanLine();
+        }
         // Stopped or answered while the camera was opening.
         if (stopped || delivered) {
           return stopCamera();
@@ -385,7 +388,8 @@
     settings.facing = options.facing === 'user' ? 'user' : 'environment';
     settings.formats = FORMATS.hasOwnProperty(options.formats)
       ? options.formats : 'all';
-    settings.window = options.window === 'wide' ? 'wide' : 'square';
+    settings.window = options.window === 'wide' || options.window === 'none'
+      ? options.window : 'square';
     settings.host = options.host === 'desktop' ? 'desktop' : 'web';
 
     stopped = false;

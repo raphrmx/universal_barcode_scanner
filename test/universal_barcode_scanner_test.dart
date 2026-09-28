@@ -106,9 +106,9 @@ void main() {
     test('the native arguments name every setting', () {
       const ScannerConfig config = ScannerConfig(
         lineColor: Color(0xFF112233),
-        cancelButtonText: 'Back',
-        showFlashIcon: true,
-        scanType: ScanType.qr,
+        cancelLabel: 'Back',
+        showTorchButton: true,
+        scanWindow: ScanWindow.square,
         cameraFace: CameraFace.front,
         scanFormat: ScanFormat.onlyQrCode,
         scanDelay: Duration(milliseconds: 1500),
@@ -116,10 +116,10 @@ void main() {
       );
       expect(config.toNative(), <String, Object?>{
         'lineColor': '#FF112233',
-        'cancelButtonText': 'Back',
-        'showFlashIcon': true,
+        'cancelLabel': 'Back',
+        'showTorchButton': true,
         'continuous': true,
-        'scanType': 'qr',
+        'scanWindow': 'square',
         'cameraFace': 'front',
         'scanFormat': 'ONLY_QR_CODE',
         'delayMillis': 1500,
@@ -149,10 +149,16 @@ void main() {
       );
       expect(
         const ScannerConfig(
-          scanType: ScanType.qr,
+          scanWindow: ScanWindow.square,
         ).toPage(host: 'web')['window'],
         'square',
       );
+    });
+
+    test('no window reaches every side as none', () {
+      const ScannerConfig config = ScannerConfig(scanWindow: ScanWindow.none);
+      expect(config.toNative()['scanWindow'], 'none');
+      expect(config.toPage(host: 'web')['window'], 'none');
     });
 
     // The desktop page is kept between two scans: a background left out
@@ -482,7 +488,7 @@ void main() {
           MaterialApp(
             home: UniversalBarcodeScanner(
               onScanned: (String _) {},
-              onBarcodeViewCreated: (BarcodeViewController _) {},
+              onCreated: (ScannerController _) {},
             ),
           ),
         );
@@ -493,7 +499,7 @@ void main() {
     });
   });
 
-  group('BarcodeViewController', () {
+  group('ScannerController', () {
     Future<void> send(int id, String method, Object? arguments) =>
         _messenger.handlePlatformMessage(
           'universal_barcode_scanner/view_$id',
@@ -504,7 +510,7 @@ void main() {
         );
 
     test('turns an error from the view into a ScannerException', () async {
-      final BarcodeViewController controller = BarcodeViewController.data(7);
+      final ScannerController controller = ScannerController(7);
       ScannerException? received;
       controller.onError = (ScannerException error) => received = error;
 
@@ -519,7 +525,7 @@ void main() {
     });
 
     test('hands on codes until it is disposed', () async {
-      final BarcodeViewController controller = BarcodeViewController.data(8);
+      final ScannerController controller = ScannerController(8);
       final List<String> codes = <String>[];
       controller.onScanned = codes.add;
 

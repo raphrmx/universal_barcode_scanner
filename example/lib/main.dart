@@ -18,11 +18,11 @@ bool get _hasEmbeddedView =>
     (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS);
 
-const BarcodeAppBar _appBar = BarcodeAppBar(
-  appBarTitle: 'Point at a barcode',
+const ScannerBar _appBar = ScannerBar(
+  title: 'Point at a barcode',
   centerTitle: false,
-  enableBackButton: true,
-  backButtonIcon: Icon(Icons.arrow_back_ios),
+  showBackButton: true,
+  backIcon: Icon(Icons.arrow_back_ios),
 );
 
 /// The three ways to use the scanner: one shot, continuous, embedded.
@@ -86,8 +86,8 @@ class _HomePageState extends State<HomePage> {
     try {
       final String? code = await UniversalBarcodeScanner.scan(
         context,
-        barcodeAppBar: _appBar,
-        isShowFlashIcon: true,
+        bar: _appBar,
+        showTorchButton: true,
         cameraFace: CameraFace.back,
         scanFormat: ScanFormat.all,
       );
@@ -103,8 +103,8 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     _stream = UniversalBarcodeScanner.stream(
       context,
-      barcodeAppBar: _appBar,
-      isShowFlashIcon: true,
+      bar: _appBar,
+      showTorchButton: true,
       scanDelay: const Duration(seconds: 2),
     ).listen(
       (String code) => _found(code, 'continuous'),
@@ -374,7 +374,7 @@ class EmbeddedPage extends StatefulWidget {
 }
 
 class _EmbeddedPageState extends State<EmbeddedPage> {
-  BarcodeViewController? _controller;
+  ScannerController? _controller;
   String _result = '';
   bool _paused = false;
 
@@ -414,9 +414,8 @@ class _EmbeddedPageState extends State<EmbeddedPage> {
                           setState(() => _result = code),
                       onError: (ScannerException error) =>
                           setState(() => _result = error.toString()),
-                      onBarcodeViewCreated:
-                          (BarcodeViewController controller) =>
-                              _controller = controller,
+                      onCreated: (ScannerController controller) =>
+                          _controller = controller,
                     ),
                   ),
                 ),

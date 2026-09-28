@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
-import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
+import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:webview_all/webview_all.dart';
@@ -54,7 +54,7 @@ class _Webview {
   bool released = false;
 
   /// The page currently showing this webview.
-  _DesktopBarcodeScannerPageState? owner;
+  _DesktopScannerPageState? owner;
 
   Timer? release;
 
@@ -94,15 +94,15 @@ _Webview? _kept;
 /// Both run the same bundled `html5-qrcode` page in a webview, WebView2 on
 /// Windows and WebKitGTK on Linux, and both need the host to answer the
 /// page's camera permission request.
-class DesktopBarcodeScannerPage extends StatefulWidget {
+class DesktopScannerPage extends StatefulWidget {
   /// Creates the desktop scanner page.
-  const DesktopBarcodeScannerPage({
+  const DesktopScannerPage({
     super.key,
     required this.config,
     required this.onScanned,
     required this.onClose,
     this.child,
-    this.barcodeAppBar,
+    this.bar,
     this.flip = false,
     this.backgroundColor,
   });
@@ -120,7 +120,7 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
   final Widget? child;
 
   /// App bar shown above the scanner, or null for none.
-  final BarcodeAppBar? barcodeAppBar;
+  final ScannerBar? bar;
 
   /// Whether the preview is mirrored.
   final bool flip;
@@ -129,11 +129,10 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
   final Color? backgroundColor;
 
   @override
-  State<DesktopBarcodeScannerPage> createState() =>
-      _DesktopBarcodeScannerPageState();
+  State<DesktopScannerPage> createState() => _DesktopScannerPageState();
 }
 
-class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
+class _DesktopScannerPageState extends State<DesktopScannerPage> {
   late final _Webview _webview;
 
   /// Whether [_webview] is the kept one, handed back rather than let go.
@@ -217,7 +216,7 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
     final Widget view = WebViewWidget(controller: _webview.controller);
     return ScannerChrome(
       backgroundColor: widget.backgroundColor,
-      bar: widget.barcodeAppBar,
+      bar: widget.bar,
       onClose: _close,
       body: Stack(
         children: <Widget>[

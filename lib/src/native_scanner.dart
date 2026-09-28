@@ -14,8 +14,6 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 /// end. `close` takes the session it means, so a late close or a late event
 /// from a scanner that is going away never reaches the next one. No payload
 /// is reserved: a code that reads `-1` is a code.
-///
-/// Derived from https://github.com/AmolGangadhare/flutter_barcode_scanner.
 abstract final class NativeScanner {
   static const MethodChannel _channel = MethodChannel(
     'universal_barcode_scanner',

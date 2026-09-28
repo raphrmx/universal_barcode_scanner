@@ -15,7 +15,6 @@ example/.dart_tool/
 example/.idea/
 example/android/
 example/build/
-example/demo/
 example/ios/
 example/linux/
 example/macos/

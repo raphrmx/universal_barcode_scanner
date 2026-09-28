@@ -8,7 +8,7 @@ import Vision
 /// macOS has no equivalent of `AVCaptureMetadataOutput`'s barcode types, so
 /// frames go through Vision's `VNDetectBarcodesRequest` instead. That is also
 /// what Apple's own samples do on this platform.
-class BarcodeScannerViewController: NSViewController {
+class ScannerViewController: NSViewController {
   /// Called on the main thread with each code worth reporting.
   var onScanned: ((String) -> Void)?
   /// Called when the user closes the scanner without a result.
@@ -143,6 +143,10 @@ class BarcodeScannerViewController: NSViewController {
     outlineLayer.strokeColor = NSColor(white: 1, alpha: 0.8).cgColor
     outlineLayer.lineWidth = 2
     lineLayer.backgroundColor = options.lineColor.cgColor
+    // Without a window, nothing is drawn over the camera.
+    dimLayer.isHidden = !options.hasWindow
+    outlineLayer.isHidden = !options.hasWindow
+    lineLayer.isHidden = !options.hasWindow
     view.layer?.addSublayer(dimLayer)
     view.layer?.addSublayer(outlineLayer)
     view.layer?.addSublayer(lineLayer)
@@ -212,7 +216,10 @@ class BarcodeScannerViewController: NSViewController {
 
   /// Makes Vision look inside the window only, as the other platforms do.
   private func updateRegionOfInterest() {
-    guard let preview = previewLayer, scanWindow.width > 0, scanWindow.height > 0 else { return }
+    // Without a window, Vision keeps looking at the whole frame.
+    guard options.hasWindow, let preview = previewLayer, scanWindow.width > 0,
+      scanWindow.height > 0
+    else { return }
     let converted = preview.metadataOutputRectConverted(fromLayerRect: scanWindow)
     guard converted.width > 0, converted.height > 0 else { return }
     // Metadata space has its origin at the top left, Vision's at the bottom
@@ -229,7 +236,7 @@ class BarcodeScannerViewController: NSViewController {
 
   private func configureCancelButton() {
     let button = NSButton(
-      title: options.cancelButtonText,
+      title: options.cancelLabel,
       target: self,
       action: #selector(cancelClicked)
     )
@@ -293,7 +300,7 @@ class BarcodeScannerViewController: NSViewController {
   }
 }
 
-extension BarcodeScannerViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
+extension ScannerViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
   func captureOutput(
     _ output: AVCaptureOutput,
     didOutput sampleBuffer: CMSampleBuffer,

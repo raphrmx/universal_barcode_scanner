@@ -1,15 +1,16 @@
-/// Shape of the scan window on the native scanners.
+/// Shape of the scan window.
 ///
-/// It only draws the window: which codes are accepted is [ScanFormat]'s job.
-enum ScanType {
-  /// A square window, for QR codes.
-  qr,
+/// Codes are read inside it; which codes are accepted is [ScanFormat]'s job.
+enum ScanWindow {
+  /// A square, for QR codes and other two-dimensional codes.
+  square,
 
-  /// A wide window, for linear barcodes.
-  barcode,
+  /// A wide rectangle, for linear barcodes.
+  wide,
 
-  /// Same as [qr].
-  defaultMode,
+  /// No window: nothing is drawn over the camera, and the whole frame is
+  /// read. For an app that draws its own guide over the scanner.
+  none,
 }
 
 /// Which symbologies the scanner accepts, on every platform.

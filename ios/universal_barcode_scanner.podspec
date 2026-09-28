@@ -14,7 +14,6 @@ and Windows, from one widget and one callback.
   s.author           = 'COMAPPS.be'
   s.source           = { :path => '.' }
   s.source_files = 'universal_barcode_scanner/Sources/universal_barcode_scanner/**/*.swift'
-  s.resources = 'universal_barcode_scanner/Sources/universal_barcode_scanner/Resources/*.png'
   s.dependency 'Flutter'
 
   s.ios.deployment_target = '12.0'

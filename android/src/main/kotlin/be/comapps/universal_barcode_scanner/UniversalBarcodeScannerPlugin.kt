@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
-import be.comapps.universal_barcode_scanner.widget.BarcodeViewFactory
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -20,7 +19,7 @@ import io.flutter.plugin.common.PluginRegistry
 /**
  * Entry point on Android.
  *
- * `scanBarcode` opens [BarcodeCaptureActivity]. A single scan answers with the
+ * `scanBarcode` opens [ScannerActivity]. A single scan answers with the
  * code, or null when cancelled; a continuous one answers as soon as the
  * scanner is up and sends its codes on the event channel. `close` closes the
  * scanner of the session it names.
@@ -96,7 +95,7 @@ class UniversalBarcodeScannerPlugin :
             it.setStreamHandler(this)
         }
         binding.platformViewRegistry.registerViewFactory(
-            VIEW_TYPE, BarcodeViewFactory(binding.binaryMessenger, host),
+            VIEW_TYPE, EmbeddedScannerFactory(binding.binaryMessenger, host),
         )
     }
 
@@ -163,7 +162,7 @@ class UniversalBarcodeScannerPlugin :
         when (call.method) {
             "scanBarcode" -> scan(arguments, result)
             "close" -> {
-                BarcodeCaptureActivity.close(ScanOptions.sessionOf(arguments))
+                ScannerActivity.close(ScanOptions.sessionOf(arguments))
                 result.success(null)
             }
             else -> result.notImplemented()
@@ -176,15 +175,15 @@ class UniversalBarcodeScannerPlugin :
             result.error(ScanErrors.CAMERA_UNAVAILABLE, "No activity to open the scanner from.", null)
             return
         }
-        if (pendingResult != null || BarcodeCaptureActivity.isBusy) {
+        if (pendingResult != null || ScannerActivity.isBusy) {
             result.error(ScanErrors.ALREADY_ACTIVE, "A scanner is already open.", null)
             return
         }
 
         val options = ScanOptions.fromMap(arguments)
-        val intent = options.writeTo(Intent(current, BarcodeCaptureActivity::class.java))
+        val intent = options.writeTo(Intent(current, ScannerActivity::class.java))
         try {
-            BarcodeCaptureActivity.launching(options.session)
+            ScannerActivity.launching(options.session)
             if (options.continuous) {
                 current.startActivity(intent)
                 result.success(null)
@@ -193,7 +192,7 @@ class UniversalBarcodeScannerPlugin :
                 current.startActivityForResult(intent, RC_BARCODE_CAPTURE)
             }
         } catch (e: RuntimeException) {
-            BarcodeCaptureActivity.launchFailed(options.session)
+            ScannerActivity.launchFailed(options.session)
             pendingResult = null
             result.error(
                 ScanErrors.CAMERA_UNAVAILABLE,
@@ -212,16 +211,16 @@ class UniversalBarcodeScannerPlugin :
         val result = pendingResult ?: return true
         pendingResult = null
 
-        val errorCode = data?.getStringExtra(BarcodeCaptureActivity.EXTRA_ERROR_CODE)
+        val errorCode = data?.getStringExtra(ScannerActivity.EXTRA_ERROR_CODE)
         if (errorCode != null) {
             result.error(
                 errorCode,
-                data.getStringExtra(BarcodeCaptureActivity.EXTRA_ERROR_MESSAGE),
+                data.getStringExtra(ScannerActivity.EXTRA_ERROR_MESSAGE),
                 null,
             )
             return true
         }
-        val code = if (resultCode == Activity.RESULT_OK) BarcodeCaptureActivity.codeFrom(data) else null
+        val code = if (resultCode == Activity.RESULT_OK) ScannerActivity.codeFrom(data) else null
         result.success(code)
         return true
     }

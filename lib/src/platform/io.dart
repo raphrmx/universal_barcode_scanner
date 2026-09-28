@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
-import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
+import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// Platforms that reach a native scanner over the method channel.
@@ -26,16 +26,16 @@ bool get _hasWebviewScanner => switch (defaultTargetPlatform) {
 ///
 /// Android, iOS and macOS go through their native scanner, which covers this
 /// page; Windows and Linux through a webview running the bundled scanner page.
-class BarcodeScannerPage extends StatefulWidget {
+class ScannerPage extends StatefulWidget {
   /// Creates the scanner page.
-  const BarcodeScannerPage({
+  const ScannerPage({
     super.key,
     required this.config,
     required this.onScanned,
     required this.onClose,
     this.onError,
     this.child,
-    this.barcodeAppBar,
+    this.bar,
     this.flip = false,
     this.backgroundColor,
   });
@@ -57,7 +57,7 @@ class BarcodeScannerPage extends StatefulWidget {
   final Widget? child;
 
   /// App bar above the webview scanner, or null for none.
-  final BarcodeAppBar? barcodeAppBar;
+  final ScannerBar? bar;
 
   /// Whether the webview preview is mirrored.
   final bool flip;
@@ -66,10 +66,10 @@ class BarcodeScannerPage extends StatefulWidget {
   final Color? backgroundColor;
 
   @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+  State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+class _ScannerPageState extends State<ScannerPage> {
   /// Tags every call and event of this page's scan, so that a late close or
   /// event from it never reaches the next scanner.
   final int _session = NativeScanner.newSession();
@@ -174,12 +174,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   @override
   Widget build(BuildContext context) {
     if (_hasWebviewScanner) {
-      return DesktopBarcodeScannerPage(
+      return DesktopScannerPage(
         config: widget.config,
         backgroundColor: widget.backgroundColor,
         onScanned: widget.onScanned,
         onClose: widget.onClose,
-        barcodeAppBar: widget.barcodeAppBar,
+        bar: widget.bar,
         flip: widget.flip,
         child: widget.child,
       );
@@ -254,12 +254,12 @@ class _Arc extends CustomPainter {
 /// What to scan is read once, when the platform view is created: give the
 /// widget a new key to apply a different configuration. The callbacks are
 /// always the current widget's.
-class BarcodeScannerView extends StatefulWidget {
+class EmbeddedScanner extends StatefulWidget {
   /// Creates the embedded view.
-  const BarcodeScannerView({
+  const EmbeddedScanner({
     super.key,
     required this.config,
-    required this.onBarcodeViewCreated,
+    required this.onCreated,
     this.onScanned,
     this.onError,
     this.scanWindowSize,
@@ -271,7 +271,7 @@ class BarcodeScannerView extends StatefulWidget {
   final ScannerConfig config;
 
   /// Called once the view exists.
-  final BarcodeScannerViewCreated onBarcodeViewCreated;
+  final ScannerCreatedCallback onCreated;
 
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
@@ -289,16 +289,16 @@ class BarcodeScannerView extends StatefulWidget {
   final bool flip;
 
   @override
-  State<BarcodeScannerView> createState() => _BarcodeScannerViewState();
+  State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
 
-class _BarcodeScannerViewState extends State<BarcodeScannerView> {
+class _EmbeddedScannerState extends State<EmbeddedScanner> {
   static const String _viewType = 'universal_barcode_scanner/view';
 
-  BarcodeViewController? _controller;
+  ScannerController? _controller;
 
   @override
-  void didUpdateWidget(BarcodeScannerView oldWidget) {
+  void didUpdateWidget(EmbeddedScanner oldWidget) {
     super.didUpdateWidget(oldWidget);
     _controller
       ?..onScanned = widget.onScanned
@@ -321,11 +321,11 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
 
   void _onPlatformViewCreated(int id) {
     if (!mounted) return;
-    final BarcodeViewController controller = BarcodeViewController.data(id)
+    final ScannerController controller = ScannerController(id)
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
     _controller = controller;
-    widget.onBarcodeViewCreated(controller);
+    widget.onCreated(controller);
   }
 
   @override

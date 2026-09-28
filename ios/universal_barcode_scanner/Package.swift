@@ -19,13 +19,7 @@ let package = Package(
   targets: [
     .target(
       name: "universal_barcode_scanner",
-      dependencies: [],
-      resources: [
-        // The flash and camera icons. Under Swift Package Manager they land in
-        // Bundle.module, which is why the code asks for the bundle rather than
-        // naming one.
-        .process("Resources")
-      ]
+      dependencies: []
     )
   ]
 )

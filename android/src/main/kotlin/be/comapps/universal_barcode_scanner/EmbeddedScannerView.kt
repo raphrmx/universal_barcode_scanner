@@ -1,4 +1,4 @@
-package be.comapps.universal_barcode_scanner.widget
+package be.comapps.universal_barcode_scanner
 
 import android.content.Context
 import android.graphics.Rect
@@ -25,12 +25,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import be.comapps.universal_barcode_scanner.ReadGate
-import be.comapps.universal_barcode_scanner.ScanErrors
-import be.comapps.universal_barcode_scanner.ScanOptions
-import be.comapps.universal_barcode_scanner.ScannerHost
-import be.comapps.universal_barcode_scanner.camera.CameraSetup
-import be.comapps.universal_barcode_scanner.camera.ScannerOverlay
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -51,7 +45,7 @@ import java.util.concurrent.Executors
  * background, follows the next activity when the engine moves to another one,
  * and ends with [dispose].
  */
-internal class FlutterBarcodeView(
+internal class EmbeddedScannerView(
     private val context: Context,
     messenger: BinaryMessenger,
     private val host: ScannerHost,
@@ -74,8 +68,8 @@ internal class FlutterBarcodeView(
         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
     }
 
-    private val scanOverlay = ScannerOverlay(context).apply {
-        configure(options.lineColor, options.squareWindow)
+    private val scanOverlay = ScanWindowOverlay(context).apply {
+        configure(options.lineColor, options.squareWindow, options.hasWindow)
         setWindowSize(
             ScanOptions.optionalDouble(params, "scanWindowWidth"),
             ScanOptions.optionalDouble(params, "scanWindowHeight"),
@@ -361,7 +355,7 @@ internal class FlutterBarcodeView(
     }
 
     private companion object {
-        const val TAG = "FlutterBarcodeView"
+        const val TAG = "EmbeddedScannerView"
 
         fun matchParent() = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

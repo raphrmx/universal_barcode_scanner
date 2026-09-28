@@ -21,7 +21,7 @@ private final class Scan {
   let options: ScanOptions
   let result: FlutterResult
   var phase = ScanPhase.requestingAccess
-  var controller: BarcodeScannerViewController?
+  var controller: ScannerViewController?
   /// Decided while the scanner was still appearing, applied once it has.
   var pendingOutcome: ScanOutcome?
 
@@ -38,7 +38,7 @@ private final class Scan {
 /// once the scanner is up and sends `{"session": n, "code": ...}` on the event
 /// channel, then `{"session": n, "event": "closed"}`. `close` ends the scan of
 /// the session it names, at whatever stage it is.
-public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var eventSink: FlutterEventSink?
   private var scan: Scan?
   /// A scan asked for while the previous one was being dismissed.
@@ -47,7 +47,7 @@ public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, Flutte
   public static func register(with registrar: FlutterPluginRegistrar) {
     // Nothing here reads a window or a view controller: under the scene life
     // cycle the app delegate has no window yet when plugins register.
-    let instance = SwiftUniversalBarcodeScannerPlugin()
+    let instance = UniversalBarcodeScannerPlugin()
 
     let channel = FlutterMethodChannel(
       name: "universal_barcode_scanner",
@@ -62,7 +62,7 @@ public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, Flutte
     events.setStreamHandler(instance)
 
     registrar.register(
-      BarcodeViewFactory(messenger: registrar.messenger()),
+      EmbeddedScannerFactory(messenger: registrar.messenger()),
       withId: "universal_barcode_scanner/view"
     )
   }
@@ -154,7 +154,7 @@ public class SwiftUniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, Flutte
   }
 
   private func present(_ scan: Scan, from host: UIViewController) {
-    let controller = BarcodeScannerViewController(options: scan.options)
+    let controller = ScannerViewController(options: scan.options)
     // Every callback checks that it comes from the scanner still in charge:
     // a closed one may have frames in flight.
     controller.onCode = { [weak self, weak controller] code in

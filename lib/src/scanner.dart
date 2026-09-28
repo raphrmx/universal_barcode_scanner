@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
-import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/platform/shared.dart';
+import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// Barcode and QR code scanner.
@@ -23,19 +23,19 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 /// ```dart
 /// UniversalBarcodeScanner(
 ///   onScanned: (String code) => debugPrint(code),
-///   onBarcodeViewCreated: (BarcodeViewController c) => controller = c,
+///   onCreated: (ScannerController c) => controller = c,
 /// );
 /// ```
 class UniversalBarcodeScanner extends StatelessWidget {
   /// Creates an embedded scanner view.
   const UniversalBarcodeScanner({
     super.key,
-    required this.onBarcodeViewCreated,
+    required this.onCreated,
     this.onScanned,
     this.onError,
     this.scanWindowSize,
     this.lineColor = kDefaultLineColor,
-    this.scanType = ScanType.barcode,
+    this.scanWindow = ScanWindow.wide,
     this.cameraFace = CameraFace.back,
     this.scanFormat = ScanFormat.all,
     this.scanDelay,
@@ -45,7 +45,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
   });
 
   /// Called once the platform view exists, with the controller that drives it.
-  final BarcodeScannerViewCreated onBarcodeViewCreated;
+  final ScannerCreatedCallback onCreated;
 
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
@@ -55,15 +55,16 @@ class UniversalBarcodeScanner extends StatelessWidget {
   final ValueChanged<ScannerException>? onError;
 
   /// Size of the scan window in logical pixels. A code is only read when it
-  /// sits entirely inside it. Null picks one from the view and [scanType].
+  /// sits entirely inside it. Null picks one from the view and [scanWindow];
+  /// ignored with [ScanWindow.none].
   final Size? scanWindowSize;
 
   /// Colour of the scan line.
   final Color lineColor;
 
-  /// Shape of the default scan window: square for QR codes, wide for
-  /// barcodes.
-  final ScanType scanType;
+  /// Shape of the scan window: square for QR codes, wide for barcodes, or
+  /// none to read the whole view with nothing drawn over it.
+  final ScanWindow scanWindow;
 
   /// Which camera to open.
   final CameraFace cameraFace;
@@ -78,7 +79,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
   final Widget? child;
 
   /// Whether reading continues after the first code. When false, the view
-  /// pauses on the first code until `BarcodeViewController.resumeScanning`.
+  /// pauses on the first code until `ScannerController.resumeScanning`.
   final bool continuous;
 
   /// Whether the preview is mirrored.
@@ -90,18 +91,18 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// a [ScannerException] when the camera cannot be used on Android, iOS or
   /// macOS. The route closes itself in every case.
   ///
-  /// [barcodeAppBar], [child], [backgroundColor] and [flip] shape the Flutter
+  /// [bar], [child], [backgroundColor] and [flip] shape the Flutter
   /// page the web, Windows and Linux scanner runs in. Android, iOS and macOS
   /// open a native screen over it and do not use them.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
-    String cancelButtonText = 'Cancel',
-    bool isShowFlashIcon = false,
-    ScanType scanType = ScanType.barcode,
+    String cancelLabel = 'Cancel',
+    bool showTorchButton = false,
+    ScanWindow scanWindow = ScanWindow.wide,
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
-    BarcodeAppBar? barcodeAppBar,
+    ScannerBar? bar,
     bool flip = false,
     Widget? child,
     Color? backgroundColor,
@@ -111,17 +112,17 @@ class UniversalBarcodeScanner extends StatelessWidget {
     late final Route<String> route;
 
     route = _route<String>(
-      BarcodeScannerPage(
+      ScannerPage(
         config: ScannerConfig(
           lineColor: lineColor,
-          cancelButtonText: cancelButtonText,
-          showFlashIcon: isShowFlashIcon,
-          scanType: scanType,
+          cancelLabel: cancelLabel,
+          showTorchButton: showTorchButton,
+          scanWindow: scanWindow,
           cameraFace: cameraFace,
           scanFormat: scanFormat,
         ),
         backgroundColor: backgroundColor,
-        barcodeAppBar: barcodeAppBar,
+        bar: bar,
         flip: flip,
         onScanned: (String code) => _leave(navigator, route, code),
         onClose: () => _leave(navigator, route, null),
@@ -155,12 +156,12 @@ class UniversalBarcodeScanner extends StatelessWidget {
   static Stream<String> stream(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
-    String cancelButtonText = 'Cancel',
-    bool isShowFlashIcon = false,
-    ScanType scanType = ScanType.barcode,
+    String cancelLabel = 'Cancel',
+    bool showTorchButton = false,
+    ScanWindow scanWindow = ScanWindow.wide,
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
-    BarcodeAppBar? barcodeAppBar,
+    ScannerBar? bar,
     Duration? scanDelay,
     bool flip = false,
     Widget? child,
@@ -175,19 +176,19 @@ class UniversalBarcodeScanner extends StatelessWidget {
     );
 
     route = _route<void>(
-      BarcodeScannerPage(
+      ScannerPage(
         config: ScannerConfig(
           lineColor: lineColor,
-          cancelButtonText: cancelButtonText,
-          showFlashIcon: isShowFlashIcon,
-          scanType: scanType,
+          cancelLabel: cancelLabel,
+          showTorchButton: showTorchButton,
+          scanWindow: scanWindow,
           cameraFace: cameraFace,
           scanFormat: scanFormat,
           scanDelay: scanDelay,
           continuous: true,
         ),
         backgroundColor: backgroundColor,
-        barcodeAppBar: barcodeAppBar,
+        bar: bar,
         flip: flip,
         onScanned: (String code) {
           if (!codes.isClosed) codes.add(code);
@@ -244,10 +245,10 @@ class UniversalBarcodeScanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BarcodeScannerView(
+    return EmbeddedScanner(
       config: ScannerConfig(
         lineColor: lineColor,
-        scanType: scanType,
+        scanWindow: scanWindow,
         cameraFace: cameraFace,
         scanFormat: scanFormat,
         scanDelay: scanDelay,
@@ -257,7 +258,7 @@ class UniversalBarcodeScanner extends StatelessWidget {
       onScanned: onScanned,
       onError: onError,
       flip: flip,
-      onBarcodeViewCreated: onBarcodeViewCreated,
+      onCreated: onCreated,
       child: child,
     );
   }

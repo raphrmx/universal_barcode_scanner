@@ -121,11 +121,11 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | --- | --- | --- |
 | `lineColor` | `Color(0xFFFF6666)` | Colour of the scan line, on every platform. |
 | `scanFormat` | `ScanFormat.all` | Symbologies to accept, on every platform. Fewer formats also scan faster. |
-| `scanType` | `ScanType.barcode` | Shape of the scan window: wide for barcodes, square for QR codes. |
+| `scanWindow` | `ScanWindow.wide` | Shape of the scan window: `wide` for barcodes, `square` for QR codes, or `none` to read the whole frame with nothing drawn over it. |
 | `cameraFace` | `CameraFace.back` | Which camera to open. |
-| `cancelButtonText` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS. |
-| `isShowFlashIcon` | `false` | Whether the torch toggle is shown, when the camera has a flash. Android and iOS. |
-| `barcodeAppBar` | `null` | App bar above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux. |
+| `cancelLabel` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS. |
+| `showTorchButton` | `false` | Whether the torch button is shown, when the camera has a torch. Android and iOS. |
+| `bar` | `null` | A `ScannerBar` above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux. |
 | `child` | `null` | Drawn over the scanner, for instance a manual entry field. Web, Windows and Linux. |
 | `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
 | `flip` | `false` | Mirrors the preview. Web, Windows and Linux. |
@@ -182,7 +182,7 @@ UniversalBarcodeScanner(
   continuous: true,
   onScanned: (String code) => debugPrint(code),
   onError: (ScannerException error) => debugPrint('$error'),
-  onBarcodeViewCreated: (BarcodeViewController controller) {
+  onCreated: (ScannerController controller) {
     this.controller = controller;
   },
 );
@@ -201,34 +201,33 @@ await controller.resumeScanning();
 
 | Parameter | Default | Effect |
 | --- | --- | --- |
-| `onBarcodeViewCreated` | required | Called once the platform view exists. |
+| `onCreated` | required | Called once the platform view exists, with its `ScannerController`. |
 | `onScanned` | `null` | Called with every code read. |
 | `onError` | `null` | Called when the camera cannot be used. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
-| `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanType`. |
-| `lineColor`, `scanType`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |
+| `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The callbacks are always the current widget's, and none is
 called once the widget is gone.
 
-## App bar
+## Scanner bar
 
-Passing a `BarcodeAppBar` is what makes the scanner show one at all:
+Passing a `ScannerBar` puts a bar above the web, Windows and Linux scanner. Its back button is on
+unless you turn it off, since on a desktop it is the way out:
 
 ```dart
 UniversalBarcodeScanner.scan(
   context,
-  barcodeAppBar: const BarcodeAppBar(
-    appBarTitle: 'Scan',
-    centerTitle: false,
-    enableBackButton: true,
-    backButtonIcon: Icon(Icons.arrow_back_ios),
+  bar: const ScannerBar(
+    title: 'Scan',
+    backIcon: Icon(Icons.arrow_back_ios),
   ),
 );
 ```
 
-On Android, iOS and macOS the native screen has no app bar.
+On Android, iOS and macOS the native screen draws its own controls and has no bar.
 
 ## Migrating from 1.x
 
@@ -259,9 +258,13 @@ already has. Nothing on iOS or macOS beyond the SDKs.
 
 No design system. The package is written against `package:flutter/widgets.dart` alone, so it sits
 under Material, under `material_ui`, or under neither, and imposes none of them on your app. The
-scanner bar is drawn here rather than taken from a widget library; `BarcodeAppBar` carries its
+scanner bar is drawn here rather than taken from a widget library; `ScannerBar` carries its
 colours.
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+The web, Windows and Linux scanner runs [html5-qrcode](https://github.com/mebjas/html5-qrcode), bundled
+unmodified with the ZXing decoder it contains. Both are Apache 2.0; the licence travels with the file,
+in [`lib/assets/html5-qrcode.LICENSE.txt`](lib/assets/html5-qrcode.LICENSE.txt).

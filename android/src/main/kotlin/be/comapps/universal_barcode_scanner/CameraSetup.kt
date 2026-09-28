@@ -1,4 +1,4 @@
-package be.comapps.universal_barcode_scanner.camera
+package be.comapps.universal_barcode_scanner
 
 import android.util.Size
 import androidx.camera.core.ImageAnalysis

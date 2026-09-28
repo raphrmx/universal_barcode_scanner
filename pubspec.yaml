@@ -48,6 +48,6 @@ flutter:
         package: be.comapps.universal_barcode_scanner
         pluginClass: UniversalBarcodeScannerPlugin
       ios:
-        pluginClass: SwiftUniversalBarcodeScannerPlugin
+        pluginClass: UniversalBarcodeScannerPlugin
       macos:
         pluginClass: UniversalBarcodeScannerPlugin

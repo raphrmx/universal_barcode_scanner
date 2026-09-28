@@ -2,25 +2,25 @@ import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:flutter/widgets.dart';
-import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
-import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
+import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:web/web.dart' as html;
 
 /// Barcode scanner for web, running the bundled page in an iframe.
-class BarcodeScannerPage extends StatefulWidget {
+class ScannerPage extends StatefulWidget {
   /// Creates the web scanner page.
-  const BarcodeScannerPage({
+  const ScannerPage({
     super.key,
     required this.config,
     required this.onScanned,
     required this.onClose,
     this.onError,
     this.child,
-    this.barcodeAppBar,
+    this.bar,
     this.flip = false,
     this.backgroundColor,
   });
@@ -41,7 +41,7 @@ class BarcodeScannerPage extends StatefulWidget {
   final Widget? child;
 
   /// App bar shown above the scanner, or null for none.
-  final BarcodeAppBar? barcodeAppBar;
+  final ScannerBar? bar;
 
   /// Whether the preview is mirrored.
   final bool flip;
@@ -50,10 +50,10 @@ class BarcodeScannerPage extends StatefulWidget {
   final Color? backgroundColor;
 
   @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+  State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+class _ScannerPageState extends State<ScannerPage> {
   /// The frame, once Flutter has created it.
   html.HTMLIFrameElement? _iframe;
 
@@ -129,7 +129,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     );
     return ScannerChrome(
       backgroundColor: widget.backgroundColor,
-      bar: widget.barcodeAppBar,
+      bar: widget.bar,
       onClose: widget.onClose,
       body: Stack(
         children: <Widget>[
@@ -154,12 +154,12 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 ///
 /// Not implemented: the web scanner runs in an iframe, which only makes sense
 /// as a whole page. Use `UniversalBarcodeScanner.scan` there.
-class BarcodeScannerView extends StatelessWidget {
+class EmbeddedScanner extends StatelessWidget {
   /// Creates the web embedded view.
-  const BarcodeScannerView({
+  const EmbeddedScanner({
     super.key,
     required this.config,
-    required this.onBarcodeViewCreated,
+    required this.onCreated,
     this.onScanned,
     this.onError,
     this.scanWindowSize,
@@ -171,7 +171,7 @@ class BarcodeScannerView extends StatelessWidget {
   final ScannerConfig config;
 
   /// Called once the view exists.
-  final BarcodeScannerViewCreated onBarcodeViewCreated;
+  final ScannerCreatedCallback onCreated;
 
   /// Called with every code read.
   final ValueChanged<String>? onScanned;

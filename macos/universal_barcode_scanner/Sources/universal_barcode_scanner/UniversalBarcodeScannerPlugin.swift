@@ -146,7 +146,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
   // MARK: - Scanner window
 
   private func present(_ options: ScannerOptions) {
-    let controller = BarcodeScannerViewController(options: options)
+    let controller = ScannerViewController(options: options)
     // Every callback checks that it comes from the scan still in charge: a
     // closed scanner may have frames in flight.
     controller.onScanned = { [weak self] barcode in
@@ -199,7 +199,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     if let window = scannerWindow {
       scannerWindow = nil
       window.delegate = nil
-      (window.contentViewController as? BarcodeScannerViewController)?.stop()
+      (window.contentViewController as? ScannerViewController)?.stop()
       if let host = window.sheetParent {
         host.endSheet(window)
       } else {
@@ -239,9 +239,11 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
 struct ScannerOptions {
   let session: Int
   let lineColor: NSColor
-  let cancelButtonText: String
+  let cancelLabel: String
   let isContinuousScan: Bool
   let squareWindow: Bool
+  /// False for no window: nothing is drawn, and the whole frame is read.
+  let hasWindow: Bool
   let scanFormat: String
   let delay: TimeInterval
 
@@ -249,10 +251,12 @@ struct ScannerOptions {
     session = (arguments["session"] as? NSNumber)?.intValue ?? -1
     lineColor = NSColor(hex: arguments["lineColor"] as? String ?? "")
       ?? NSColor.systemRed
-    let cancel = arguments["cancelButtonText"] as? String ?? ""
-    cancelButtonText = cancel.isEmpty ? "Cancel" : cancel
+    let cancel = arguments["cancelLabel"] as? String ?? ""
+    cancelLabel = cancel.isEmpty ? "Cancel" : cancel
     isContinuousScan = arguments["continuous"] as? Bool ?? false
-    squareWindow = (arguments["scanType"] as? String) != "barcode"
+    let window = arguments["scanWindow"] as? String ?? "wide"
+    squareWindow = window == "square"
+    hasWindow = window != "none"
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
     let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
     delay = max(0, millis) / 1000.0

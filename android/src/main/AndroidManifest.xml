@@ -11,7 +11,7 @@
              and report a code still in sight a second time. The preview
              follows the display by itself. -->
         <activity
-            android:name="be.comapps.universal_barcode_scanner.BarcodeCaptureActivity"
+            android:name="be.comapps.universal_barcode_scanner.ScannerActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
     </application>

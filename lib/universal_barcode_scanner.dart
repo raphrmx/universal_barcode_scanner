@@ -11,9 +11,9 @@
 /// ```
 library;
 
-export 'src/barcode_app_bar.dart';
-export 'src/barcode_view_controller.dart'
-    show BarcodeScannerViewCreated, BarcodeViewController;
 export 'src/enums.dart';
 export 'src/scanner.dart';
+export 'src/scanner_bar.dart';
+export 'src/scanner_controller.dart'
+    show ScannerController, ScannerCreatedCallback;
 export 'src/scanner_exception.dart';

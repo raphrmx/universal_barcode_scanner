@@ -1,25 +1,11 @@
 import AVFoundation
 import UIKit
 
-/// Where the flash and camera icons live.
-///
-/// Swift Package Manager puts a target's resources in `Bundle.module`, while
-/// CocoaPods leaves them alongside the class. Asking for the bundle instead of
-/// naming one keeps both builds working. The files carry a `ubs_` prefix: a
-/// static CocoaPods build copies them flat into the app, next to its own.
-var resourceBundle: Bundle {
-  #if SWIFT_PACKAGE
-    return Bundle.module
-  #else
-    return Bundle(for: BarcodeScannerViewController.self)
-  #endif
-}
-
 /// The full-screen scanner: the camera, the scan window, and a bar with the
 /// camera switch, the torch and the cancel button.
 ///
 /// It reports and does not decide: the plugin dismisses it and answers Dart.
-final class BarcodeScannerViewController: UIViewController {
+final class ScannerViewController: UIViewController {
   /// Called with each code worth reporting. A single scan calls it once.
   var onCode: ((String) -> Void)?
   /// Called when the user leaves without a code, or the scanner was taken
@@ -72,6 +58,7 @@ final class BarcodeScannerViewController: UIViewController {
 
     overlay.lineColor = options.lineColor
     overlay.squareWindow = options.squareWindow
+    overlay.isHidden = !options.hasWindow
     overlay.onWindowChange = { [weak self] _ in self?.updateRectOfInterest() }
     view.addSubview(overlay)
 
@@ -131,7 +118,7 @@ final class BarcodeScannerViewController: UIViewController {
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     let bounds = view.bounds
-    let barHeight = BarcodeScannerViewController.barHeight + view.safeAreaInsets.bottom
+    let barHeight = ScannerViewController.barHeight + view.safeAreaInsets.bottom
 
     CATransaction.begin()
     CATransaction.setDisableActions(true)
@@ -143,7 +130,7 @@ final class BarcodeScannerViewController: UIViewController {
     overlay.bottomInset = barHeight
     bar.frame = CGRect(x: 0, y: bounds.height - barHeight, width: bounds.width, height: barHeight)
 
-    let row = BarcodeScannerViewController.barHeight
+    let row = ScannerViewController.barHeight
     let side = view.safeAreaInsets.left + 12
     let trailing = view.safeAreaInsets.right + 12
     switchButton.frame = CGRect(x: side, y: (row - 48) / 2, width: 48, height: 48)
@@ -169,7 +156,7 @@ final class BarcodeScannerViewController: UIViewController {
     bar.backgroundColor = UIColor(white: 0, alpha: 0.85)
     view.addSubview(bar)
 
-    cancelButton.setTitle(options.cancelButtonText, for: .normal)
+    cancelButton.setTitle(options.cancelLabel, for: .normal)
     cancelButton.setTitleColor(.white, for: .normal)
     cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
     cancelButton.titleLabel?.lineBreakMode = .byTruncatingTail
@@ -177,37 +164,34 @@ final class BarcodeScannerViewController: UIViewController {
     cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
     bar.addSubview(cancelButton)
 
-    flashButton.setImage(icon("ubs_ic_flash_off"), for: .normal)
+    flashButton.setImage(ScannerIcons.torch(on: false), for: .normal)
     flashButton.accessibilityLabel = "Torch"
     flashButton.addTarget(self, action: #selector(flashTapped), for: .touchUpInside)
     flashButton.isHidden = true
     bar.addSubview(flashButton)
 
-    switchButton.setImage(icon("ubs_ic_switch_camera"), for: .normal)
+    switchButton.setImage(ScannerIcons.switchCamera, for: .normal)
     switchButton.accessibilityLabel = "Switch camera"
     switchButton.addTarget(self, action: #selector(switchTapped), for: .touchUpInside)
     switchButton.isHidden = true
     bar.addSubview(switchButton)
   }
 
-  private func icon(_ name: String) -> UIImage? {
-    return UIImage(named: name, in: resourceBundle, compatibleWith: nil)
-  }
-
   /// Shows the torch as the camera has it, which an interruption changes
   /// behind the app's back.
   private func refreshButtons() {
     let on = camera.torchIsOn
-    flashButton.isHidden = !(options.showFlashIcon && camera.hasTorch)
-    flashButton.setImage(icon(on ? "ubs_ic_flash_on" : "ubs_ic_flash_off"), for: .normal)
+    flashButton.isHidden = !(options.showTorchButton && camera.hasTorch)
+    flashButton.setImage(ScannerIcons.torch(on: on), for: .normal)
     // Read out as selected when on.
     flashButton.isSelected = on
     switchButton.isHidden = !camera.canSwitch
   }
 
   private func updateRectOfInterest() {
+    // Without a window the output keeps its default: the whole frame.
     let window = overlay.scanWindow
-    guard ready, window.width > 0, window.height > 0 else { return }
+    guard ready, options.hasWindow, window.width > 0, window.height > 0 else { return }
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 

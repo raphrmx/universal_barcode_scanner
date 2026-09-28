@@ -1,59 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/topLayout"
+    android:id="@+id/ubs_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:keepScreenOn="true">
 
     <androidx.camera.view.PreviewView
-        android:id="@+id/preview"
+        android:id="@+id/ubs_preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@+id/layoutBottom" />
+        android:layout_above="@+id/ubs_bar" />
 
-    <be.comapps.universal_barcode_scanner.camera.ScannerOverlay
-        android:id="@+id/scannerOverlay"
+    <be.comapps.universal_barcode_scanner.ScanWindowOverlay
+        android:id="@+id/ubs_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@+id/layoutBottom" />
+        android:layout_above="@+id/ubs_bar" />
 
     <!-- Its height and bottom padding grow by the navigation bar's at run
          time: the activity draws edge to edge, which Android 15 enforces. -->
     <RelativeLayout
-        android:id="@+id/layoutBottom"
+        android:id="@+id/ubs_bar"
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_alignParentBottom="true"
         android:background="@android:color/black">
 
         <ImageView
-            android:id="@+id/imgViewSwitchCamera"
+            android:id="@+id/ubs_switch_camera"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
             android:layout_marginStart="10dp"
             android:contentDescription="@string/ubs_switch_camera"
-            android:src="@drawable/ubs_ic_switch_camera" />
+            android:src="@drawable/ubs_switch_camera" />
 
         <ImageView
-            android:id="@+id/imgViewBarcodeCaptureUseFlash"
+            android:id="@+id/ubs_torch"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_centerInParent="true"
             android:contentDescription="@string/ubs_toggle_torch"
-            android:src="@drawable/ubs_ic_flash_off" />
+            android:src="@drawable/ubs_torch_off" />
 
         <!-- Between the torch and the edge, so a long translated label is
              cut short rather than drawn over the other buttons. -->
         <Button
-            android:id="@+id/btnBarcodeCaptureCancel"
+            android:id="@+id/ubs_cancel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:layout_marginEnd="10dp"
-            android:layout_toEndOf="@id/imgViewBarcodeCaptureUseFlash"
+            android:layout_toEndOf="@id/ubs_torch"
             android:background="@android:color/transparent"
             android:ellipsize="end"
             android:gravity="end|center_vertical"

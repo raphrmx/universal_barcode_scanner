@@ -17,11 +17,11 @@ internal data class ScanOptions(
     /** Tags every answer and event of this scan; see `NativeScanner`. */
     val session: Int,
     val lineColor: Int,
-    val cancelButtonText: String,
-    val showFlashIcon: Boolean,
+    val cancelLabel: String,
+    val showTorchButton: Boolean,
     val continuous: Boolean,
-    /** `qr`, `barcode` or `defaultMode`. */
-    val scanType: String,
+    /** `square`, `wide` or `none`. */
+    val scanWindow: String,
     /** `back` or `front`. */
     val cameraFace: String,
     /** `ALL_FORMATS`, `ONLY_QR_CODE` or `ONLY_BARCODE`. */
@@ -31,7 +31,11 @@ internal data class ScanOptions(
 
     /** Whether the scan window is square, for QR codes, rather than wide. */
     val squareWindow: Boolean
-        get() = scanType != "barcode"
+        get() = scanWindow == "square"
+
+    /** Whether a window is drawn and reading is limited to it. */
+    val hasWindow: Boolean
+        get() = scanWindow != "none"
 
     val lensFacing: Int
         get() = if (cameraFace == "front") {
@@ -68,10 +72,10 @@ internal data class ScanOptions(
     fun writeTo(intent: Intent): Intent = intent
         .putExtra(EXTRA_PREFIX + "session", session)
         .putExtra(EXTRA_PREFIX + "lineColor", lineColor)
-        .putExtra(EXTRA_PREFIX + "cancelButtonText", cancelButtonText)
-        .putExtra(EXTRA_PREFIX + "showFlashIcon", showFlashIcon)
+        .putExtra(EXTRA_PREFIX + "cancelLabel", cancelLabel)
+        .putExtra(EXTRA_PREFIX + "showTorchButton", showTorchButton)
         .putExtra(EXTRA_PREFIX + "continuous", continuous)
-        .putExtra(EXTRA_PREFIX + "scanType", scanType)
+        .putExtra(EXTRA_PREFIX + "scanWindow", scanWindow)
         .putExtra(EXTRA_PREFIX + "cameraFace", cameraFace)
         .putExtra(EXTRA_PREFIX + "scanFormat", scanFormat)
         .putExtra(EXTRA_PREFIX + "delayMillis", delayMillis)
@@ -86,10 +90,10 @@ internal data class ScanOptions(
         fun fromMap(map: Map<*, *>?): ScanOptions = ScanOptions(
             session = sessionOf(map),
             lineColor = parseColor(map?.get("lineColor") as? String),
-            cancelButtonText = (map?.get("cancelButtonText") as? String).orIfEmpty("Cancel"),
-            showFlashIcon = map?.get("showFlashIcon") == true,
+            cancelLabel = (map?.get("cancelLabel") as? String).orIfEmpty("Cancel"),
+            showTorchButton = map?.get("showTorchButton") == true,
             continuous = map?.get("continuous") == true,
-            scanType = (map?.get("scanType") as? String).orIfEmpty("barcode"),
+            scanWindow = (map?.get("scanWindow") as? String).orIfEmpty("wide"),
             cameraFace = (map?.get("cameraFace") as? String).orIfEmpty("back"),
             scanFormat = (map?.get("scanFormat") as? String).orIfEmpty("ALL_FORMATS"),
             // The codec sends an int or a long depending on the size.
@@ -99,10 +103,10 @@ internal data class ScanOptions(
         fun fromIntent(intent: Intent): ScanOptions = ScanOptions(
             session = intent.getIntExtra(EXTRA_PREFIX + "session", NO_SESSION),
             lineColor = intent.getIntExtra(EXTRA_PREFIX + "lineColor", DEFAULT_LINE_COLOR),
-            cancelButtonText = intent.getStringExtra(EXTRA_PREFIX + "cancelButtonText").orIfEmpty("Cancel"),
-            showFlashIcon = intent.getBooleanExtra(EXTRA_PREFIX + "showFlashIcon", false),
+            cancelLabel = intent.getStringExtra(EXTRA_PREFIX + "cancelLabel").orIfEmpty("Cancel"),
+            showTorchButton = intent.getBooleanExtra(EXTRA_PREFIX + "showTorchButton", false),
             continuous = intent.getBooleanExtra(EXTRA_PREFIX + "continuous", false),
-            scanType = intent.getStringExtra(EXTRA_PREFIX + "scanType").orIfEmpty("barcode"),
+            scanWindow = intent.getStringExtra(EXTRA_PREFIX + "scanWindow").orIfEmpty("wide"),
             cameraFace = intent.getStringExtra(EXTRA_PREFIX + "cameraFace").orIfEmpty("back"),
             scanFormat = intent.getStringExtra(EXTRA_PREFIX + "scanFormat").orIfEmpty("ALL_FORMATS"),
             delayMillis = intent.getIntExtra(EXTRA_PREFIX + "delayMillis", 0),
