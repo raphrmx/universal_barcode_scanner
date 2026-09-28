@@ -1,5 +1,104 @@
 # Universal Barcode Scanner Versions
 
+## 2.0.0
+
+### Breaking changes
+
+| 1.x | 2.0 |
+| --- | --- |
+| A camera that could not be used left `scan` waiting forever | `scan` throws a `ScannerException`, `stream` emits one and closes |
+| A code reading `-1` or `-2` was taken for a cancel | Every payload is a code; the native side no longer reserves any |
+| `scan(scanDelay: ...)` | Removed: the delay only ever made sense between two codes, use `stream` |
+| `UniversalBarcodeScanner(scaleWidth: 400, scaleHeight: 200)` | `UniversalBarcodeScanner(scanWindowSize: Size(220, 130))`, in logical pixels |
+| `UniversalBarcodeScanner(onClose: ...)` | Removed: nothing ever called it |
+| `BarcodeViewController.toggleFlash()` returned nothing | Returns whether the torch is now on |
+| An embedded view that is not `continuous` kept reporting | It pauses on the first code until `resumeScanning()` |
+| `scanDelay` delayed the result of a single scan on Android and iOS | It is the least time between two codes of a continuous scan, everywhere |
+
+The channel protocol between Dart and the native scanners changed with it, so
+the Dart and native halves of the package have to come from the same release,
+which `pub` guarantees.
+
+### Fixed
+
+- iOS registered no factory for the embedded view, so `UniversalBarcodeScanner`
+  failed on iOS although the README said it worked there. It is implemented,
+  with the torch, pause and resume of the Android one.
+- iOS read the app delegate's window when the plugin registered, force
+  unwrapped. Under the scene life cycle there is no such window yet, and the
+  app crashed on launch. The view controller to present from is now looked up
+  when a scan starts, on top of whatever is already presented.
+- iOS crashed when a code arrived after Dart had stopped listening to a
+  continuous scan, for instance once the app had popped the route.
+- iOS divided `scanDelay` in integer milliseconds by 1000, so any delay under a
+  second was zero, and restarted its timer on every frame, so with a delay set a
+  code was only reported once it had left the camera's view.
+- A refused camera permission, a device without a camera or a failed start left
+  `scan` pending and the route spinning, on Android and iOS alike. They now end
+  the scan with a `ScannerException`: `permissionDenied`, `cameraUnavailable` or
+  `alreadyActive`. The English alert dialogs the native scanners showed instead
+  are gone; the app decides what to tell its user.
+- A continuous Android scan closed with the back gesture never told Dart, with
+  predictive back enabled: `onBackPressed` is not called any more. The scan now
+  reports its end from `onDestroy`, whichever way it closed.
+- Popping the scanner route from Dart left the native scanner on screen. The
+  route closes it now, and cancelling the subscription of `stream` closes the
+  route, so `stream(context).first` reads one code and leaves.
+- `stream` returned a single code on the web, Windows and Linux: the page shut
+  itself on the first read.
+- `scanFormat`, `cameraFace` and `scanDelay` were ignored on the web, Windows
+  and Linux. They reach the page now. `scanType` gives a linear barcode a wide
+  scan box there too, since the page only decodes inside it.
+- The web scanner accepted any message from its own origin as a scan: another
+  frame, or the app itself, could inject a code. Only the scanner's iframe is
+  listened to, and only for strings.
+- A Windows or Linux scanner closed before its page had loaded started the
+  camera once it had, with nothing on screen, until the webview was released a
+  minute later. The page no longer starts itself; the host starts it, and only
+  while it is showing.
+- The page's `stopped` latch was a top-level `var closed`, which is
+  `window.closed`, a read-only property. Assigning it did nothing, so a stopped
+  page could be restarted by a resize. The script is now scoped.
+- The embedded Android view ignored `cameraFace`, `scanFormat`, `scanDelay` and
+  `continuous`, and crashed on a `scanDelay`, cast from an `Integer` to a
+  `Long`. All four are applied.
+- The embedded Android view kept the camera running while the app was in the
+  background. It follows the activity's life cycle, and asks for the camera
+  permission itself instead of showing a black box.
+- `child` was ignored by the embedded view. It is drawn over the camera.
+- The Android scanner crashed when switching to a camera the device does not
+  have. The switch button is only shown when there is another camera, and the
+  flash button only when there is a flash.
+- The Android scan window was sized with the screen's physical dots per inch
+  instead of its density, so it came out too large on most phones.
+- A macOS scanner closed with its window's close button never answered.
+
+### Changed
+
+- A code held in front of the camera is reported once, and again only after it
+  has been out of sight for a second, on every platform. A continuous scan used
+  to report it on every frame, dozens of times a second, when no delay was set.
+- iOS starts and stops the camera off the main thread. `startRunning` blocks
+  for a few hundred milliseconds and froze the screen as the scanner opened.
+- The web, Windows and Linux page decodes 12 frames a second instead of 30.
+  Decoding runs on the main thread there, which 30 kept busy for nothing.
+- The page uses the browser's own `BarcodeDetector` where there is one, such as
+  Chrome on Android and macOS, instead of decoding in JavaScript.
+- Restricting `scanFormat` makes every platform faster: ML Kit, AVFoundation,
+  Vision and the web decoder only look for the formats asked for.
+- Android delivers ML Kit results on the analysis thread and only posts a code
+  to the main one. It passes its settings to the scanner activity as intent
+  extras rather than static fields, and no longer holds the Flutter activity in
+  one.
+- The Android scan line follows the clock rather than moving a fixed step per
+  frame, so it sweeps at the same speed at 60 and 120 Hz, and it stands still
+  when the system turns animations off.
+- macOS reuses one Vision request, and captures at 720p rather than full HD.
+- `ScanType` only shapes the scan window; `ScanFormat` decides which codes are
+  read. The documentation said otherwise.
+- The Flutter page under the native scanner decides its platform from
+  `defaultTargetPlatform`, so it can be tested.
+
 ## 1.6.3
 
 ### Changed

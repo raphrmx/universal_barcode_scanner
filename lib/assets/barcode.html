@@ -85,7 +85,13 @@
 <div id="reader"></div>
 <p id="ubs-message"></p>
 <script>
-  // refer doc here https://github.com/mebjas/html5-qrcode
+// refer doc here https://github.com/mebjas/html5-qrcode
+
+// Scoped rather than global: a top-level `var closed` is `window.closed`, a
+// read-only property, and assigning it silently did nothing. The latch that
+// was meant to keep a stopped page stopped never held.
+(function () {
+  'use strict';
 
   // Desktop hosts register a JavaScript channel under this name; on the web
   // the page answers its parent.
@@ -94,22 +100,66 @@
   var SHADED_REGION_ID = 'qr-shaded-region';
   // The library refuses anything under 50px.
   var MIN_QR_BOX = 60;
+  // A code held in front of the camera is read on every frame. It is reported
+  // once, and again only after it has been out of sight this long.
+  var SAME_CODE_GAP_MS = 1000;
+
+  var F = Html5QrcodeSupportedFormats;
+  // Same lists as the native scanners. Null leaves the library's own, which
+  // is every format it knows.
+  var FORMATS = {
+    all: null,
+    qr: [F.QR_CODE],
+    barcode: [F.CODABAR, F.CODE_39, F.CODE_93, F.CODE_128, F.EAN_13, F.EAN_8,
+      F.ITF, F.PDF_417, F.UPC_A, F.UPC_E]
+  };
 
   var reader = document.getElementById('reader');
-  var scanner = new Html5Qrcode('reader');
+  // Built on the first configure, and again only when the formats change:
+  // the library takes them at construction.
+  var scanner = null;
+  var scannerFormats = null;
+
+  // Nothing runs until configure: the desktop hosts call it once the page is
+  // up, the web host passes the same settings in the query string.
+  var settings = {
+    continuous: false,
+    delay: 0,
+    facing: 'environment',
+    formats: 'all',
+    window: 'square'
+  };
+  var stopped = true;
   var delivered = false;
-  var closed = false;
-  var busy = false;
+  var lastValue = null;
+  var lastSeen = 0;
+  var lastEmit = null;
   var lastWidth = 0;
   var resizeTimer = null;
+  // Starting and stopping the camera are asynchronous and must not overlap.
+  var queue = Promise.resolve();
 
   // No aspectRatio: forcing one overflows the host box. Left out, the video
   // follows the camera's own ratio.
   var config = {
-    fps: 30,
+    // Decoding runs on the main thread when the browser has no native
+    // detector. Thirty frames a second kept it busy for nothing: a code is
+    // read just as fast at twelve.
+    fps: 12,
     // Derived from the viewfinder: the library drops the shaded region as soon
     // as the box is taller than the video.
+    // The library only decodes inside this box, so a linear barcode gets a
+    // wide one rather than a square it may not fit in.
     qrbox: function (viewfinderWidth, viewfinderHeight) {
+      if (settings.window === 'wide') {
+        var width = Math.max(MIN_QR_BOX, Math.floor(viewfinderWidth * 0.85));
+        var height = Math.max(MIN_QR_BOX, Math.min(
+          Math.floor(width * 0.45), Math.floor(viewfinderHeight * 0.85)));
+        return {
+          width: Math.min(width, viewfinderWidth),
+          height: Math.min(height, viewfinderHeight)
+        };
+      }
       var smallest = Math.min(viewfinderWidth, viewfinderHeight);
       var size = Math.max(MIN_QR_BOX, Math.floor(smallest * 0.7));
       if (size > smallest) {
@@ -206,54 +256,94 @@
     }
   }
 
-  function startScanner() {
-    if (closed || delivered || busy) {
-      return;
+  // Runs one camera operation after the previous one has settled.
+  function enqueue(task) {
+    queue = queue.then(task).catch(function () {
+      /* each task reports its own failure */
+    });
+  }
+
+  function stopCamera() {
+    if (!scanner || !scanner.isScanning) {
+      return Promise.resolve();
     }
-    busy = true;
+    return scanner.stop().catch(function () {
+      /* already stopped */
+    });
+  }
+
+  function startCamera() {
+    if (stopped || delivered) {
+      return Promise.resolve();
+    }
+    if (!scanner || scannerFormats !== settings.formats) {
+      if (scanner) {
+        try {
+          scanner.clear();
+        } catch (error) {
+          /* nothing drawn yet */
+        }
+      }
+      var options = {
+        verbose: false,
+        // The browser's own detector where it has one, Chrome on Android and
+        // macOS among them: native code instead of JavaScript on every frame.
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
+      if (FORMATS[settings.formats]) {
+        options.formatsToSupport = FORMATS[settings.formats];
+      }
+      scanner = new Html5Qrcode('reader', options);
+      scannerFormats = settings.formats;
+    }
     lastWidth = reader.clientWidth;
-    scanner.start({ facingMode: 'environment' }, config, deliver).then(
+    return Promise.resolve().then(function () {
+      return scanner.start({ facingMode: settings.facing }, config, onDecoded);
+    }).then(
       function () {
-        busy = false;
         hideMessage();
         installScanLine();
+        // Stopped or answered while the camera was opening.
+        if (stopped || delivered) {
+          return stopCamera();
+        }
       },
-      function (error) {
-        busy = false;
-        showMessage(error);
-      }
+      showMessage
     );
   }
 
   // The library measures its container only when starting, so a resized
   // window leaves the video and the overlay on stale geometry.
   function restartScanner() {
-    if (closed || delivered || busy) {
+    if (stopped || delivered) {
       return;
     }
-    busy = true;
-    var resume = function () {
-      busy = false;
-      startScanner();
-    };
-    Promise.resolve().then(function () {
-      return scanner.stop();
-    }).then(resume, resume);
+    enqueue(function () {
+      return stopCamera().then(startCamera);
+    });
   }
 
-  // The desktop hosts keep this page loaded between two scans. Stopping and
-  // delivering both latch the page shut, so reopening lifts both latches.
-  function resumeScanner() {
-    closed = false;
+  // Sets the page up and starts the camera. The desktop hosts call it every
+  // time they show the page, which they keep loaded between two scans, so it
+  // also lifts whatever the previous scan left latched.
+  function configure(options) {
+    options = options || {};
+    setScanLineColor(options.line);
+    setBackgroundColor(options.background);
+    settings.continuous = options.continuous === true
+      || options.continuous === '1';
+    settings.delay = Math.max(0, parseInt(options.delay, 10) || 0);
+    settings.facing = options.facing === 'user' ? 'user' : 'environment';
+    settings.formats = FORMATS.hasOwnProperty(options.formats)
+      ? options.formats : 'all';
+    settings.window = options.window === 'wide' ? 'wide' : 'square';
+
+    stopped = false;
     delivered = false;
-    busy = true;
-    var resume = function () {
-      busy = false;
-      startScanner();
-    };
-    Promise.resolve().then(function () {
-      return scanner.stop();
-    }).then(resume, resume);
+    lastValue = null;
+    lastSeen = 0;
+    lastEmit = null;
+    restartScanner();
   }
 
   function hasChannel() {
@@ -264,41 +354,67 @@
   // Called by the desktop hosts before the scanner goes away, to release the
   // camera.
   function stopScanner() {
-    closed = true;
+    stopped = true;
     clearTimeout(resizeTimer);
-    try {
-      scanner.stop();
-    } catch (error) {
-      /* already stopped */
-    }
+    enqueue(stopCamera);
   }
 
-  function deliver(decodedText) {
-    if (delivered) {
+  // Whether a code read on this frame is worth reporting.
+  function accept(text, now) {
+    if (text === lastValue) {
+      var held = now - lastSeen < SAME_CODE_GAP_MS;
+      lastSeen = now;
+      if (held) {
+        return false;
+      }
+    }
+    if (lastEmit !== null && now - lastEmit < settings.delay) {
+      return false;
+    }
+    lastValue = text;
+    lastSeen = now;
+    lastEmit = now;
+    return true;
+  }
+
+  function onDecoded(text) {
+    if (stopped || delivered || !text || !accept(text, Date.now())) {
       return;
     }
-    delivered = true;
-    stopScanner();
+    if (!settings.continuous) {
+      delivered = true;
+      enqueue(stopCamera);
+    }
+    post(text);
+  }
 
+  function post(text) {
     if (hasChannel()) {
-      window[CHANNEL].postMessage(decodedText);
+      window[CHANNEL].postMessage(text);
       return;
     }
-
     // Naming the origin keeps the message from reaching a parent on another
     // one.
-    window.parent.postMessage(decodedText, window.location.origin);
+    window.parent.postMessage(text, window.location.origin);
   }
 
-  setScanLineColor(new URLSearchParams(window.location.search).get('line'));
-  setBackgroundColor(
-    new URLSearchParams(window.location.search).get('background'));
-  startScanner();
+  var query = new URLSearchParams(window.location.search);
+  if (query.has('start')) {
+    configure({
+      line: query.get('line'),
+      background: query.get('background'),
+      continuous: query.get('continuous'),
+      delay: query.get('delay'),
+      facing: query.get('facing'),
+      formats: query.get('formats'),
+      window: query.get('window')
+    });
+  }
 
   // Debounced, and ignoring sub-pixel noise: every restart tears the camera
   // down and back up.
   function onContainerResized() {
-    if (Math.abs(reader.clientWidth - lastWidth) < 4) {
+    if (stopped || Math.abs(reader.clientWidth - lastWidth) < 4) {
       return;
     }
     clearTimeout(resizeTimer);
@@ -311,6 +427,11 @@
     new ResizeObserver(onContainerResized).observe(reader);
   }
   window.addEventListener('resize', onContainerResized);
+
+  // What the hosts call from outside.
+  window.configure = configure;
+  window.stopScanner = stopScanner;
+})();
 </script>
 </body>
 </html>

@@ -1,14 +1,13 @@
 package be.comapps.universal_barcode_scanner;
 
 import android.Manifest;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.media.Image;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -16,9 +15,10 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
@@ -37,54 +37,47 @@ import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import be.comapps.universal_barcode_scanner.camera.ScannerOverlay;
 
 /**
  * Full screen scanner: a CameraX preview with an ML Kit analyser on every
- * frame. The first code read goes back to the plugin, either as the result of
- * the activity or, in continuous mode, on the event channel.
+ * frame.
+ *
+ * <p>A single scan ends with the activity's result: the code, nothing when
+ * cancelled, or an error code. A continuous scan pushes every code to the
+ * event channel and says so when it closes, whichever way it closes.
  */
 public final class BarcodeCaptureActivity extends AppCompatActivity implements View.OnClickListener {
 
-    // permission request codes need to be < 256
-    private static final int RC_HANDLE_CAMERA_PERM = 2;
-
     private static final String TAG = "BarcodeCaptureActivity";
 
+    // Permission request codes need to be < 256.
+    private static final int RC_HANDLE_CAMERA_PERM = 2;
+
     /** Key of the string extra carrying the code back to the plugin. */
-    public static final String BarcodeObject = "Barcode";
+    static final String EXTRA_CODE = "be.comapps.universal_barcode_scanner.code";
+    static final String EXTRA_ERROR_CODE = "be.comapps.universal_barcode_scanner.errorCode";
+    static final String EXTRA_ERROR_MESSAGE = "be.comapps.universal_barcode_scanner.errorMessage";
 
-    public static SCAN_FORMAT_ENUM SCAN_FORMAT = SCAN_FORMAT_ENUM.ALL_FORMATS;
+    /** The scanner on screen, so the plugin can close it. Weak: never kept. */
+    private static WeakReference<BarcodeCaptureActivity> current = new WeakReference<>(null);
 
-    public enum SCAN_FORMAT_ENUM {
-        ALL_FORMATS,
-        ONLY_QR_CODE,
-        ONLY_BARCODE
-    }
-
-    public static int SCAN_MODE = SCAN_MODE_ENUM.QR.ordinal();
-
-    public enum SCAN_MODE_ENUM {
-        QR,
-        BARCODE,
-        DEFAULT
-    }
-
-    private enum USE_FLASH {
-        ON,
-        OFF
-    }
+    private ScanOptions options;
+    private ReadGate gate;
 
     private PreviewView previewView;
-    private ImageView imgViewBarcodeCaptureUseFlash;
+    private ImageView flashButton;
+    private ImageView switchButton;
 
     private ScaleGestureDetector scaleGestureDetector;
     private GestureDetector gestureDetector;
@@ -97,92 +90,73 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
     private ExecutorService analysisExecutor;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private int lensFacing = CameraSelector.LENS_FACING_BACK;
-    private int flashStatus = USE_FLASH.OFF.ordinal();
-    private int delayMillis;
+    private int lensFacing;
+    private boolean torchOn;
 
-    /** True while a code has been read and is waiting out the delay. */
-    private boolean reporting;
+    /** Set once the scan has an outcome, so nothing reports twice. */
+    private final AtomicBoolean finished = new AtomicBoolean(false);
 
-    @Override
-    public void onBackPressed() {
-        // -2 is the code for user cancelled the scan
-        UniversalBarcodeScannerPlugin.onBarcodeScanReceiver("-2");
-        super.onBackPressed();
+    static boolean isOpen() {
+        BarcodeCaptureActivity activity = current.get();
+        return activity != null && !activity.isFinishing();
+    }
+
+    /** Closes the scanner on screen, as if the user had cancelled. */
+    static void closeCurrent() {
+        BarcodeCaptureActivity activity = current.get();
+        if (activity != null) {
+            activity.finishCancelled();
+        }
     }
 
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+        current = new WeakReference<>(this);
         setContentView(R.layout.barcode_capture);
 
-        String buttonText = getIntent().getStringExtra("cancelButtonText");
-        String cameraFacingText = getIntent().getStringExtra("cameraFacingText");
-        delayMillis = getIntent().getIntExtra("delayMillis", 0);
-        lensFacing = Objects.equals(cameraFacingText, "FRONT")
-                ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
+        options = ScanOptions.fromIntent(getIntent());
+        gate = new ReadGate(options.delayMillis);
+        lensFacing = options.lensFacing();
 
-        Button btnBarcodeCaptureCancel = findViewById(R.id.btnBarcodeCaptureCancel);
-        if (buttonText != null && !buttonText.isEmpty()) {
-            btnBarcodeCaptureCancel.setText(buttonText);
-        }
-        btnBarcodeCaptureCancel.setOnClickListener(this);
+        Button cancelButton = findViewById(R.id.btnBarcodeCaptureCancel);
+        cancelButton.setText(options.cancelButtonText);
+        cancelButton.setOnClickListener(this);
 
-        imgViewBarcodeCaptureUseFlash = findViewById(R.id.imgViewBarcodeCaptureUseFlash);
-        imgViewBarcodeCaptureUseFlash.setOnClickListener(this);
-        imgViewBarcodeCaptureUseFlash.setVisibility(
-                UniversalBarcodeScannerPlugin.isShowFlashIcon ? View.VISIBLE : View.GONE);
+        flashButton = findViewById(R.id.imgViewBarcodeCaptureUseFlash);
+        flashButton.setOnClickListener(this);
+        // Shown once the camera says it has a flash.
+        flashButton.setVisibility(View.GONE);
 
-        findViewById(R.id.imgViewSwitchCamera).setOnClickListener(this);
+        switchButton = findViewById(R.id.imgViewSwitchCamera);
+        switchButton.setOnClickListener(this);
+        switchButton.setVisibility(View.GONE);
+
+        ScannerOverlay overlay = findViewById(R.id.scannerOverlay);
+        overlay.configure(options.lineColor, options.squareWindow());
 
         previewView = findViewById(R.id.preview);
-        scanner = BarcodeScanning.getClient(scannerOptions());
+        scanner = BarcodeScanning.getClient(options.mlKitOptions());
         analysisExecutor = Executors.newSingleThreadExecutor();
 
         gestureDetector = new GestureDetector(this, new CaptureGestureListener());
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleListener());
 
+        // Replaces onBackPressed, which predictive back no longer calls.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                finishCancelled();
+            }
+        });
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
-            requestCameraPermission();
+            ActivityCompat.requestPermissions(
+                    this, new String[]{Manifest.permission.CAMERA}, RC_HANDLE_CAMERA_PERM);
         }
-    }
-
-    /** The symbologies the analyser is allowed to report. */
-    private static BarcodeScannerOptions scannerOptions() {
-        if (SCAN_FORMAT == SCAN_FORMAT_ENUM.ONLY_QR_CODE) {
-            return new BarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                    .build();
-        }
-        if (SCAN_FORMAT == SCAN_FORMAT_ENUM.ONLY_BARCODE) {
-            return new BarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(
-                            Barcode.FORMAT_CODABAR,
-                            Barcode.FORMAT_CODE_128,
-                            Barcode.FORMAT_CODE_39,
-                            Barcode.FORMAT_CODE_93,
-                            Barcode.FORMAT_EAN_13,
-                            Barcode.FORMAT_EAN_8,
-                            Barcode.FORMAT_ITF,
-                            Barcode.FORMAT_PDF417,
-                            Barcode.FORMAT_UPC_A,
-                            Barcode.FORMAT_UPC_E)
-                    .build();
-        }
-        return new BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-                .build();
-    }
-
-    private void requestCameraPermission() {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
-            Toast.makeText(this, R.string.permission_camera_rationale, Toast.LENGTH_LONG).show();
-        }
-        ActivityCompat.requestPermissions(
-                this, new String[]{Manifest.permission.CAMERA}, RC_HANDLE_CAMERA_PERM);
     }
 
     @Override
@@ -193,18 +167,12 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
             return;
         }
-
         if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             startCamera();
-            return;
+        } else {
+            // The app says it its own way: the scanner only reports.
+            finishWithError(ScanErrors.PERMISSION_DENIED, "The camera permission was refused.");
         }
-
-        DialogInterface.OnClickListener listener = (dialog, id) -> finish();
-        new AlertDialog.Builder(this)
-                .setTitle("Allow permissions")
-                .setMessage(R.string.no_camera_permission)
-                .setPositiveButton(R.string.ok, listener)
-                .show();
     }
 
     /**
@@ -217,17 +185,44 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
         future.addListener(() -> {
             try {
                 cameraProvider = future.get();
-                bindCamera();
             } catch (Exception e) {
-                Log.e(TAG, "startCamera: " + e.getLocalizedMessage());
-                Toast.makeText(this, R.string.camera_unavailable, Toast.LENGTH_LONG).show();
+                finishWithError(ScanErrors.CAMERA_UNAVAILABLE,
+                        "The camera could not be started: " + e.getMessage());
+                return;
             }
+            if (!hasLens(lensFacing)) {
+                // The asked-for lens is missing: take whichever exists.
+                lensFacing = otherLens(lensFacing);
+            }
+            if (!bindCamera()) {
+                finishWithError(ScanErrors.CAMERA_UNAVAILABLE, "No camera could be opened.");
+                return;
+            }
+            switchButton.setVisibility(hasLens(otherLens(lensFacing)) ? View.VISIBLE : View.GONE);
         }, ContextCompat.getMainExecutor(this));
     }
 
-    private void bindCamera() {
+    private boolean hasLens(int facing) {
         if (cameraProvider == null) {
-            return;
+            return false;
+        }
+        try {
+            return cameraProvider.hasCamera(
+                    new CameraSelector.Builder().requireLensFacing(facing).build());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static int otherLens(int facing) {
+        return facing == CameraSelector.LENS_FACING_FRONT
+                ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
+    }
+
+    /** Binds preview and analysis to {@link #lensFacing}; false if it failed. */
+    private boolean bindCamera() {
+        if (cameraProvider == null || isFinishing()) {
+            return false;
         }
         // Only what this screen bound: the camera may be held elsewhere too.
         if (preview != null && analysis != null) {
@@ -246,50 +241,81 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
                 .requireLensFacing(lensFacing)
                 .build();
 
-        camera = cameraProvider.bindToLifecycle(this, selector, preview, analysis);
-        applyFlash(flashStatus == USE_FLASH.ON.ordinal());
+        try {
+            camera = cameraProvider.bindToLifecycle(this, selector, preview, analysis);
+        } catch (Exception e) {
+            Log.e(TAG, "bindCamera: " + e.getMessage());
+            camera = null;
+            return false;
+        }
+
+        boolean hasFlash = camera.getCameraInfo().hasFlashUnit();
+        flashButton.setVisibility(options.showFlashIcon && hasFlash ? View.VISIBLE : View.GONE);
+        torchOn = torchOn && hasFlash;
+        setTorch(torchOn);
+        return true;
     }
 
     @OptIn(markerClass = ExperimentalGetImage.class)
     private void analyse(@NonNull ImageProxy proxy) {
         Image image = proxy.getImage();
-        if (image == null) {
+        if (image == null || finished.get()) {
             proxy.close();
             return;
         }
         InputImage input =
                 InputImage.fromMediaImage(image, proxy.getImageInfo().getRotationDegrees());
+        // Results stay on the analysis thread; only a report goes to the main
+        // one.
         scanner.process(input)
-                .addOnSuccessListener(this::onBarcodes)
-                .addOnFailureListener(e -> Log.e(TAG, "analyse: " + e.getLocalizedMessage()))
-                .addOnCompleteListener(task -> proxy.close());
+                .addOnSuccessListener(analysisExecutor, this::onBarcodes)
+                .addOnFailureListener(analysisExecutor, e -> Log.e(TAG, "analyse: " + e.getMessage()))
+                .addOnCompleteListener(analysisExecutor, task -> proxy.close());
     }
 
     private void onBarcodes(@NonNull List<Barcode> barcodes) {
-        if (barcodes.isEmpty() || reporting) {
+        for (Barcode barcode : barcodes) {
+            String value = barcode.getRawValue();
+            if (value == null || value.isEmpty()) {
+                continue;
+            }
+            if (options.continuous) {
+                if (gate.accept(value, SystemClock.elapsedRealtime())) {
+                    ScanEvents.code(value);
+                }
+            } else if (finished.compareAndSet(false, true)) {
+                handler.post(() -> {
+                    setResult(RESULT_OK, new Intent().putExtra(EXTRA_CODE, value));
+                    finish();
+                });
+            }
             return;
         }
-        String value = barcodes.get(0).getRawValue();
-        if (value == null || value.isEmpty()) {
-            return;
-        }
-        reporting = true;
-        handler.postDelayed(() -> {
-            reporting = false;
-            report(value);
-        }, delayMillis);
     }
 
-    private void report(@NonNull String value) {
-        if (isFinishing() || isDestroyed()) {
+    /** Leaves without a code. */
+    void finishCancelled() {
+        if (!finished.compareAndSet(false, true)) {
             return;
         }
-        if (UniversalBarcodeScannerPlugin.isContinuousScan) {
-            UniversalBarcodeScannerPlugin.onBarcodeScanReceiver(value);
-        } else {
-            setResult(RESULT_OK, new Intent().putExtra(BarcodeObject, value));
-            finish();
+        if (!options.continuous) {
+            setResult(RESULT_CANCELED);
         }
+        finish();
+    }
+
+    private void finishWithError(@NonNull String code, @NonNull String message) {
+        if (!finished.compareAndSet(false, true)) {
+            return;
+        }
+        if (options.continuous) {
+            ScanEvents.error(code, message);
+        } else {
+            setResult(RESULT_CANCELED, new Intent()
+                    .putExtra(EXTRA_ERROR_CODE, code)
+                    .putExtra(EXTRA_ERROR_MESSAGE, message));
+        }
+        finish();
     }
 
     @Override
@@ -301,38 +327,36 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
 
     @Override
     public void onClick(View v) {
-        int i = v.getId();
-        if (i == R.id.imgViewBarcodeCaptureUseFlash) {
-            boolean turnOn = flashStatus == USE_FLASH.OFF.ordinal();
-            flashStatus = turnOn ? USE_FLASH.ON.ordinal() : USE_FLASH.OFF.ordinal();
-            imgViewBarcodeCaptureUseFlash.setImageResource(
-                    turnOn ? R.drawable.ic_barcode_flash_on : R.drawable.ic_barcode_flash_off);
-            applyFlash(turnOn);
-        } else if (i == R.id.btnBarcodeCaptureCancel) {
-            onBackPressed();
-        } else if (i == R.id.imgViewSwitchCamera) {
-            lensFacing = lensFacing == CameraSelector.LENS_FACING_FRONT
-                    ? CameraSelector.LENS_FACING_BACK : CameraSelector.LENS_FACING_FRONT;
-            bindCamera();
+        int id = v.getId();
+        if (id == R.id.imgViewBarcodeCaptureUseFlash) {
+            torchOn = !torchOn;
+            setTorch(torchOn);
+        } else if (id == R.id.btnBarcodeCaptureCancel) {
+            finishCancelled();
+        } else if (id == R.id.imgViewSwitchCamera) {
+            int previous = lensFacing;
+            lensFacing = otherLens(lensFacing);
+            if (!bindCamera()) {
+                lensFacing = previous;
+                bindCamera();
+            }
         }
     }
 
-    private void applyFlash(boolean on) {
-        if (camera == null) {
-            return;
+    private void setTorch(boolean on) {
+        flashButton.setImageResource(
+                on ? R.drawable.ic_barcode_flash_on : R.drawable.ic_barcode_flash_off);
+        if (camera != null && camera.getCameraInfo().hasFlashUnit()) {
+            camera.getCameraControl().enableTorch(on);
         }
-        if (!camera.getCameraInfo().hasFlashUnit()) {
-            if (on) {
-                Toast.makeText(this, R.string.no_flash_unit, Toast.LENGTH_SHORT).show();
-            }
-            return;
-        }
-        camera.getCameraControl().enableTorch(on);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (current.get() == this) {
+            current = new WeakReference<>(null);
+        }
         handler.removeCallbacksAndMessages(null);
         if (analysisExecutor != null) {
             analysisExecutor.shutdown();
@@ -340,12 +364,18 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
         if (scanner != null) {
             scanner.close();
         }
+        // Every way out of a continuous scan ends here: the cancel button, the
+        // back gesture, an error, or the plugin closing it. A rotation does
+        // not, since the activity is not finishing then.
+        if (isFinishing() && options != null && options.continuous) {
+            ScanEvents.closed();
+        }
     }
 
     /** A tap focuses the preview where it landed. */
     private class CaptureGestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
-        public boolean onSingleTapConfirmed(MotionEvent e) {
+        public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
             if (camera == null || previewView == null || e.getY() > previewView.getHeight()) {
                 return false;
             }
@@ -360,7 +390,7 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
     /** A pinch scales the current zoom ratio. */
     private class ScaleListener implements ScaleGestureDetector.OnScaleGestureListener {
         @Override
-        public boolean onScale(ScaleGestureDetector detector) {
+        public boolean onScale(@NonNull ScaleGestureDetector detector) {
             if (camera == null) {
                 return false;
             }
@@ -373,12 +403,17 @@ public final class BarcodeCaptureActivity extends AppCompatActivity implements V
         }
 
         @Override
-        public boolean onScaleBegin(ScaleGestureDetector detector) {
+        public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
             return true;
         }
 
         @Override
-        public void onScaleEnd(ScaleGestureDetector detector) {
+        public void onScaleEnd(@NonNull ScaleGestureDetector detector) {
         }
+    }
+
+    @Nullable
+    static String codeFrom(@Nullable Intent data) {
+        return data == null ? null : data.getStringExtra(EXTRA_CODE);
     }
 }

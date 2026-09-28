@@ -17,13 +17,6 @@ abstract final class ScannerAsset {
 /// Title shown when the caller does not provide one.
 const String kScanPageTitle = 'Scan barcode/qrcode';
 
-/// Sentinel the native scanners emit when the user cancels a continuous scan.
-const String kCancelValue = '-2';
-
-/// Sentinel the native scanners return when a single scan is cancelled. It is
-/// mapped to `null` before it reaches the caller.
-const String kNoResultValue = '-1';
-
 /// Default colour of the scan line.
 const Color kDefaultLineColor = Color(0xFFFF6666);
 

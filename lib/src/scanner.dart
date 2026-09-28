@@ -6,6 +6,8 @@ import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/platform/shared.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// Barcode and QR code scanner.
 ///
@@ -30,8 +32,9 @@ class UniversalBarcodeScanner extends StatelessWidget {
     super.key,
     required this.onBarcodeViewCreated,
     this.onScanned,
-    this.scaleWidth,
-    this.scaleHeight,
+    this.onError,
+    this.scanWindowSize,
+    this.lineColor = kDefaultLineColor,
     this.scanType = ScanType.barcode,
     this.cameraFace = CameraFace.back,
     this.scanFormat = ScanFormat.all,
@@ -39,7 +42,6 @@ class UniversalBarcodeScanner extends StatelessWidget {
     this.child,
     this.continuous = false,
     this.flip = false,
-    this.onClose,
   });
 
   /// Called once the platform view exists, with the controller that drives it.
@@ -48,39 +50,49 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
 
-  /// Width of the view, or null to fill the constraints.
-  final double? scaleWidth;
+  /// Called when the camera cannot be used, for instance when the user
+  /// refuses it.
+  final ValueChanged<ScannerException>? onError;
 
-  /// Height of the view, or null to fill the constraints.
-  final double? scaleHeight;
+  /// Size of the scan window in logical pixels. A code is only read when it
+  /// sits entirely inside it. Null picks one from the view and [scanType].
+  final Size? scanWindowSize;
 
-  /// What the scanner looks for.
+  /// Colour of the scan line.
+  final Color lineColor;
+
+  /// Shape of the default scan window: square for QR codes, wide for
+  /// barcodes.
   final ScanType scanType;
 
   /// Which camera to open.
   final CameraFace cameraFace;
 
-  /// Symbologies to accept. Android and iOS only; web reads every format.
+  /// Symbologies to accept.
   final ScanFormat scanFormat;
 
-  /// Pause between two reads in continuous mode.
+  /// Least time between two codes when [continuous].
   final Duration? scanDelay;
 
-  /// Drawn over the scanner, for instance a manual entry field.
+  /// Drawn over the camera, for instance a manual entry field.
   final Widget? child;
 
-  /// Whether reading continues after the first code.
+  /// Whether reading continues after the first code. When false, the view
+  /// pauses on the first code until `BarcodeViewController.resumeScanning`.
   final bool continuous;
 
-  /// Whether the preview is mirrored, for a front camera.
+  /// Whether the preview is mirrored.
   final bool flip;
-
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
 
   /// Opens the scanner as a route and returns the code that was read.
   ///
-  /// Completes with null when the user backs out without scanning.
+  /// Completes with null when the user backs out without scanning, and with
+  /// a [ScannerException] when the camera cannot be used on Android, iOS or
+  /// macOS. The route closes itself in every case.
+  ///
+  /// [barcodeAppBar], [child], [backgroundColor] and [flip] shape the Flutter
+  /// page the web, Windows and Linux scanner runs in. Android, iOS and macOS
+  /// open a native screen over it and do not use them.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -90,52 +102,56 @@ class UniversalBarcodeScanner extends StatelessWidget {
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
     BarcodeAppBar? barcodeAppBar,
-    Duration? scanDelay,
     bool flip = false,
     Widget? child,
     Color? backgroundColor,
-  }) {
-    return Navigator.push<String>(
-      context,
-      PageRouteBuilder<String>(
-        transitionsBuilder:
-            (
-              BuildContext context,
-              Animation<double> animation,
-              Animation<double> secondary,
-              Widget child,
-            ) => FadeTransition(opacity: animation, child: child),
-        pageBuilder:
-            (
-              BuildContext context,
-              Animation<double> animation,
-              Animation<double> secondary,
-            ) => BarcodeScannerPage(
-              backgroundColor: backgroundColor,
-              lineColor: lineColor,
-              cancelButtonText: cancelButtonText,
-              isShowFlashIcon: isShowFlashIcon,
-              scanType: scanType,
-              cameraFace: cameraFace,
-              scanFormat: scanFormat,
-              barcodeAppBar: barcodeAppBar,
-              scanDelay: scanDelay,
-              flip: flip,
-              // Android and iOS answer '-1' when the user backs out.
-              onScanned: (String code) => Navigator.pop(
-                context,
-                code == kNoResultValue || code.isEmpty ? null : code,
-              ),
-              child: child,
-            ),
+  }) async {
+    final NavigatorState navigator = Navigator.of(context);
+    ScannerException? failure;
+    late final Route<String> route;
+
+    route = _route<String>(
+      BarcodeScannerPage(
+        config: ScannerConfig(
+          lineColor: lineColor,
+          cancelButtonText: cancelButtonText,
+          showFlashIcon: isShowFlashIcon,
+          scanType: scanType,
+          cameraFace: cameraFace,
+          scanFormat: scanFormat,
+        ),
+        backgroundColor: backgroundColor,
+        barcodeAppBar: barcodeAppBar,
+        flip: flip,
+        onScanned: (String code) => _leave(navigator, route, code),
+        onClose: () => _leave(navigator, route, null),
+        onError: (ScannerException error) {
+          failure = error;
+          _leave(navigator, route, null);
+        },
+        child: child,
       ),
     );
+
+    final String? code = await navigator.push(route);
+    final ScannerException? error = failure;
+    if (error != null) throw error;
+    return code;
   }
 
   /// Opens the scanner as a route and emits every code read until it closes.
   ///
-  /// The stream is closed when the route goes away, whichever way it goes:
-  /// the back button, a system gesture, or a pop from your own code.
+  /// A code held in front of the camera is emitted once, and again only after
+  /// it has been out of sight for a second. [scanDelay] adds a least time
+  /// between any two codes.
+  ///
+  /// The stream closes when the route goes away, whichever way it goes: the
+  /// back button, a system gesture, or a pop from your own code. Cancelling
+  /// the subscription closes the route, so `stream(context).first` scans one
+  /// code and leaves. A camera that cannot be used on Android, iOS or macOS is
+  /// emitted as a [ScannerException] before the stream closes.
+  ///
+  /// The other parameters are those of [scan].
   static Stream<String> stream(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -150,59 +166,94 @@ class UniversalBarcodeScanner extends StatelessWidget {
     Widget? child,
     Color? backgroundColor,
   }) {
-    final StreamController<String> codes = StreamController<String>();
     final NavigatorState navigator = Navigator.of(context);
+    late final Route<void> route;
 
-    navigator
-        .push<void>(
-          PageRouteBuilder<void>(
-            transitionsBuilder:
-                (
-                  BuildContext context,
-                  Animation<double> animation,
-                  Animation<double> secondary,
-                  Widget child,
-                ) => FadeTransition(opacity: animation, child: child),
-            pageBuilder:
-                (
-                  BuildContext context,
-                  Animation<double> animation,
-                  Animation<double> secondary,
-                ) => BarcodeScannerPage(
-                  backgroundColor: backgroundColor,
-                  lineColor: lineColor,
-                  cancelButtonText: cancelButtonText,
-                  isShowFlashIcon: isShowFlashIcon,
-                  scanType: scanType,
-                  cameraFace: cameraFace,
-                  scanFormat: scanFormat,
-                  barcodeAppBar: barcodeAppBar,
-                  scanDelay: scanDelay,
-                  flip: flip,
-                  onScanned: codes.add,
-                  onClose: () => Navigator.pop(context),
-                  child: child,
-                ),
-          ),
-        )
-        // Covers the ways out that never reach onClose.
-        .whenComplete(codes.close);
+    final StreamController<String> codes = StreamController<String>(
+      // The caller stopped listening: nobody is left to read the scanner.
+      onCancel: () => _leave<void>(navigator, route, null),
+    );
 
+    route = _route<void>(
+      BarcodeScannerPage(
+        config: ScannerConfig(
+          lineColor: lineColor,
+          cancelButtonText: cancelButtonText,
+          showFlashIcon: isShowFlashIcon,
+          scanType: scanType,
+          cameraFace: cameraFace,
+          scanFormat: scanFormat,
+          scanDelay: scanDelay,
+          continuous: true,
+        ),
+        backgroundColor: backgroundColor,
+        barcodeAppBar: barcodeAppBar,
+        flip: flip,
+        onScanned: (String code) {
+          if (!codes.isClosed) codes.add(code);
+        },
+        onClose: () => _leave<void>(navigator, route, null),
+        onError: (ScannerException error) {
+          if (!codes.isClosed) codes.addError(error);
+          _leave<void>(navigator, route, null);
+        },
+        child: child,
+      ),
+    );
+
+    // Covers every way out, including those that never reach onClose.
+    unawaited(navigator.push(route).whenComplete(codes.close));
     return codes.stream;
   }
+
+  static Route<T> _route<T>(Widget page) => PageRouteBuilder<T>(
+    transitionsBuilder:
+        (
+          BuildContext context,
+          Animation<double> animation,
+          Animation<double> secondary,
+          Widget child,
+        ) => FadeTransition(opacity: animation, child: child),
+    pageBuilder:
+        (
+          BuildContext context,
+          Animation<double> animation,
+          Animation<double> secondary,
+        ) => page,
+  );
+
+  /// Takes [route] off the stack, whether or not it is still on top. Does
+  /// nothing the second time: a route being popped still counts as present
+  /// for a frame, and a second pop would reach the route below it.
+  static void _leave<T>(NavigatorState navigator, Route<T> route, T? result) {
+    if (_left[route] ?? false) return;
+    _left[route] = true;
+    if (!route.isActive || !navigator.mounted) return;
+    if (route.isCurrent) {
+      navigator.pop<T>(result);
+    } else {
+      navigator.removeRoute(route);
+    }
+  }
+
+  /// Routes [_leave] has already taken down. An expando, so they are not
+  /// kept alive by it.
+  static final Expando<bool> _left = Expando<bool>('left');
 
   @override
   Widget build(BuildContext context) {
     return BarcodeScannerView(
-      scannerWidth: scaleWidth,
-      scannerHeight: scaleHeight,
-      scanType: scanType,
-      cameraFace: cameraFace,
-      scanFormat: scanFormat,
-      scanDelay: scanDelay,
+      config: ScannerConfig(
+        lineColor: lineColor,
+        scanType: scanType,
+        cameraFace: cameraFace,
+        scanFormat: scanFormat,
+        scanDelay: scanDelay,
+        continuous: continuous,
+      ),
+      scanWindowSize: scanWindowSize,
       onScanned: onScanned,
-      continuous: continuous,
-      onClose: onClose,
+      onError: onError,
       flip: flip,
       onBarcodeViewCreated: onBarcodeViewCreated,
       child: child,

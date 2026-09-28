@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// Called once the embedded scanner view exists, with the controller that
 /// drives it.
@@ -22,24 +23,40 @@ class BarcodeViewController {
   /// Called with every code the view reads. Assign it before the first scan.
   ValueChanged<String>? onScanned;
 
-  Future<dynamic> _handleMethodCall(MethodCall call) async {
+  /// Called when the view cannot use the camera.
+  ValueChanged<ScannerException>? onError;
+
+  Future<void> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onBarcodeDetected':
         final Object? code = call.arguments;
-        if (code is String) onScanned?.call(code);
+        if (code is String && code.isNotEmpty) onScanned?.call(code);
       case 'onError':
-        debugPrint('universal_barcode_scanner: ${call.arguments}');
-      default:
-        debugPrint('universal_barcode_scanner: unhandled ${call.method}');
+        final Object? arguments = call.arguments;
+        final ScannerException error = arguments is Map
+            ? ScannerException(
+                ScannerErrorCode.fromWire('${arguments['code']}'),
+                arguments['message'] as String?,
+              )
+            : ScannerException(ScannerErrorCode.unknown, '$arguments');
+        final ValueChanged<ScannerException>? handler = onError;
+        if (handler == null) {
+          debugPrint('universal_barcode_scanner: $error');
+        } else {
+          handler(error);
+        }
     }
   }
 
-  /// Toggles the torch.
-  Future<void> toggleFlash() => _channel.invokeMethod('toggleFlash');
+  /// Toggles the torch and returns whether it is now on.
+  Future<bool> toggleFlash() async =>
+      await _channel.invokeMethod<bool>('toggleFlash') ?? false;
 
   /// Stops reading without tearing the camera down.
-  Future<void> pauseScanning() => _channel.invokeMethod('pauseScanning');
+  Future<void> pauseScanning() => _channel.invokeMethod<void>('pauseScanning');
 
-  /// Resumes after [pauseScanning].
-  Future<void> resumeScanning() => _channel.invokeMethod('resumeScanning');
+  /// Resumes after [pauseScanning], or after the first code of a view that is
+  /// not continuous.
+  Future<void> resumeScanning() =>
+      _channel.invokeMethod<void>('resumeScanning');
 }

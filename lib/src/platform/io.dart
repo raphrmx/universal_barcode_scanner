@@ -1,172 +1,164 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
-import 'package:universal_barcode_scanner/src/constants.dart';
-import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
-ScanMode _scanModeOf(ScanType type) => switch (type) {
-  ScanType.qr => ScanMode.qr,
-  ScanType.barcode => ScanMode.barcode,
-  ScanType.defaultMode => ScanMode.defaultMode,
+/// Platforms that reach a native scanner over the method channel.
+bool get _hasNativeScanner => switch (defaultTargetPlatform) {
+  TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,
+  _ => false,
+};
+
+/// Platforms that run the bundled page in a webview.
+bool get _hasWebviewScanner => switch (defaultTargetPlatform) {
+  TargetPlatform.windows || TargetPlatform.linux => true,
+  _ => false,
 };
 
 /// Full-screen scanner for the platforms that have `dart:io`.
 ///
-/// Android, iOS and macOS go through their native scanner; Windows and Linux
-/// through a webview running the bundled scanner page.
+/// Android, iOS and macOS go through their native scanner, which covers this
+/// page; Windows and Linux through a webview running the bundled scanner page.
 class BarcodeScannerPage extends StatefulWidget {
   /// Creates the scanner page.
   const BarcodeScannerPage({
     super.key,
+    required this.config,
     required this.onScanned,
-    this.lineColor = kDefaultLineColor,
-    this.cancelButtonText = 'Cancel',
-    this.isShowFlashIcon = false,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
+    required this.onClose,
+    this.onError,
     this.child,
     this.barcodeAppBar,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
     this.backgroundColor,
   });
 
-  /// Colour behind the camera. Black when null, which suits a scanner; pass
-  /// your own when the page sits inside a lighter application.
-  final Color? backgroundColor;
-
-  /// Colour of the scan line.
-  final Color lineColor;
-
-  /// Label of the cancel button.
-  final String cancelButtonText;
-
-  /// Whether the torch toggle is shown.
-  final bool isShowFlashIcon;
-
-  /// What the scanner looks for.
-  final ScanType scanType;
-
-  /// Which camera to open.
-  final CameraFace cameraFace;
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called with every code read.
   final ValueChanged<String> onScanned;
 
-  /// Drawn over the scanner.
+  /// Called when the scanner closes without a code: the user backed out, or a
+  /// continuous scan ended.
+  final VoidCallback onClose;
+
+  /// Called when the camera cannot be used.
+  final ValueChanged<ScannerException>? onError;
+
+  /// Drawn over the webview scanner.
   final Widget? child;
 
-  /// App bar shown above the scanner, or null for none.
+  /// App bar above the webview scanner, or null for none.
   final BarcodeAppBar? barcodeAppBar;
 
-  /// Pause between two reads in continuous mode.
-  final Duration? scanDelay;
-
-  /// Whether the preview is mirrored.
+  /// Whether the webview preview is mirrored.
   final bool flip;
 
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Symbologies to accept.
-  final ScanFormat scanFormat;
+  /// Colour behind the camera. Black when null.
+  final Color? backgroundColor;
 
   @override
   State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
-  StreamSubscription<dynamic>? _codes;
-  bool _started = false;
+  StreamSubscription<String>? _codes;
+
+  /// Whether the native scanner has answered for good, so there is nothing
+  /// left to close.
+  bool _settled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_hasNativeScanner) {
+      // After the first frame, so the route is on screen before the native
+      // scanner covers it.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    }
+  }
 
   @override
   void dispose() {
-    _codes?.cancel();
+    // Cancelling the stream closes the native scanner.
+    final Future<void>? cancelling = _codes?.cancel();
+    if (cancelling != null) {
+      unawaited(cancelling);
+    } else if (_hasNativeScanner && !_settled) {
+      // The route went away under an open scanner.
+      unawaited(NativeScanner.close());
+    }
     super.dispose();
   }
 
-  /// Platforms that reach the native scanner over the method channel.
-  bool get _hasNativeScanner =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
-
-  /// Started from the first build rather than from `initState` so the native
-  /// activity is not launched for a page that never gets mounted.
-  void _startOnce() {
-    if (_started) return;
-    _started = true;
-    if (widget.onClose != null) {
-      _stream();
+  void _start() {
+    if (!mounted) return;
+    if (widget.config.continuous) {
+      _codes = NativeScanner.stream(widget.config).listen(
+        widget.onScanned,
+        onError: (Object error) => _fail(ScannerException.from(error)),
+        onDone: () {
+          _settled = true;
+          if (mounted) widget.onClose();
+        },
+      );
     } else {
-      _scanOnce();
+      unawaited(_scanOnce());
     }
   }
 
   Future<void> _scanOnce() async {
-    final String code = await NativeScanner.scan(
-      lineColor: widget.lineColor,
-      cancelButtonText: widget.cancelButtonText,
-      isShowFlashIcon: widget.isShowFlashIcon,
-      scanMode: _scanModeOf(widget.scanType),
-      delay: widget.scanDelay,
-      cameraFace: widget.cameraFace,
-      scanFormat: widget.scanFormat,
-    );
-    widget.onScanned(code);
+    try {
+      final String? code = await NativeScanner.scan(widget.config);
+      _settled = true;
+      if (!mounted) return;
+      if (code == null) {
+        widget.onClose();
+      } else {
+        widget.onScanned(code);
+      }
+    } on ScannerException catch (error) {
+      _settled = true;
+      _fail(error);
+    }
   }
 
-  void _stream() {
-    _codes =
-        NativeScanner.stream(
-          lineColor: widget.lineColor,
-          cancelButtonText: widget.cancelButtonText,
-          isShowFlashIcon: widget.isShowFlashIcon,
-          scanMode: _scanModeOf(widget.scanType),
-          delay: widget.scanDelay,
-          cameraFace: widget.cameraFace,
-          scanFormat: widget.scanFormat,
-        ).listen((dynamic code) {
-          if (code is! String) return;
-          if (code == kCancelValue) {
-            widget.onClose?.call();
-          } else {
-            widget.onScanned(code);
-          }
-        });
+  void _fail(ScannerException error) {
+    if (!mounted) return;
+    final ValueChanged<ScannerException>? onError = widget.onError;
+    if (onError == null) {
+      widget.onClose();
+    } else {
+      onError(error);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isWindows || Platform.isLinux) {
+    if (_hasWebviewScanner) {
       return DesktopBarcodeScannerPage(
+        config: widget.config,
         backgroundColor: widget.backgroundColor,
-        lineColor: widget.lineColor,
-        cancelButtonText: widget.cancelButtonText,
-        isShowFlashIcon: widget.isShowFlashIcon,
-        scanType: widget.scanType,
-        cameraFace: widget.cameraFace,
         onScanned: widget.onScanned,
-        barcodeAppBar: widget.barcodeAppBar,
-        scanDelay: widget.scanDelay,
-        flip: widget.flip,
         onClose: widget.onClose,
-        scanFormat: widget.scanFormat,
+        barcodeAppBar: widget.barcodeAppBar,
+        flip: widget.flip,
         child: widget.child,
       );
     }
 
+    final Color background = widget.backgroundColor ?? const Color(0xFF000000);
     if (!_hasNativeScanner) {
-      // The method channel would only raise a MissingPluginException here.
       return ColoredBox(
-        color: widget.backgroundColor ?? const Color(0xFF000000),
+        color: background,
         child: Center(
           child: Text(
             '$defaultTargetPlatform is not supported yet',
@@ -176,9 +168,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
       );
     }
 
-    _startOnce();
     return ColoredBox(
-      color: widget.backgroundColor ?? const Color(0xFF000000),
+      color: background,
       child: const Center(child: _Spinner()),
     );
   }
@@ -233,85 +224,65 @@ class BarcodeScannerView extends StatelessWidget {
   /// Creates the embedded view.
   const BarcodeScannerView({
     super.key,
+    required this.config,
     required this.onBarcodeViewCreated,
-    required this.onScanned,
-    this.scannerWidth,
-    this.scannerHeight,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
-    this.continuous = false,
+    this.onScanned,
+    this.onError,
+    this.scanWindowSize,
     this.child,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
   });
+
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called once the view exists.
   final BarcodeScannerViewCreated onBarcodeViewCreated;
 
-  /// Width of the view.
-  final double? scannerWidth;
-
-  /// Height of the view.
-  final double? scannerHeight;
-
-  /// What the scanner looks for.
-  final ScanType scanType;
-
-  /// Which camera to open.
-  final CameraFace cameraFace;
-
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
 
-  /// Drawn over the scanner.
-  final Widget? child;
+  /// Called when the camera cannot be used.
+  final ValueChanged<ScannerException>? onError;
 
-  /// Pause between two reads in continuous mode.
-  final Duration? scanDelay;
+  /// Size of the scan window in logical pixels, or null for a default.
+  final Size? scanWindowSize;
+
+  /// Drawn over the camera.
+  final Widget? child;
 
   /// Whether the preview is mirrored.
   final bool flip;
 
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
+  static const String _viewType = 'universal_barcode_scanner/view';
 
-  /// Whether reading continues after the first code.
-  final bool continuous;
-
-  /// Symbologies to accept.
-  final ScanFormat scanFormat;
-
-  Map<String, dynamic> get _creationParams => <String, dynamic>{
-    'scanType': scanType.index,
-    'cameraFace': cameraFace.index,
-    'delayMillis': scanDelay?.inMilliseconds,
-    'continuous': continuous,
-    'scannerWidth': scannerWidth?.toInt(),
-    'scannerHeight': scannerHeight?.toInt(),
-    'scanFormat': scanFormat.wireName,
+  Map<String, Object?> get _creationParams => <String, Object?>{
+    ...config.toNative(),
+    'scanWindowWidth': scanWindowSize?.width,
+    'scanWindowHeight': scanWindowSize?.height,
   };
 
   void _onPlatformViewCreated(int id) {
-    final BarcodeViewController controller = BarcodeViewController.data(id);
-    controller.onScanned = onScanned;
+    final BarcodeViewController controller = BarcodeViewController.data(id)
+      ..onScanned = onScanned
+      ..onError = onError;
     onBarcodeViewCreated(controller);
   }
 
   @override
   Widget build(BuildContext context) {
+    final Widget view;
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return AndroidView(
-          viewType: 'universal_barcode_scanner/view',
+        view = AndroidView(
+          viewType: _viewType,
           onPlatformViewCreated: _onPlatformViewCreated,
           creationParams: _creationParams,
           creationParamsCodec: const StandardMessageCodec(),
         );
       case TargetPlatform.iOS:
-        return UiKitView(
-          viewType: 'universal_barcode_scanner/view',
+        view = UiKitView(
+          viewType: _viewType,
           onPlatformViewCreated: _onPlatformViewCreated,
           creationParams: _creationParams,
           creationParamsCodec: const StandardMessageCodec(),
@@ -321,5 +292,16 @@ class BarcodeScannerView extends StatelessWidget {
           child: Text('$defaultTargetPlatform has no embedded scanner view'),
         );
     }
+
+    final Widget? child = this.child;
+    final Widget camera = flip
+        ? Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.diagonal3Values(-1, 1, 1),
+            child: view,
+          )
+        : view;
+    if (child == null) return camera;
+    return Stack(fit: StackFit.expand, children: <Widget>[camera, child]);
   }
 }

@@ -120,20 +120,44 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | Parameter | Default | Effect |
 | --- | --- | --- |
 | `lineColor` | `Color(0xFFFF6666)` | Colour of the scan line, on every platform. |
-| `cancelButtonText` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS only. |
-| `isShowFlashIcon` | `false` | Whether the torch toggle is shown. Android and iOS only. |
-| `scanType` | `ScanType.barcode` | What the scanner looks for. |
+| `scanFormat` | `ScanFormat.all` | Symbologies to accept, on every platform. Fewer formats also scan faster. |
+| `scanType` | `ScanType.barcode` | Shape of the scan window: wide for barcodes, square for QR codes. |
 | `cameraFace` | `CameraFace.back` | Which camera to open. |
-| `scanFormat` | `ScanFormat.all` | Symbologies to accept. Android, iOS and macOS only; web reads every format. |
-| `barcodeAppBar` | `null` | App bar above the scanner. Without one, the camera fills the route. |
-| `scanDelay` | `null` | Pause between two reads in continuous mode. |
-| `flip` | `false` | Mirrors the preview, for a front camera. |
-| `child` | `null` | Drawn over the scanner, for instance a manual entry field. |
+| `cancelButtonText` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS. |
+| `isShowFlashIcon` | `false` | Whether the torch toggle is shown, when the camera has a flash. Android and iOS. |
+| `barcodeAppBar` | `null` | App bar above the scanner. Web, Windows and Linux. |
+| `child` | `null` | Drawn over the scanner, for instance a manual entry field. Web, Windows and Linux. |
+| `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
+| `flip` | `false` | Mirrors the preview. Web, Windows and Linux. |
+
+Android, iOS and macOS open a native screen over the route, so the parameters that shape the
+Flutter page do nothing there.
+
+### When the camera cannot be used
+
+On Android, iOS and macOS, `scan` throws a `ScannerException` and closes the route itself:
+
+```dart
+try {
+  final String? code = await UniversalBarcodeScanner.scan(context);
+} on ScannerException catch (error) {
+  switch (error.code) {
+    case ScannerErrorCode.permissionDenied: // the user refused the camera
+    case ScannerErrorCode.cameraUnavailable: // no camera, or it did not start
+    case ScannerErrorCode.alreadyActive: // another scanner is on screen
+    case ScannerErrorCode.unknown:
+  }
+}
+```
+
+The scanner shows no dialog of its own: what to tell the user is the app's call. On the web,
+Windows and Linux the scanner page says why the camera did not start, and the user backs out.
 
 ## Keep scanning
 
 Same route, but every code read is emitted instead of the first one closing it. The stream closes
-by itself when the route goes away, whichever way it goes:
+by itself when the route goes away, whichever way it goes, and cancelling the subscription closes
+the route:
 
 ```dart
 final StreamSubscription<String> sub =
@@ -142,7 +166,11 @@ final StreamSubscription<String> sub =
 });
 ```
 
-`stream` takes the same parameters as `scan`.
+A code held in front of the camera is emitted once, and again only after it has been out of sight
+for a second. `scanDelay` adds a least time between any two codes. A camera that cannot be used is
+emitted as a `ScannerException`, then the stream closes.
+
+`stream` takes the same parameters as `scan`, plus `scanDelay`.
 
 ## Embed the camera
 
@@ -152,16 +180,20 @@ To put the camera inside your own layout rather than on its own route. Android a
 UniversalBarcodeScanner(
   continuous: true,
   onScanned: (String code) => debugPrint(code),
+  onError: (ScannerException error) => debugPrint('$error'),
   onBarcodeViewCreated: (BarcodeViewController controller) {
     this.controller = controller;
   },
 );
 ```
 
+The view asks for the camera permission itself, stops the camera while the app is in the
+background, and only reads codes that sit entirely inside its scan window.
+
 The controller drives the running camera:
 
 ```dart
-await controller.toggleFlash();
+final bool torchOn = await controller.toggleFlash();
 await controller.pauseScanning();
 await controller.resumeScanning();
 ```
@@ -170,9 +202,12 @@ await controller.resumeScanning();
 | --- | --- | --- |
 | `onBarcodeViewCreated` | required | Called once the platform view exists. |
 | `onScanned` | `null` | Called with every code read. |
-| `continuous` | `false` | Whether reading continues after the first code. |
-| `scaleWidth`, `scaleHeight` | `null` | Size of the view, or the constraints when null. |
-| `scanType`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan`. |
+| `onError` | `null` | Called when the camera cannot be used. |
+| `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
+| `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanType`. |
+| `lineColor`, `scanType`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |
+
+The view fills the constraints it is given.
 
 ## App bar
 
@@ -190,9 +225,12 @@ UniversalBarcodeScanner.scan(
 );
 ```
 
-The native namespace changed too, so the two packages can no longer be installed side by side in the
-same app. That was already true in practice: they declared the same Android package and the same iOS
-class, and the build failed on a duplicate.
+On Android, iOS and macOS the native screen has no app bar.
+
+## Migrating from 1.x
+
+The breaking changes of 2.0 and what to write instead are listed at the top of the
+[changelog](CHANGELOG.md).
 
 ## Example
 
@@ -218,13 +256,6 @@ No design system. The package is written against `package:flutter/widgets.dart` 
 under Material, under `material_ui`, or under neither, and imposes none of them on your app. The
 scanner bar is drawn here rather than taken from a widget library; `BarcodeAppBar` carries its
 colours.
-
-## Credits
-
-Derived from [simple_barcode_scanner](https://pub.dev/packages/simple_barcode_scanner) by Kunchok
-Tashi, which embeds the Android and iOS scanner of
-[flutter_barcode_scanner](https://pub.dev/packages/flutter_barcode_scanner) by Amol Gangadhare. Both
-are MIT.
 
 ## License
 

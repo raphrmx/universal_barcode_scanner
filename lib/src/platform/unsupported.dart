@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
-import 'package:universal_barcode_scanner/src/constants.dart';
-import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
 /// Fallback for a platform with neither `dart:io` nor `dart:js_interop`.
 ///
@@ -12,42 +12,27 @@ class BarcodeScannerPage extends StatelessWidget {
   /// Creates the fallback page.
   const BarcodeScannerPage({
     super.key,
+    required this.config,
     required this.onScanned,
-    this.lineColor = kDefaultLineColor,
-    this.cancelButtonText = 'Cancel',
-    this.isShowFlashIcon = false,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
+    required this.onClose,
+    this.onError,
     this.child,
     this.barcodeAppBar,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
     this.backgroundColor,
   });
 
-  /// Colour behind the camera. Black when null, which suits a scanner; pass
-  /// your own when the page sits inside a lighter application.
-  final Color? backgroundColor;
-
-  /// Colour of the scan line.
-  final Color lineColor;
-
-  /// Label of the cancel button.
-  final String cancelButtonText;
-
-  /// Whether the torch toggle is shown.
-  final bool isShowFlashIcon;
-
-  /// What the scanner looks for.
-  final ScanType scanType;
-
-  /// Which camera to open.
-  final CameraFace cameraFace;
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called with every code read.
   final ValueChanged<String> onScanned;
+
+  /// Called when the scanner closes without a code.
+  final VoidCallback onClose;
+
+  /// Called when the camera cannot be used.
+  final ValueChanged<ScannerException>? onError;
 
   /// Drawn over the scanner.
   final Widget? child;
@@ -55,17 +40,11 @@ class BarcodeScannerPage extends StatelessWidget {
   /// App bar shown above the scanner, or null for none.
   final BarcodeAppBar? barcodeAppBar;
 
-  /// Pause between two reads in continuous mode.
-  final Duration? scanDelay;
-
   /// Whether the preview is mirrored.
   final bool flip;
 
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Symbologies to accept.
-  final ScanFormat scanFormat;
+  /// Colour behind the camera.
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) =>
@@ -77,55 +56,35 @@ class BarcodeScannerView extends StatelessWidget {
   /// Creates the fallback view.
   const BarcodeScannerView({
     super.key,
+    required this.config,
     required this.onBarcodeViewCreated,
-    required this.onScanned,
-    this.scannerWidth,
-    this.scannerHeight,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
-    this.continuous = false,
+    this.onScanned,
+    this.onError,
+    this.scanWindowSize,
     this.child,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
   });
+
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called once the view exists.
   final BarcodeScannerViewCreated onBarcodeViewCreated;
 
-  /// Width of the view.
-  final double? scannerWidth;
-
-  /// Height of the view.
-  final double? scannerHeight;
-
-  /// What the scanner looks for.
-  final ScanType scanType;
-
-  /// Which camera to open.
-  final CameraFace cameraFace;
-
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
 
-  /// Drawn over the scanner.
-  final Widget? child;
+  /// Called when the camera cannot be used.
+  final ValueChanged<ScannerException>? onError;
 
-  /// Pause between two reads in continuous mode.
-  final Duration? scanDelay;
+  /// Size of the scan window.
+  final Size? scanWindowSize;
+
+  /// Drawn over the camera.
+  final Widget? child;
 
   /// Whether the preview is mirrored.
   final bool flip;
-
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Whether reading continues after the first code.
-  final bool continuous;
-
-  /// Symbologies to accept.
-  final ScanFormat scanFormat;
 
   @override
   Widget build(BuildContext context) =>

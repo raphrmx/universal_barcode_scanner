@@ -8,10 +8,12 @@ import Vision
 /// frames go through Vision's `VNDetectBarcodesRequest` instead. That is also
 /// what Apple's own samples do on this platform.
 class BarcodeScannerViewController: NSViewController {
-  /// Called with every code read. In continuous mode it fires repeatedly.
+  /// Called on the main thread with each code worth reporting.
   var onScanned: ((String) -> Void)?
   /// Called when the user closes the scanner without a result.
   var onCancelled: (() -> Void)?
+  /// Called with an error code and a message when the camera cannot be used.
+  var onFailed: ((String, String) -> Void)?
 
   private let options: ScannerOptions
   private let session = AVCaptureSession()
@@ -25,8 +27,26 @@ class BarcodeScannerViewController: NSViewController {
 
   private var previewLayer: AVCaptureVideoPreviewLayer?
   private var lineLayer: CALayer?
-  private var lastScanAt: Date = .distantPast
+
+  // Touched on the frame queue only.
   private var hasResult = false
+  private var lastValue: String?
+  private var lastSeen: TimeInterval = 0
+  private var lastEmit: TimeInterval?
+
+  /// Built once: a request per frame was an allocation per frame.
+  private lazy var request: VNDetectBarcodesRequest = {
+    let request = VNDetectBarcodesRequest()
+    let wanted = self.symbologies
+    if !wanted.isEmpty {
+      request.symbologies = wanted
+    }
+    return request
+  }()
+
+  /// A code held in front of the camera is reported once, and again only
+  /// after it has been out of sight this long.
+  private static let sameCodeGap: TimeInterval = 1.0
 
   init(options: ScannerOptions) {
     self.options = options
@@ -46,9 +66,13 @@ class BarcodeScannerViewController: NSViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    configureSession()
     configurePreview()
     configureCancelButton()
+    if !configureSession() {
+      DispatchQueue.main.async { [weak self] in
+        self?.onFailed?("camera_unavailable", "The camera could not be opened.")
+      }
+    }
   }
 
   override func viewDidLayout() {
@@ -69,16 +93,20 @@ class BarcodeScannerViewController: NSViewController {
 
   // MARK: - Capture
 
-  private func configureSession() {
+  private func configureSession() -> Bool {
     session.beginConfiguration()
-    session.sessionPreset = .high
+    // Vision works on every frame it is given; 720p reads a code as well as
+    // full HD, for less than half the pixels.
+    session.sessionPreset = session.canSetSessionPreset(.hd1280x720) ? .hd1280x720 : .high
 
-    if let device = AVCaptureDevice.default(for: .video),
+    guard let device = AVCaptureDevice.default(for: .video),
       let input = try? AVCaptureDeviceInput(device: device),
       session.canAddInput(input)
-    {
-      session.addInput(input)
+    else {
+      session.commitConfiguration()
+      return false
     }
+    session.addInput(input)
 
     output.alwaysDiscardsLateVideoFrames = true
     output.setSampleBufferDelegate(self, queue: frameQueue)
@@ -90,15 +118,17 @@ class BarcodeScannerViewController: NSViewController {
 
     // startRunning blocks; keeping it off the main thread stops the window
     // from opening frozen.
-    sessionQueue.async { [weak self] in
-      self?.session.startRunning()
+    let capture = session
+    sessionQueue.async {
+      capture.startRunning()
     }
+    return true
   }
 
-  private func stop() {
-    guard session.isRunning else { return }
-    sessionQueue.async { [weak self] in
-      self?.session.stopRunning()
+  func stop() {
+    let session = self.session
+    sessionQueue.async {
+      if session.isRunning { session.stopRunning() }
     }
   }
 
@@ -155,26 +185,32 @@ class BarcodeScannerViewController: NSViewController {
         .code39, .code39Checksum, .code39FullASCII, .code39FullASCIIChecksum,
         .code93, .code93i, .code128,
         .ean8, .ean13, .upce,
-        .i2of5, .i2of5Checksum, .itf14,
+        .i2of5, .i2of5Checksum, .itf14, .pdf417,
       ]
     default:
       return []
     }
   }
 
+  /// Runs on the frame queue.
   private func handle(_ barcode: String) {
-    guard !barcode.isEmpty else { return }
+    guard !barcode.isEmpty, !hasResult else { return }
 
     if options.isContinuousScan {
-      // delayMillis throttles the stream, otherwise a code sitting in front of
-      // the camera is read on every single frame.
-      guard Date().timeIntervalSince(lastScanAt) >= options.delay else { return }
-      lastScanAt = Date()
+      let now = CACurrentMediaTime()
+      if barcode == lastValue {
+        let held = now - lastSeen < Self.sameCodeGap
+        lastSeen = now
+        if held { return }
+      }
+      if let last = lastEmit, now - last < options.delay { return }
+      lastValue = barcode
+      lastSeen = now
+      lastEmit = now
       DispatchQueue.main.async { [weak self] in self?.onScanned?(barcode) }
       return
     }
 
-    guard !hasResult else { return }
     hasResult = true
     stop()
     DispatchQueue.main.async { [weak self] in self?.onScanned?(barcode) }
@@ -191,25 +227,16 @@ extension BarcodeScannerViewController: AVCaptureVideoDataOutputSampleBufferDele
       let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
     else { return }
 
-    let request = VNDetectBarcodesRequest { [weak self] request, _ in
-      guard let self = self,
-        let results = request.results as? [VNBarcodeObservation]
-      else { return }
+    let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
+    guard (try? handler.perform([request])) != nil,
+      let results = request.results as? [VNBarcodeObservation]
+    else { return }
 
-      for observation in results {
-        if let payload = observation.payloadStringValue {
-          self.handle(payload)
-          return
-        }
+    for observation in results {
+      if let payload = observation.payloadStringValue {
+        handle(payload)
+        return
       }
     }
-
-    let wanted = symbologies
-    if !wanted.isEmpty {
-      request.symbologies = wanted
-    }
-
-    let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
-    try? handler.perform([request])
   }
 }

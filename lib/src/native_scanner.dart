@@ -1,100 +1,99 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:universal_barcode_scanner/src/constants.dart';
-import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
-/// Scan mode understood by the Android and iOS scanners.
+/// The Android, iOS and macOS scanners, over their method and event channels.
 ///
-/// The native side reads the enum by index, so the order is part of the wire
-/// format and must not change.
-enum ScanMode { qr, barcode, defaultMode }
-
-/// Thin wrapper over the Android and iOS method channel.
+/// `scanBarcode` answers with the code read, or null when the user backs out.
+/// In continuous mode it answers as soon as the scanner is up, and the event
+/// channel carries every code as a string, a failure as an error, and the end
+/// of the scan as `{'event': 'closed'}`. No payload is reserved: a code that
+/// reads `-1` is a code.
 ///
-/// Please note that this code is a reimplementation of
-/// https://github.com/AmolGangadhare/flutter_barcode_scanner, which has not
-/// been updated for a long time.
+/// Derived from https://github.com/AmolGangadhare/flutter_barcode_scanner.
 abstract final class NativeScanner {
   static const MethodChannel _channel = MethodChannel(
     'universal_barcode_scanner',
   );
 
-  static const EventChannel _eventChannel = EventChannel(
+  static const EventChannel _events = EventChannel(
     'universal_barcode_scanner/events',
   );
 
-  static Map<String, dynamic> _params({
-    required Color lineColor,
-    required String cancelButtonText,
-    required bool isShowFlashIcon,
-    required ScanMode scanMode,
-    required Duration? delay,
-    required CameraFace cameraFace,
-    required ScanFormat scanFormat,
-    required bool continuous,
-  }) => <String, dynamic>{
-    'lineColor': colorToHex(lineColor),
-    'cancelButtonText': cancelButtonText,
-    'isShowFlashIcon': isShowFlashIcon,
-    'isContinuousScan': continuous,
-    'scanMode': scanMode.index,
-    'delayMillis': delay?.inMilliseconds ?? 0,
-    'cameraFacingText': cameraFace.name.toUpperCase(),
-    'scanFormat': scanFormat.wireName,
-    'scannerWidth': 280,
-    'scannerHeight': 280,
-  };
-
-  /// Scans with the camera until a code is read, then returns it.
-  static Future<String> scan({
-    required Color lineColor,
-    required String cancelButtonText,
-    required bool isShowFlashIcon,
-    required ScanMode scanMode,
-    required Duration? delay,
-    required CameraFace cameraFace,
-    required ScanFormat scanFormat,
-  }) async {
-    final Object? result = await _channel.invokeMethod(
-      'scanBarcode',
-      _params(
-        lineColor: lineColor,
-        cancelButtonText: cancelButtonText,
-        isShowFlashIcon: isShowFlashIcon,
-        scanMode: scanMode,
-        delay: delay,
-        cameraFace: cameraFace,
-        scanFormat: scanFormat,
-        continuous: false,
-      ),
-    );
-    return result is String ? result : '';
+  /// Scans until a code is read, then returns it. Null when the user backs
+  /// out; a [ScannerException] when the camera cannot be used.
+  static Future<String?> scan(ScannerConfig config) async {
+    try {
+      final Object? code = await _channel.invokeMethod<Object?>(
+        'scanBarcode',
+        config.toNative(),
+      );
+      return code is String && code.isNotEmpty ? code : null;
+    } on Object catch (error) {
+      throw ScannerException.from(error);
+    }
   }
 
-  /// Opens the camera and emits every code read until the user cancels.
-  static Stream<dynamic> stream({
-    required Color lineColor,
-    required String cancelButtonText,
-    required bool isShowFlashIcon,
-    required ScanMode scanMode,
-    required Duration? delay,
-    required CameraFace cameraFace,
-    required ScanFormat scanFormat,
-  }) {
-    _channel.invokeMethod(
-      'scanBarcode',
-      _params(
-        lineColor: lineColor,
-        cancelButtonText: cancelButtonText,
-        isShowFlashIcon: isShowFlashIcon,
-        scanMode: scanMode,
-        delay: delay,
-        cameraFace: cameraFace,
-        scanFormat: scanFormat,
-        continuous: true,
-      ),
+  /// Opens the scanner and emits every code read until it closes.
+  ///
+  /// Cancelling the subscription closes the scanner. A failure is emitted as a
+  /// [ScannerException], after which the stream closes.
+  static Stream<String> stream(ScannerConfig config) {
+    StreamSubscription<dynamic>? events;
+    late final StreamController<String> codes;
+
+    // Closes without waiting for the platform to acknowledge the end of the
+    // event channel: the caller has nothing to wait for.
+    void finish() {
+      unawaited(events?.cancel());
+      events = null;
+      if (!codes.isClosed) unawaited(codes.close());
+    }
+
+    void fail(Object error) {
+      if (!codes.isClosed) codes.addError(ScannerException.from(error));
+      finish();
+    }
+
+    codes = StreamController<String>(
+      onListen: () {
+        // Listening first: the native side only has somewhere to send codes
+        // once the event channel is open.
+        events = _events.receiveBroadcastStream().listen(
+          (dynamic event) {
+            if (event is String) {
+              if (event.isNotEmpty && !codes.isClosed) codes.add(event);
+            } else if (event is Map && event['event'] == 'closed') {
+              finish();
+            }
+          },
+          onError: fail,
+          onDone: finish,
+        );
+        _channel
+            .invokeMethod<void>('scanBarcode', config.toNative())
+            .catchError(fail);
+      },
+      onCancel: () {
+        final bool open = events != null;
+        finish();
+        if (open) unawaited(close());
+      },
     );
-    return _eventChannel.receiveBroadcastStream();
+    return codes.stream;
+  }
+
+  /// Closes whichever native scanner is on screen, if any. A single scan in
+  /// progress completes with null.
+  static Future<void> close() async {
+    try {
+      await _channel.invokeMethod<void>('close');
+    } on MissingPluginException {
+      // No scanner to close on this platform.
+    } on PlatformException {
+      // Nothing was open.
+    }
   }
 }

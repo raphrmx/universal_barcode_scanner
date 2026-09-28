@@ -1,4 +1,5 @@
-/// Barcode and QR code scanner for Flutter, on Android, iOS, web and Windows.
+/// Barcode and QR code scanner for Flutter, on Android, iOS, Linux, macOS, web
+/// and Windows.
 ///
 /// One entry point, [UniversalBarcodeScanner]. Use its static [
 /// UniversalBarcodeScanner.scan] to open the scanner as a route and get a code
@@ -15,3 +16,4 @@ export 'src/barcode_view_controller.dart'
     show BarcodeScannerViewCreated, BarcodeViewController;
 export 'src/enums.dart';
 export 'src/scanner.dart';
+export 'src/scanner_exception.dart';

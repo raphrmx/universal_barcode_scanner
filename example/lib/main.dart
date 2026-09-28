@@ -12,6 +12,12 @@ const Color _line = Color(0xFF272C36);
 const Color _dim = Color(0xFF8B929E);
 const Color _accent = Color(0xFF39B37A);
 
+/// The embedded view is a native platform view, on Android and iOS only.
+bool get _hasEmbeddedView =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+
 const BarcodeAppBar _appBar = BarcodeAppBar(
   appBarTitle: 'Point at a barcode',
   centerTitle: false,
@@ -75,27 +81,50 @@ class _HomePageState extends State<HomePage> {
 
   /// One shot: opens the scanner, comes back with a code or null.
   Future<void> _scanOnce() async {
-    _stream?.cancel();
-    final String? code = await UniversalBarcodeScanner.scan(
-      context,
-      barcodeAppBar: _appBar,
-      isShowFlashIcon: true,
-      scanDelay: const Duration(milliseconds: 500),
-      cameraFace: CameraFace.back,
-      scanFormat: ScanFormat.all,
-    );
-    if (code != null) _found(code, 'one shot');
+    await _stream?.cancel();
+    if (!mounted) return;
+    try {
+      final String? code = await UniversalBarcodeScanner.scan(
+        context,
+        barcodeAppBar: _appBar,
+        isShowFlashIcon: true,
+        cameraFace: CameraFace.back,
+        scanFormat: ScanFormat.all,
+      );
+      if (code != null) _found(code, 'one shot');
+    } on ScannerException catch (error) {
+      _failed(error);
+    }
   }
 
   /// Continuous: the stream closes on its own when the route goes away.
-  void _scanStream() {
-    _stream?.cancel();
+  Future<void> _scanStream() async {
+    await _stream?.cancel();
+    if (!mounted) return;
     _stream = UniversalBarcodeScanner.stream(
       context,
       barcodeAppBar: _appBar,
       isShowFlashIcon: true,
       scanDelay: const Duration(seconds: 2),
-    ).listen((String code) => _found(code, 'continuous'));
+    ).listen(
+      (String code) => _found(code, 'continuous'),
+      onError: (Object error) {
+        if (error is ScannerException) _failed(error);
+      },
+    );
+  }
+
+  void _failed(ScannerException error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error.code == ScannerErrorCode.permissionDenied
+              ? 'The camera permission was refused.'
+              : 'The camera could not be used.',
+        ),
+      ),
+    );
   }
 
   void _openEmbedded() {
@@ -152,15 +181,14 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _Mode(
                   title: 'Embedded view',
-                  body: kIsWeb
-                      ? 'Puts the camera inside your own layout. Android, iOS, '
-                          'macOS and Windows: on the web the scanner runs in '
-                          'a frame of its own, so it is a page rather than a '
-                          'widget.'
-                      : 'Puts the camera inside your own layout, with a '
-                          'controller for the torch and for pausing.',
+                  body: _hasEmbeddedView
+                      ? 'Puts the camera inside your own layout, with a '
+                          'controller for the torch and for pausing.'
+                      : 'Puts the camera inside your own layout, on Android '
+                          'and iOS. Elsewhere the scanner is a page of its '
+                          'own rather than a widget.',
                   action: 'Open',
-                  onPressed: kIsWeb ? null : _openEmbedded,
+                  onPressed: _hasEmbeddedView ? _openEmbedded : null,
                 ),
                 const SizedBox(height: 8),
                 const _Note(),
@@ -380,11 +408,12 @@ class _EmbeddedPageState extends State<EmbeddedPage> {
                     width: 280,
                     height: 280,
                     child: UniversalBarcodeScanner(
-                      scaleWidth: 400,
-                      scaleHeight: 200,
+                      scanWindowSize: const Size(220, 130),
                       continuous: true,
                       onScanned: (String code) =>
                           setState(() => _result = code),
+                      onError: (ScannerException error) =>
+                          setState(() => _result = error.toString()),
                       onBarcodeViewCreated:
                           (BarcodeViewController controller) =>
                               _controller = controller,

@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
-import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:webview_all/webview_all.dart';
 
 /// Name of the JavaScript channel the bundled page posts scans on. It has to
@@ -14,23 +15,78 @@ const String _channelName = 'UniversalBarcodeScanner';
 /// How long an idle webview is kept before it is let go.
 const Duration _idleBeforeRelease = Duration(minutes: 1);
 
+/// What an unused webview is left showing: no script, no camera.
+const String _blankPage = '<!doctype html><title>.</title>';
+
+/// A webview and the page showing it, if any.
+///
+/// The page never starts the camera on its own: it waits for `configure`,
+/// which only the page on screen sends. A scanner closed before its webview
+/// finished loading therefore never lights the camera up behind it.
+class _Webview {
+  _Webview() {
+    controller = WebViewController(onPermissionRequest: _grantCamera)
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        _channelName,
+        onMessageReceived: (JavaScriptMessage message) =>
+            owner?._onCode(message.message),
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (String _) {
+            if (loaded || released) return;
+            loaded = true;
+            owner?._configure();
+          },
+        ),
+      )
+      ..loadFlutterAsset(ScannerAsset.desktopPath);
+  }
+
+  late final WebViewController controller;
+
+  /// Whether the scanner page is up and can take `configure`.
+  bool loaded = false;
+
+  /// Whether the webview has been let go. It still finishes loading the blank
+  /// page it was left with, which must not count as the scanner page.
+  bool released = false;
+
+  /// The page currently showing this webview.
+  _DesktopBarcodeScannerPageState? owner;
+
+  Timer? release;
+
+  Future<void> run(String script) async {
+    try {
+      await controller.runJavaScript(script);
+    } on Object {
+      // The page is not up yet, or has gone: nothing to stop or start.
+    }
+  }
+
+  void letGo() {
+    released = true;
+    owner = null;
+    unawaited(controller.loadHtmlString(_blankPage));
+  }
+
+  /// The page we load is our own and asks for exactly one thing, so granting
+  /// the camera here is not a blanket allow.
+  static void _grantCamera(WebViewPermissionRequest request) {
+    if (request.types.contains(WebViewPermissionResourceType.camera)) {
+      request.grant();
+    } else {
+      request.deny();
+    }
+  }
+}
+
 /// The webview kept between two scans, and what it costs to build it again:
 /// starting the engine, loading the page and its script, and asking the user
-/// for the camera. Reopening the scanner within [_idleBeforeRelease] reuses it
-/// and only has to resume the page.
-WebViewController? _kept;
-
-/// Whether a page is currently showing [_kept]. A second scanner opened at the
-/// same time builds its own rather than fighting over this one.
-bool _keptInUse = false;
-
-/// Where a scan read by [_kept] is delivered. The channel belongs to the
-/// controller, so it outlives the page that opened it and has to be routed
-/// rather than bound once.
-void Function(String)? _keptListener;
-
-/// Releases [_kept] once it has been idle long enough.
-Timer? _keptRelease;
+/// for the camera. Reopening the scanner within [_idleBeforeRelease] reuses it.
+_Webview? _kept;
 
 /// Scanner for the desktop platforms that have no native scanner: Windows and
 /// Linux.
@@ -42,42 +98,23 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
   /// Creates the desktop scanner page.
   const DesktopBarcodeScannerPage({
     super.key,
+    required this.config,
     required this.onScanned,
-    this.lineColor = kDefaultLineColor,
-    this.cancelButtonText = 'Cancel',
-    this.isShowFlashIcon = false,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
+    required this.onClose,
     this.child,
     this.barcodeAppBar,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
     this.backgroundColor,
   });
 
-  /// Colour behind the camera. Black when null, which suits a scanner; pass
-  /// your own when the page sits inside a lighter application.
-  final Color? backgroundColor;
-
-  /// Colour of the sweeping scan line.
-  final Color lineColor;
-
-  /// Label of the cancel button. Unused here.
-  final String cancelButtonText;
-
-  /// Whether the torch toggle is shown. Unused here.
-  final bool isShowFlashIcon;
-
-  /// What the scanner looks for. Unused here, the page reads every format.
-  final ScanType scanType;
-
-  /// Which camera to open. Unused here.
-  final CameraFace cameraFace;
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called with every code read.
   final ValueChanged<String> onScanned;
+
+  /// Called by the back button.
+  final VoidCallback onClose;
 
   /// Drawn over the scanner.
   final Widget? child;
@@ -85,17 +122,11 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
   /// App bar shown above the scanner, or null for none.
   final BarcodeAppBar? barcodeAppBar;
 
-  /// Pause between two reads in continuous mode. Unused here.
-  final Duration? scanDelay;
-
   /// Whether the preview is mirrored.
   final bool flip;
 
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Symbologies to accept. Unused here.
-  final ScanFormat scanFormat;
+  /// Colour behind the camera. Black when null.
+  final Color? backgroundColor;
 
   @override
   State<DesktopBarcodeScannerPage> createState() =>
@@ -103,110 +134,79 @@ class DesktopBarcodeScannerPage extends StatefulWidget {
 }
 
 class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
-  late final WebViewController _controller;
+  late final _Webview _webview;
 
-  /// Whether [_controller] is the shared one, and so has to be handed back
-  /// rather than dropped.
+  /// Whether [_webview] is the kept one, handed back rather than let go.
   late final bool _shared;
 
-  String? _barcode;
+  /// Set on the first code of a single scan, so a second one is ignored.
+  bool _delivered = false;
 
   @override
   void initState() {
     super.initState();
 
-    _keptRelease?.cancel();
-    _keptRelease = null;
-
-    final WebViewController? kept = _kept;
-    if (kept != null && !_keptInUse) {
-      _controller = kept;
+    final _Webview kept = _kept ??= _Webview();
+    if (kept.owner == null) {
+      kept.release?.cancel();
+      kept.release = null;
+      _webview = kept;
       _shared = true;
-      _keptInUse = true;
-      _keptListener = _onCode;
-      // `onPageFinished` does not fire again on a page that is still loaded.
-      _applyColours();
-      _controller.runJavaScript('resumeScanner()');
-      return;
+    } else {
+      // Another scanner is on screen with the kept one.
+      _webview = _Webview();
+      _shared = false;
     }
 
-    _controller = WebViewController(onPermissionRequest: _onPermissionRequest)
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(_channelName, onMessageReceived: _onMessage)
-      // A file URL carries no query string, so the colour is set once loaded.
-      ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (String _) => _applyColours()),
-      )
-      ..loadFlutterAsset(ScannerAsset.desktopPath);
-
-    _shared = kept == null;
-    if (_shared) {
-      _kept = _controller;
-      _keptInUse = true;
-      _keptListener = _onCode;
-    }
+    _webview.owner = this;
+    if (_webview.loaded) _configure();
   }
 
   @override
   void dispose() {
-    _controller.runJavaScript('stopScanner()');
+    final _Webview webview = _webview;
+    webview.owner = null;
+    unawaited(webview.run('stopScanner()'));
+
     if (_shared) {
-      _keptListener = null;
-      _keptInUse = false;
-      _keptRelease?.cancel();
-      _keptRelease = Timer(_idleBeforeRelease, () {
-        // `webview_all` cannot dispose a controller, so the page is blanked and
-        // the reference dropped.
-        _kept?.loadHtmlString('<!doctype html><title>.</title>');
+      webview.release = Timer(_idleBeforeRelease, () {
+        if (!identical(_kept, webview) || webview.owner != null) return;
+        // `webview_all` cannot dispose a controller, so the page is blanked
+        // and the reference dropped.
+        webview.letGo();
         _kept = null;
-        _keptRelease = null;
       });
+    } else {
+      webview.letGo();
     }
     super.dispose();
   }
 
-  /// Delivers a code read by the shared controller to whichever page is open.
+  /// Hands the page its settings, which also starts the camera.
+  void _configure() {
+    final Map<String, String> settings = widget.config.toPage(
+      background: widget.backgroundColor,
+    );
+    unawaited(_webview.run('configure(${jsonEncode(settings)})'));
+  }
+
   void _onCode(String code) {
-    if (code.isEmpty || _barcode != null) return;
-    _barcode = code;
+    if (code.isEmpty || !mounted) return;
+    if (!widget.config.continuous) {
+      if (_delivered) return;
+      _delivered = true;
+    }
     widget.onScanned(code);
   }
 
-  void _applyColours() {
-    final String css = colorToCssHex(widget.lineColor);
-    _controller.runJavaScript("setScanLineColor('$css')");
-    final Color? background = widget.backgroundColor;
-    if (background != null) {
-      _controller.runJavaScript(
-        "setBackgroundColor('${colorToCssHex(background)}')",
-      );
-    }
-  }
-
-  /// The page we load is our own and asks for exactly one thing, so granting
-  /// the camera here is not a blanket allow.
-  void _onPermissionRequest(WebViewPermissionRequest request) {
-    if (request.types.contains(WebViewPermissionResourceType.camera)) {
-      request.grant();
-    } else {
-      request.deny();
-    }
-  }
-
-  /// Routed rather than bound: the channel belongs to the controller, which
-  /// outlives the page that created it.
-  void _onMessage(JavaScriptMessage message) {
-    final void Function(String)? listener = _shared ? _keptListener : _onCode;
-    listener?.call(message.message);
-  }
-
   void _close() {
-    _controller.runJavaScript('stopScanner()');
-    Navigator.pop(context);
+    unawaited(_webview.run('stopScanner()'));
+    widget.onClose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final Widget view = WebViewWidget(controller: _webview.controller);
     return ScannerChrome(
       backgroundColor: widget.backgroundColor,
       bar: widget.barcodeAppBar,
@@ -214,13 +214,16 @@ class _DesktopBarcodeScannerPageState extends State<DesktopBarcodeScannerPage> {
       body: Stack(
         children: <Widget>[
           // The page sizes its overlay from the width it measures itself, so
-          // the view is scaled and never resized.
-          Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),
-            child: WebViewWidget(controller: _controller),
-          ),
-          if (widget.child != null) widget.child!,
+          // the view is mirrored and never resized.
+          if (widget.flip)
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.diagonal3Values(-1, 1, 1),
+              child: view,
+            )
+          else
+            view,
+          ?widget.child,
         ],
       ),
     );

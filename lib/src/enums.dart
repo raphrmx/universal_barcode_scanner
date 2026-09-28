@@ -1,16 +1,18 @@
-/// What the scanner is pointed at.
+/// Shape of the scan window on the native scanners.
+///
+/// It only draws the window: which codes are accepted is [ScanFormat]'s job.
 enum ScanType {
-  /// QR codes only.
+  /// A square window, for QR codes.
   qr,
 
-  /// Linear barcodes only.
+  /// A wide window, for linear barcodes.
   barcode,
 
-  /// Whatever the platform scanner reads by default.
+  /// Same as [qr].
   defaultMode,
 }
 
-/// Which symbologies the native scanners accept.
+/// Which symbologies the scanner accepts, on every platform.
 enum ScanFormat {
   /// Every symbology the platform supports.
   all('ALL_FORMATS'),
@@ -23,7 +25,7 @@ enum ScanFormat {
 
   const ScanFormat(this.wireName);
 
-  /// Value the Android and iOS scanners expect over the method channel.
+  /// Value the native scanners expect over the method channel.
   ///
   /// Kept apart from the Dart name so the enum can be renamed without
   /// touching the native side, and the other way round.

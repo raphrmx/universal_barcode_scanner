@@ -3,11 +3,11 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'universal_barcode_scanner'
-  s.version          = '1.3.0'
+  s.version          = '2.0.0'
   s.summary          = 'Barcode and QR code scanner for Flutter.'
   s.description      = <<-DESC
-Barcode and QR code scanner for Flutter, on Android, iOS, web and Windows,
-from one widget and one callback.
+Barcode and QR code scanner for Flutter, on Android, iOS, Linux, macOS, web
+and Windows, from one widget and one callback.
                        DESC
   s.homepage         = 'https://github.com/raphrmx/universal_barcode_scanner'
   s.license          = { :file => '../LICENSE' }

@@ -4,22 +4,21 @@ import FlutterMacOS
 
 /// macOS entry point of the plugin.
 ///
-/// Mirrors the iOS contract exactly, because the Dart side does not know the
-/// two apart: `scanBarcode` answers with the code that was read, with `-1` when
-/// a single scan is cancelled, and in continuous mode pushes every code to the
-/// event channel and `-2` on cancel.
-public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
+/// Same contract as iOS, because the Dart side does not tell the two apart:
+/// `scanBarcode` answers with the code read, or nil when a single scan is
+/// cancelled; in continuous mode it answers once the scanner is up, pushes
+/// every code to the event channel, then `{"event": "closed"}`. `close`
+/// closes whichever scanner is open.
+public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
+  NSWindowDelegate
+{
   private static let methodChannelName = "universal_barcode_scanner"
   private static let eventChannelName = "universal_barcode_scanner/events"
-
-  /// Sentinel returned when a single scan is cancelled.
-  static let noResult = "-1"
-  /// Sentinel pushed to the stream when a continuous scan is cancelled.
-  static let cancelled = "-2"
 
   private var pendingResult: FlutterResult?
   private var eventSink: FlutterEventSink?
   private var scannerWindow: NSWindow?
+  private var continuous = false
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = UniversalBarcodeScannerPlugin()
@@ -55,12 +54,22 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
   // MARK: - FlutterPlugin
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    guard call.method == "scanBarcode" else {
+    switch call.method {
+    case "scanBarcode":
+      scan(arguments: call.arguments as? [String: Any] ?? [:], result: result)
+    case "close":
+      finish(code: nil, error: nil)
+      result(nil)
+    default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func scan(arguments: [String: Any], result: @escaping FlutterResult) {
+    guard scannerWindow == nil, pendingResult == nil else {
+      result(Self.error("already_active", "A scanner is already open."))
       return
     }
-
-    let arguments = call.arguments as? [String: Any] ?? [:]
     let options = ScannerOptions(arguments: arguments)
 
     // Asking before opening the window: a denied permission should say so
@@ -69,27 +78,29 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
       guard let self = self else { return }
       guard granted else {
         result(
-          FlutterError(
-            code: "camera_permission_denied",
-            message: "Camera access was denied. Grant it in System Settings, "
-              + "and check that the app declares NSCameraUsageDescription.",
-            details: nil
+          Self.error(
+            "camera_permission_denied",
+            "Camera access was denied. Grant it in System Settings, and check "
+              + "that the app declares NSCameraUsageDescription."
           )
         )
         return
       }
       guard AVCaptureDevice.default(for: .video) != nil else {
-        result(
-          FlutterError(
-            code: "camera_unavailable",
-            message: "No camera is available on this Mac.",
-            details: nil
-          )
-        )
+        result(Self.error("camera_unavailable", "No camera is available on this Mac."))
+        return
+      }
+      guard self.scannerWindow == nil, self.pendingResult == nil else {
+        result(Self.error("already_active", "A scanner is already open."))
         return
       }
 
-      self.pendingResult = result
+      self.continuous = options.isContinuousScan
+      if options.isContinuousScan {
+        result(nil)
+      } else {
+        self.pendingResult = result
+      }
       self.present(options: options)
     }
   }
@@ -112,17 +123,18 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
   private func present(options: ScannerOptions) {
     let controller = BarcodeScannerViewController(options: options)
     controller.onScanned = { [weak self] barcode in
-      self?.deliver(barcode, options: options)
+      guard let self = self else { return }
+      if self.continuous {
+        self.eventSink?(barcode)
+      } else {
+        self.finish(code: barcode, error: nil)
+      }
     }
     controller.onCancelled = { [weak self] in
-      guard let self = self else { return }
-      self.close()
-      if options.isContinuousScan {
-        self.eventSink?(UniversalBarcodeScannerPlugin.cancelled)
-      } else {
-        self.pendingResult?(UniversalBarcodeScannerPlugin.noResult)
-        self.pendingResult = nil
-      }
+      self?.finish(code: nil, error: nil)
+    }
+    controller.onFailed = { [weak self] code, message in
+      self?.finish(code: nil, error: Self.error(code, message))
     }
 
     let window = NSWindow(contentViewController: controller)
@@ -131,6 +143,8 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     window.setContentSize(NSSize(width: 640, height: 480))
     window.center()
     window.isReleasedWhenClosed = false
+    // The title bar's close button is a way out too.
+    window.delegate = self
     scannerWindow = window
 
     if let host = NSApplication.shared.mainWindow {
@@ -140,24 +154,40 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     }
   }
 
-  private func deliver(_ barcode: String, options: ScannerOptions) {
-    if options.isContinuousScan {
-      eventSink?(barcode)
-      return
-    }
-    close()
-    pendingResult?(barcode)
-    pendingResult = nil
+  public func windowWillClose(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, window === scannerWindow else { return }
+    finish(code: nil, error: nil)
   }
 
-  private func close() {
+  /// Closes the scanner and tells Dart how it ended. Does nothing when no
+  /// scanner is open.
+  private func finish(code: String?, error: FlutterError?) {
     guard let window = scannerWindow else { return }
+    scannerWindow = nil
+    window.delegate = nil
+    (window.contentViewController as? BarcodeScannerViewController)?.stop()
     if let host = window.sheetParent {
       host.endSheet(window)
     } else {
       window.close()
     }
-    scannerWindow = nil
+
+    if continuous {
+      if let error = error { eventSink?(error) }
+      eventSink?(["event": "closed"])
+    } else {
+      let result = pendingResult
+      pendingResult = nil
+      if let error = error {
+        result?(error)
+      } else {
+        result?(code)
+      }
+    }
+  }
+
+  private static func error(_ code: String, _ message: String) -> FlutterError {
+    return FlutterError(code: code, message: message, details: nil)
   }
 }
 
@@ -172,11 +202,12 @@ struct ScannerOptions {
   init(arguments: [String: Any]) {
     lineColor = NSColor(hex: arguments["lineColor"] as? String ?? "")
       ?? NSColor.systemRed
-    cancelButtonText = arguments["cancelButtonText"] as? String ?? "Cancel"
-    isContinuousScan = arguments["isContinuousScan"] as? Bool ?? false
+    let cancel = arguments["cancelButtonText"] as? String ?? ""
+    cancelButtonText = cancel.isEmpty ? "Cancel" : cancel
+    isContinuousScan = arguments["continuous"] as? Bool ?? false
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
-    let millis = arguments["delayMillis"] as? Int ?? 0
-    delay = TimeInterval(millis) / 1000.0
+    let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
+    delay = max(0, millis) / 1000.0
   }
 }
 

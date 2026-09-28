@@ -1,33 +1,42 @@
 import 'dart:async';
+import 'dart:js_interop';
 import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/barcode_app_bar.dart';
 import 'package:universal_barcode_scanner/src/barcode_view_controller.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
-import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
+import 'package:universal_barcode_scanner/src/scanner_config.dart';
+import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:web/web.dart' as html;
 
-/// Barcode scanner for web using iframe
+/// Barcode scanner for web, running the bundled page in an iframe.
 class BarcodeScannerPage extends StatefulWidget {
-  /// Colour of the sweeping scan line.
-  final Color lineColor;
+  /// Creates the web scanner page.
+  const BarcodeScannerPage({
+    super.key,
+    required this.config,
+    required this.onScanned,
+    required this.onClose,
+    this.onError,
+    this.child,
+    this.barcodeAppBar,
+    this.flip = false,
+    this.backgroundColor,
+  });
 
-  /// Label of the cancel button. Unused on web.
-  final String cancelButtonText;
-
-  /// Whether the torch toggle is shown. Unused on web.
-  final bool isShowFlashIcon;
-
-  /// What the scanner looks for. Unused on web, the page reads all formats.
-  final ScanType scanType;
-
-  /// Which camera to open. Unused on web.
-  final CameraFace cameraFace;
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called with every code read.
   final ValueChanged<String> onScanned;
+
+  /// Called by the back button.
+  final VoidCallback onClose;
+
+  /// Unused on web: the page says itself why the camera did not start.
+  final ValueChanged<ScannerException>? onError;
 
   /// Drawn over the scanner.
   final Widget? child;
@@ -35,38 +44,10 @@ class BarcodeScannerPage extends StatefulWidget {
   /// App bar shown above the scanner, or null for none.
   final BarcodeAppBar? barcodeAppBar;
 
-  /// Pause between two reads in continuous mode. Unused on web.
-  final Duration? scanDelay;
-
   /// Whether the preview is mirrored.
   final bool flip;
 
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Symbologies to accept. Unused on web.
-  final ScanFormat scanFormat;
-
-  /// Creates the web scanner page.
-  const BarcodeScannerPage({
-    super.key,
-    required this.lineColor,
-    required this.cancelButtonText,
-    required this.isShowFlashIcon,
-    required this.scanType,
-    this.cameraFace = CameraFace.back,
-    required this.onScanned,
-    this.child,
-    this.barcodeAppBar,
-    this.scanDelay,
-    this.onClose,
-    this.flip = false,
-    this.scanFormat = ScanFormat.all,
-    this.backgroundColor,
-  });
-
-  /// Colour behind the camera. Black when null, which suits a scanner; pass
-  /// your own when the page sits inside a lighter application.
+  /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
 
   @override
@@ -80,7 +61,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   late final html.HTMLIFrameElement _iframe;
 
   StreamSubscription<html.MessageEvent>? _messages;
-  String? _barcode;
+  bool _delivered = false;
 
   @override
   void initState() {
@@ -88,13 +69,18 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
     _viewId =
         'universal_barcode_scanner_${DateTime.now().microsecondsSinceEpoch}';
-    // No cross-frame call is possible before load, so the colour rides in the
-    // query string.
+    // No cross-frame call is possible before load, so the settings ride in
+    // the query string; `start` tells the page not to wait for `configure`.
+    final Uri page = Uri(
+      path: ScannerAsset.webPath,
+      queryParameters: <String, String>{
+        ...widget.config.toPage(background: widget.backgroundColor),
+        'start': '1',
+      },
+    );
     _iframe = html.HTMLIFrameElement()
-      ..src =
-          '${ScannerAsset.webPath}'
-          '?line=${Uri.encodeComponent(colorToCssHex(widget.lineColor))}'
-          '${_backgroundQuery()}'
+      ..src = page.toString()
+      ..allow = 'camera'
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%';
@@ -114,42 +100,41 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   void _onMessage(html.MessageEvent event) {
-    // The scanner page is same-origin: a message from anywhere else is not a
-    // scan.
+    // Only our own frame speaks for the scanner: any other window of the same
+    // origin, or the app itself, may post messages too.
     if (event.origin != html.window.location.origin) return;
-    if (_barcode != null) return;
+    if (!event.source.strictEquals(_iframe.contentWindow).toDart) return;
 
-    final String data = event.data.toString();
-    if (data.isEmpty) return;
+    final Object? code = event.data.dartify();
+    if (code is! String || code.isEmpty) return;
 
-    _barcode = data;
-    widget.onScanned(data);
-  }
-
-  /// The page paints its own background, so the colour has to reach it rather
-  /// than sit behind it: the iframe covers the route.
-  String _backgroundQuery() {
-    final Color? colour = widget.backgroundColor;
-    if (colour == null) return '';
-    return '&background=${Uri.encodeComponent(colorToCssHex(colour))}';
+    if (!widget.config.continuous) {
+      if (_delivered) return;
+      _delivered = true;
+    }
+    widget.onScanned(code);
   }
 
   @override
   Widget build(BuildContext context) {
+    final Widget view = HtmlElementView(viewType: _viewId);
     return ScannerChrome(
       backgroundColor: widget.backgroundColor,
       bar: widget.barcodeAppBar,
-      onClose: () => Navigator.pop(context),
+      onClose: widget.onClose,
       body: Stack(
         children: <Widget>[
           // The page sizes its overlay from the width it measures itself, so
-          // the view is scaled and never resized.
-          Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()..rotateY(widget.flip ? 3.1416 : 0),
-            child: HtmlElementView(viewType: _viewId),
-          ),
-          if (widget.child != null) widget.child!,
+          // the view is mirrored and never resized.
+          if (widget.flip)
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.diagonal3Values(-1, 1, 1),
+              child: view,
+            )
+          else
+            view,
+          ?widget.child,
         ],
       ),
     );
@@ -159,60 +144,40 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 /// Embedded scanner view on web.
 ///
 /// Not implemented: the web scanner runs in an iframe, which only makes sense
-/// as a whole page. Use [BarcodeScannerPage] there.
+/// as a whole page. Use `UniversalBarcodeScanner.scan` there.
 class BarcodeScannerView extends StatelessWidget {
   /// Creates the web embedded view.
   const BarcodeScannerView({
     super.key,
+    required this.config,
     required this.onBarcodeViewCreated,
-    required this.onScanned,
-    this.scannerWidth,
-    this.scannerHeight,
-    this.scanType = ScanType.barcode,
-    this.cameraFace = CameraFace.back,
-    this.continuous = false,
+    this.onScanned,
+    this.onError,
+    this.scanWindowSize,
     this.child,
-    this.scanDelay,
     this.flip = false,
-    this.onClose,
-    this.scanFormat = ScanFormat.all,
   });
+
+  /// What to scan and how.
+  final ScannerConfig config;
 
   /// Called once the view exists.
   final BarcodeScannerViewCreated onBarcodeViewCreated;
 
-  /// Width of the view.
-  final double? scannerWidth;
-
-  /// Height of the view.
-  final double? scannerHeight;
-
-  /// What the scanner looks for.
-  final ScanType scanType;
-
-  /// Which camera to open.
-  final CameraFace cameraFace;
-
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
 
-  /// Drawn over the scanner.
-  final Widget? child;
+  /// Called when the camera cannot be used.
+  final ValueChanged<ScannerException>? onError;
 
-  /// Pause between two reads in continuous mode.
-  final Duration? scanDelay;
+  /// Size of the scan window.
+  final Size? scanWindowSize;
+
+  /// Drawn over the camera.
+  final Widget? child;
 
   /// Whether the preview is mirrored.
   final bool flip;
-
-  /// Called when the scanner closes.
-  final VoidCallback? onClose;
-
-  /// Whether reading continues after the first code.
-  final bool continuous;
-
-  /// Symbologies to accept.
-  final ScanFormat scanFormat;
 
   @override
   Widget build(BuildContext context) =>
