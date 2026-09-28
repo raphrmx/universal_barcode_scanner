@@ -4,9 +4,9 @@ Barcode and QR code scanning for Flutter, on Android, iOS, Linux, macOS, web and
 one entry point.
 
 <p>
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/android.webp" alt="Scanning a barcode on Android" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/android.webp" alt="Scanning a barcode on Android" width="171">
   &nbsp;&nbsp;
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp?v=2" alt="Scanning a QR code in a browser" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/web.webp?v=2" alt="Scanning a QR code in a browser" width="537">
 </p>
 
 <sub>A barcode on Android, and a QR code in a browser.</sub>
@@ -178,7 +178,7 @@ emitted as a `ScannerException`, then the stream closes.
 To put the camera inside your own layout rather than on its own route, on every platform:
 
 <p>
-  <img src="https://public.comapps.be/packages/universal_barcode_scanner/embedded.webp" alt="The camera opening inside a tile of the example app, on Android" height="360">
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/embedded.webp" alt="The camera opening inside a tile of the example app, on Android" width="171">
 </p>
 
 ```dart
