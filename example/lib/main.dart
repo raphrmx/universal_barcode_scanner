@@ -58,6 +58,12 @@ class _HomePageState extends State<HomePage> {
   String _mode = '';
   int _count = 0;
 
+  /// Whether the camera sits in the result tile.
+  bool _embedded = false;
+  ScannerController? _controller;
+  bool _paused = false;
+  bool _torch = false;
+
   @override
   void dispose() {
     _stream?.cancel();
@@ -73,9 +79,45 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// One camera at a time: the tile's goes before a scanner opens.
+  Future<void> _closeEmbedded() async {
+    if (!_embedded) return;
+    _toggleEmbedded();
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  /// Embedded: the camera opens in the result tile, and closes from the same
+  /// button.
+  void _toggleEmbedded() {
+    setState(() {
+      _embedded = !_embedded;
+      _controller = null;
+      _paused = false;
+      _torch = false;
+    });
+  }
+
+  Future<void> _togglePause() async {
+    final ScannerController? controller = _controller;
+    if (controller == null) return;
+    if (_paused) {
+      await controller.resumeScanning();
+    } else {
+      await controller.pauseScanning();
+    }
+    if (mounted) setState(() => _paused = !_paused);
+  }
+
+  /// Most webcams have no torch an app can drive: the answer says so.
+  Future<void> _toggleTorch() async {
+    final bool on = await _controller?.toggleFlash() ?? false;
+    if (mounted) setState(() => _torch = on);
+  }
+
   /// One shot: opens the scanner, comes back with a code or null.
   Future<void> _scanOnce() async {
     await _stream?.cancel();
+    await _closeEmbedded();
     if (!mounted) return;
     try {
       final String? code = await UniversalBarcodeScanner.scan(
@@ -94,6 +136,7 @@ class _HomePageState extends State<HomePage> {
   /// Continuous: the stream closes on its own when the route goes away.
   Future<void> _scanStream() async {
     await _stream?.cancel();
+    await _closeEmbedded();
     if (!mounted) return;
     _stream = UniversalBarcodeScanner.stream(
       context,
@@ -117,15 +160,6 @@ class _HomePageState extends State<HomePage> {
               ? 'The camera permission was refused.'
               : 'The camera could not be used.',
         ),
-      ),
-    );
-  }
-
-  void _openEmbedded() {
-    _stream?.cancel();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => const EmbeddedPage(),
       ),
     );
   }
@@ -155,8 +189,57 @@ class _HomePageState extends State<HomePage> {
                   style: TextStyle(fontSize: 14.5, color: _dim, height: 1.45),
                 ),
                 const SizedBox(height: 22),
-                _Result(code: _code, mode: _mode, count: _count),
+                _Result(
+                  code: _code,
+                  mode: _mode,
+                  count: _count,
+                  camera: _embedded
+                      ? UniversalBarcodeScanner(
+                          continuous: true,
+                          onScanned: (String code) => _found(code, 'embedded'),
+                          onError: _failed,
+                          onCreated: (ScannerController controller) =>
+                              _controller = controller,
+                        )
+                      : null,
+                  controls: _embedded
+                      ? <Widget>[
+                          OutlinedButton.icon(
+                            onPressed: _toggleTorch,
+                            icon: Icon(
+                              _torch
+                                  ? Icons.flashlight_on
+                                  : Icons.flashlight_off,
+                              size: 18,
+                            ),
+                            label: const Text('Torch'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _togglePause,
+                            icon: Icon(
+                              _paused ? Icons.play_arrow : Icons.pause,
+                              size: 18,
+                            ),
+                            label: Text(_paused ? 'Resume' : 'Pause'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _toggleEmbedded,
+                            icon: const Icon(Icons.close, size: 18),
+                            label: const Text('Close'),
+                          ),
+                        ]
+                      : const <Widget>[],
+                ),
                 const SizedBox(height: 22),
+                _Mode(
+                  title: 'Embedded view',
+                  body: 'Puts the camera inside your own layout, here the tile '
+                      'above, with a controller for the torch and for '
+                      'pausing.',
+                  action: 'Open',
+                  // Closed from the tile, next to the other controls.
+                  onPressed: _embedded ? null : _toggleEmbedded,
+                ),
                 _Mode(
                   title: 'Scan once',
                   body:
@@ -173,13 +256,6 @@ class _HomePageState extends State<HomePage> {
                   action: 'Open',
                   onPressed: _scanStream,
                 ),
-                _Mode(
-                  title: 'Embedded view',
-                  body: 'Puts the camera inside your own layout, with a '
-                      'controller for the torch and for pausing.',
-                  action: 'Open',
-                  onPressed: _openEmbedded,
-                ),
                 const SizedBox(height: 8),
                 const _Note(),
               ],
@@ -193,15 +269,28 @@ class _HomePageState extends State<HomePage> {
 
 /// What the last scan returned, or what to do to get one.
 class _Result extends StatelessWidget {
-  const _Result({required this.code, required this.mode, required this.count});
+  const _Result({
+    required this.code,
+    required this.mode,
+    required this.count,
+    this.camera,
+    this.controls = const <Widget>[],
+  });
 
   final String? code;
   final String mode;
   final int count;
 
+  /// The embedded scanner, when it is open in this tile.
+  final Widget? camera;
+
+  /// What drives [camera].
+  final List<Widget> controls;
+
   @override
   Widget build(BuildContext context) {
     final String? value = code;
+    final Widget? camera = this.camera;
 
     return Container(
       width: double.infinity,
@@ -239,9 +328,23 @@ class _Result extends StatelessWidget {
                 ),
             ],
           ),
+          if (camera != null) ...<Widget>[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                height: 210,
+                width: double.infinity,
+                child: camera,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           SelectableText(
-            value ?? 'Pick a mode below and point the camera at a barcode.',
+            value ??
+                (camera == null
+                    ? 'Pick a mode below and point the camera at a barcode.'
+                    : 'Point the camera at a barcode.'),
             style: TextStyle(
               fontSize: value == null ? 14.5 : 19,
               height: 1.4,
@@ -255,6 +358,19 @@ class _Result extends StatelessWidget {
             Text(
               '${value.length} characters',
               style: const TextStyle(fontSize: 12.5, color: _dim),
+            ),
+          ],
+          if (controls.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 14),
+            // Compact, so the three fit on one line of a phone.
+            OutlinedButtonTheme(
+              data: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+              ),
+              child: Wrap(spacing: 6, runSpacing: 8, children: controls),
             ),
           ],
         ],
@@ -326,7 +442,7 @@ class _Mode extends StatelessWidget {
               disabledForegroundColor: _dim,
               padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
-            child: Text(off ? 'Mobile' : action),
+            child: Text(action),
           ),
         ],
       ),
@@ -349,109 +465,6 @@ class _Note extends StatelessWidget {
         'over HTTPS. A machine without one says so rather than showing you a '
         'black screen.',
         style: TextStyle(fontSize: 12.5, color: _dim, height: 1.5),
-      ),
-    );
-  }
-}
-
-/// Embedded: the camera sits inside the layout, driven by a controller.
-class EmbeddedPage extends StatefulWidget {
-  /// Creates the embedded demo.
-  const EmbeddedPage({super.key});
-
-  @override
-  State<EmbeddedPage> createState() => _EmbeddedPageState();
-}
-
-class _EmbeddedPageState extends State<EmbeddedPage> {
-  ScannerController? _controller;
-  String _result = '';
-  bool _paused = false;
-  bool _torch = false;
-
-  /// Most webcams have no torch an app can drive: the answer says so.
-  Future<void> _toggleTorch() async {
-    final bool on = await _controller?.toggleFlash() ?? false;
-    if (mounted) setState(() => _torch = on);
-  }
-
-  void _togglePause() {
-    if (_paused) {
-      _controller?.resumeScanning();
-    } else {
-      _controller?.pauseScanning();
-    }
-    setState(() => _paused = !_paused);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Embedded view'),
-        backgroundColor: _panel,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SizedBox(
-                    width: 280,
-                    height: 280,
-                    child: UniversalBarcodeScanner(
-                      scanWindowSize: const Size(220, 130),
-                      continuous: true,
-                      onScanned: (String code) =>
-                          setState(() => _result = code),
-                      onError: (ScannerException error) =>
-                          setState(() => _result = error.toString()),
-                      onCreated: (ScannerController controller) =>
-                          _controller = controller,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SelectableText(
-                  _result.isEmpty ? 'Waiting for a code' : _result,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: _result.isEmpty ? 14 : 18,
-                    fontFamily: _result.isEmpty ? null : 'monospace',
-                    color: _result.isEmpty ? _dim : Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 10,
-                  children: <Widget>[
-                    OutlinedButton.icon(
-                      onPressed: _toggleTorch,
-                      icon: Icon(
-                        _torch ? Icons.flashlight_on : Icons.flashlight_off,
-                        size: 18,
-                      ),
-                      label: const Text('Torch'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _togglePause,
-                      icon: Icon(
-                        _paused ? Icons.play_arrow : Icons.pause,
-                        size: 18,
-                      ),
-                      label: Text(_paused ? 'Resume' : 'Pause'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

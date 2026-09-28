@@ -11,6 +11,25 @@ final class ScannerOverlay {
   /// The window, in the host layer's coordinates.
   private(set) var window: CGRect = .zero
 
+  /// Holds the line where it is, for a view that has stopped reading, and
+  /// sets it off again from there.
+  var paused = false {
+    didSet {
+      guard paused != oldValue else { return }
+      if paused {
+        let now = line.convertTime(CACurrentMediaTime(), from: nil)
+        line.speed = 0
+        line.timeOffset = now
+      } else {
+        let stoppedAt = line.timeOffset
+        line.speed = 1
+        line.timeOffset = 0
+        line.beginTime = 0
+        line.beginTime = line.convertTime(CACurrentMediaTime(), from: nil) - stoppedAt
+      }
+    }
+  }
+
   init(lineColor: NSColor, shown: Bool) {
     dim.fillRule = .evenOdd
     dim.fillColor = NSColor(white: 0, alpha: 0.5).cgColor

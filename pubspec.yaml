@@ -19,6 +19,8 @@ screenshots:
     path: screenshots/android_scan.webp
   - description: The code read, back in the app.
     path: screenshots/android_result.webp
+  - description: The embedded view, the camera inside a tile of the app.
+    path: screenshots/android_embedded.webp
   - description: The scanner reading a QR code with a webcam, in a browser.
     path: screenshots/web_scan.webp
   - description: The QR code read, back in the web app.

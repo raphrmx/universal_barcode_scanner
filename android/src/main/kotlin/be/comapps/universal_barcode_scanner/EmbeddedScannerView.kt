@@ -266,6 +266,7 @@ internal class EmbeddedScannerView(
             if (!options.continuous) {
                 // Waits for resumeScanning before reading another one.
                 detecting = false
+                main.post { scanOverlay.paused = true }
                 return
             }
         }
@@ -306,12 +307,14 @@ internal class EmbeddedScannerView(
         when (call.method) {
             "pauseScanning" -> {
                 detecting = false
+                scanOverlay.paused = true
                 result.success(null)
             }
             "resumeScanning" -> {
                 // The code that paused a single-shot view counts as new again.
                 gate.reset()
                 detecting = true
+                scanOverlay.paused = false
                 result.success(null)
             }
             "toggleFlash" -> {

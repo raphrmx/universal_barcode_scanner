@@ -204,6 +204,7 @@ class EmbeddedScanner extends StatefulWidget {
 class _EmbeddedScannerState extends State<EmbeddedScanner> {
   late final PageScannerController _controller = PageScannerController(
     (PageCall call) => _post(<String, Object>{'call': call.name}),
+    continuous: widget.config.continuous,
   );
 
   html.HTMLIFrameElement? _iframe;
@@ -323,6 +324,7 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     onWindow: _onWindow,
     flip: widget.flip,
     failed: _failed,
+    paused: _controller.paused,
     child: widget.child,
   );
 }

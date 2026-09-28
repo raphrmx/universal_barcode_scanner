@@ -177,6 +177,10 @@ emitted as a `ScannerException`, then the stream closes.
 
 To put the camera inside your own layout rather than on its own route, on every platform:
 
+<p>
+  <img src="https://public.comapps.be/packages/universal_barcode_scanner/embedded.webp" alt="The camera opening inside a tile of the example app, on Android" height="360">
+</p>
+
 ```dart
 UniversalBarcodeScanner(
   continuous: true,
@@ -200,6 +204,9 @@ final bool torchOn = await controller.toggleFlash();
 await controller.pauseScanning();
 await controller.resumeScanning();
 ```
+
+A paused view keeps its camera running and its scan line stops where it is, until
+`resumeScanning`. A view that is not `continuous` pauses the same way on its first code.
 
 `toggleFlash` answers false where there is no torch to drive: a Mac camera, and most webcams, which
 browsers and webviews give a page no control over.

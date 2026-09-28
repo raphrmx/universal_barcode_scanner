@@ -18,6 +18,24 @@ final class ScannerOverlayView: UIView {
   }
   /// Called whenever the window moves or changes size.
   var onWindowChange: ((CGRect) -> Void)?
+  /// Holds the line where it is, for a view that has stopped reading, and
+  /// sets it off again from there.
+  var paused = false {
+    didSet {
+      guard paused != oldValue else { return }
+      if paused {
+        let now = line.convertTime(CACurrentMediaTime(), from: nil)
+        line.speed = 0
+        line.timeOffset = now
+      } else {
+        let stoppedAt = line.timeOffset
+        line.speed = 1
+        line.timeOffset = 0
+        line.beginTime = 0
+        line.beginTime = line.convertTime(CACurrentMediaTime(), from: nil) - stoppedAt
+      }
+    }
+  }
 
   private(set) var scanWindow: CGRect = .zero
 

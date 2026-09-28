@@ -248,7 +248,10 @@ void main() {
 
     test('drives the page and hears back from it', () async {
       final List<PageCall> calls = <PageCall>[];
-      final PageScannerController controller = PageScannerController(calls.add);
+      final PageScannerController controller = PageScannerController(
+        calls.add,
+        continuous: true,
+      );
       final List<String> codes = <String>[];
       ScannerException? error;
       controller
@@ -284,7 +287,10 @@ void main() {
 
     test('holds calls back until the page is up', () async {
       final List<PageCall> calls = <PageCall>[];
-      final PageScannerController controller = PageScannerController(calls.add);
+      final PageScannerController controller = PageScannerController(
+        calls.add,
+        continuous: true,
+      );
 
       await controller.resumeScanning();
       await controller.pauseScanning();
@@ -298,11 +304,54 @@ void main() {
 
       // A resume after a pause, both before the page was up, sends nothing.
       final List<PageCall> later = <PageCall>[];
-      final PageScannerController other = PageScannerController(later.add);
+      final PageScannerController other = PageScannerController(
+        later.add,
+        continuous: true,
+      );
       await other.pauseScanning();
       await other.resumeScanning();
       other.pageReady();
       expect(later, isEmpty);
+    });
+
+    test('says when the view stops reading', () async {
+      final PageScannerController controller = PageScannerController(
+        (PageCall _) {},
+        continuous: false,
+      )..pageReady();
+      expect(controller.paused.value, isFalse);
+
+      // A view that is not continuous stops on its first code.
+      controller.handle(const PageCode('A'));
+      expect(controller.paused.value, isTrue);
+      await controller.resumeScanning();
+      expect(controller.paused.value, isFalse);
+      await controller.pauseScanning();
+      expect(controller.paused.value, isTrue);
+      controller.dispose();
+    });
+
+    testWidgets('stops the scan line while paused', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<bool> paused = ValueNotifier<bool>(false);
+      addTearDown(paused.dispose);
+      await tester.pumpWidget(
+        ScanWindowOverlay(
+          window: const Rect.fromLTWH(10, 10, 200, 100),
+          lineColor: const Color(0xFFFF6666),
+          paused: paused,
+        ),
+      );
+      expect(tester.binding.hasScheduledFrame, isTrue);
+
+      paused.value = true;
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+
+      paused.value = false;
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
     });
 
     testWidgets('reports the window it draws over the page', (

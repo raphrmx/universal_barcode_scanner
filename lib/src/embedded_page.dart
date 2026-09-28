@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
@@ -27,10 +28,16 @@ enum PageCall {
 /// What the app asks before the page is up is held back and sent once the
 /// view calls [pageReady]: a page still loading would drop it.
 final class PageScannerController extends ScannerController {
-  /// Creates a controller that reaches its page through [send].
-  PageScannerController(this._send);
+  /// Creates a controller that reaches its page through [send]. A view that
+  /// is not [continuous] pauses on its first code, as the page does.
+  PageScannerController(this._send, {required bool continuous})
+    : _continuous = continuous;
 
   final void Function(PageCall call) _send;
+  final bool _continuous;
+
+  /// Whether the view has stopped reading, which stops its scan line too.
+  final ValueNotifier<bool> paused = ValueNotifier<bool>(false);
 
   /// Whether the page is up and takes calls.
   bool _ready = false;
@@ -65,6 +72,7 @@ final class PageScannerController extends ScannerController {
   void handle(PageMessage? message) {
     switch (message) {
       case PageCode(:final String code):
+        if (!_continuous) paused.value = true;
         deliverCode(code);
       case PageError(:final String code, :final String? message):
         deliverError(
@@ -108,6 +116,7 @@ final class PageScannerController extends ScannerController {
   @override
   Future<void> pauseScanning() async {
     if (isDisposed) return;
+    paused.value = true;
     if (_ready) {
       _send(PageCall.pauseScanning);
     } else {
@@ -118,6 +127,7 @@ final class PageScannerController extends ScannerController {
   @override
   Future<void> resumeScanning() async {
     if (isDisposed) return;
+    paused.value = false;
     if (_ready) {
       _send(PageCall.resumeScanning);
     } else {
@@ -131,6 +141,7 @@ final class PageScannerController extends ScannerController {
     final Completer<bool>? torch = _torch;
     _torch = null;
     if (torch != null && !torch.isCompleted) torch.complete(false);
+    paused.dispose();
     super.dispose();
   }
 }
@@ -176,6 +187,7 @@ class EmbeddedPageFrame extends StatelessWidget {
     this.child,
     this.flip = false,
     this.failed = false,
+    this.paused,
   });
 
   /// The webview or iframe running the page.
@@ -199,6 +211,9 @@ class EmbeddedPageFrame extends StatelessWidget {
   /// Whether the camera did not start. The page then explains why, and no
   /// scan window is drawn over its words.
   final bool failed;
+
+  /// Whether the view has stopped reading: the scan line stops with it.
+  final ValueListenable<bool>? paused;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -234,6 +249,7 @@ class EmbeddedPageFrame extends StatelessWidget {
               child: ScanWindowOverlay(
                 window: window,
                 lineColor: config.lineColor,
+                paused: paused,
               ),
             ),
           ?child,
@@ -251,6 +267,7 @@ class ScanWindowOverlay extends StatefulWidget {
     super.key,
     required this.window,
     required this.lineColor,
+    this.paused,
   });
 
   /// The window, in this widget's coordinates.
@@ -258,6 +275,9 @@ class ScanWindowOverlay extends StatefulWidget {
 
   /// Colour of the sweeping line.
   final Color lineColor;
+
+  /// Stops the line where it is while true, and sets it off again from there.
+  final ValueListenable<bool>? paused;
 
   @override
   State<ScanWindowOverlay> createState() => _ScanWindowOverlayState();
@@ -272,20 +292,45 @@ class _ScanWindowOverlayState extends State<ScanWindowOverlay>
   );
 
   @override
+  void initState() {
+    super.initState();
+    widget.paused?.addListener(_follow);
+  }
+
+  @override
+  void didUpdateWidget(ScanWindowOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.paused != widget.paused) {
+      oldWidget.paused?.removeListener(_follow);
+      widget.paused?.addListener(_follow);
+      _follow();
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Honours the setting that turns animations off.
+    _follow();
+  }
+
+  /// Runs the sweep, unless animations are off, where the line stays still
+  /// across the window, or the view is paused, where it stops where it is.
+  void _follow() {
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
       _sweep
         ..stop()
         ..value = 0.25;
+    } else if (widget.paused?.value ?? false) {
+      _sweep.stop();
     } else if (!_sweep.isAnimating) {
+      // From where it stopped.
       _sweep.repeat();
     }
   }
 
   @override
   void dispose() {
+    widget.paused?.removeListener(_follow);
     _sweep.dispose();
     super.dispose();
   }

@@ -8,17 +8,17 @@ void main() {
   ) async {
     await tester.pumpWidget(const ExampleApp());
 
+    expect(find.text('Embedded view'), findsOneWidget);
     expect(find.text('Scan once'), findsOneWidget);
-    expect(find.text('Scan continuously'), findsOneWidget);
 
     // The third card is below the fold of the test window, so the list has
     // not built it yet.
     await tester.scrollUntilVisible(
-      find.text('Embedded view'),
+      find.text('Scan continuously'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Embedded view'), findsOneWidget);
+    expect(find.text('Scan continuously'), findsOneWidget);
   });
 
   testWidgets('the result panel starts empty', (WidgetTester tester) async {

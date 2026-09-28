@@ -318,6 +318,7 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
 
   late final PageScannerController _controller = PageScannerController(
     (PageCall call) => unawaited(_lease.webview.run('${call.name}()')),
+    continuous: widget.config.continuous,
   );
 
   /// The scan window, once the first layout has measured it. The camera
@@ -405,6 +406,7 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     onWindow: _onWindow,
     flip: widget.flip,
     failed: _failed,
+    paused: _controller.paused,
     child: widget.child,
   );
 }

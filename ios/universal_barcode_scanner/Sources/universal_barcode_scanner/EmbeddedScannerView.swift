@@ -177,9 +177,15 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
     for code in codes {
       guard detecting else { return }
       guard gate.accept(code) else { continue }
-      if !options.continuous { detecting = false }
+      if !options.continuous { setDetecting(false) }
       channel.invokeMethod("onBarcodeDetected", arguments: code)
     }
+  }
+
+  /// Reading on or off, the scan line with it.
+  private func setDetecting(_ on: Bool) {
+    detecting = on
+    overlay.paused = !on
   }
 
   private func reportError(_ code: String, _ message: String) {
@@ -189,12 +195,12 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   private func onMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "pauseScanning":
-      detecting = false
+      setDetecting(false)
       result(nil)
     case "resumeScanning":
       // The code that paused a single-shot view counts as new again.
       gate.reset()
-      detecting = true
+      setDetecting(true)
       result(nil)
     case "toggleFlash":
       // From the camera's own state, which an interruption changes behind

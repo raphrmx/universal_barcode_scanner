@@ -155,9 +155,11 @@ final class EmbeddedScannerView: NSView {
     }
   }
 
+  /// Reading on or off, the scan line with it.
   private func setDetecting(_ on: Bool) {
     detecting = on
     camera.setReading(on)
+    overlay.paused = !on
   }
 
   private func reportError(_ code: String, _ message: String) {

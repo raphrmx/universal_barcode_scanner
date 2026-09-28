@@ -50,6 +50,29 @@ class ScanWindowOverlay @JvmOverloads constructor(
      */
     var frameIntervalMs = 0L
 
+    /** Where the sweep's clock starts, moved on a resume so the line carries on. */
+    private var sweepOrigin = 0L
+
+    /** Where in the sweep the line stopped, while paused. */
+    private var pausedAt = 0L
+
+    /**
+     * Holds the line where it is, for a view that has stopped reading, and
+     * sets it off again from there.
+     */
+    var paused = false
+        set(value) {
+            if (field == value) return
+            val now = SystemClock.uptimeMillis()
+            if (value) {
+                pausedAt = (now - sweepOrigin) % SWEEP_MS
+            } else {
+                sweepOrigin = now - pausedAt
+            }
+            field = value
+            invalidate()
+        }
+
     /** Requested window size in pixels, or zero for the default. */
     private var requestedWidth = 0f
     private var requestedHeight = 0f
@@ -122,7 +145,12 @@ class ScanWindowOverlay @JvmOverloads constructor(
         canvas.drawRect(box, framePaint)
 
         val y = if (animate) {
-            val phase = (SystemClock.uptimeMillis() % SWEEP_MS) / SWEEP_MS.toFloat()
+            val elapsed = if (paused) {
+                pausedAt
+            } else {
+                (SystemClock.uptimeMillis() - sweepOrigin) % SWEEP_MS
+            }
+            val phase = elapsed / SWEEP_MS.toFloat()
             val progress = if (phase < 0.5f) phase * 2 else (1 - phase) * 2
             box.top + progress * box.height()
         } else {
@@ -130,7 +158,7 @@ class ScanWindowOverlay @JvmOverloads constructor(
         }
         canvas.drawLine(box.left, y, box.right, y, linePaint)
 
-        if (animate) {
+        if (animate && !paused) {
             // Only while drawn: a hidden view is not asked to draw, so the
             // loop stops by itself and resumes with the next frame.
             if (frameIntervalMs > 0) {
