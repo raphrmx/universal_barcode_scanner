@@ -155,15 +155,17 @@ jobs:
         working-directory: example/android
 
       # The plugin's Package.swift depends on FlutterFramework only where
-      # Flutter put one next to it. Here, on a Flutter that does, it must: read
-      # the manifest from where Flutter linked the plugin, as Xcode does.
+      # Flutter put one next to it. Here, on a Flutter that does, it must. The
+      # graph is read from the package Flutter generates, which reaches the
+      # plugin through its link, as Xcode does: reading the plugin itself would
+      # follow the link to the checkout, where there is no FlutterFramework.
       - name: Check the plugin depends on FlutterFramework
         if: matrix.target == 'macos' || matrix.target == 'ios'
         run: |
-          plugin=$(ls -d ${{ matrix.target }}/Flutter/ephemeral/Packages/.packages/universal_barcode_scanner*)
-          swift package dump-package --package-path "$plugin" > manifest.json
-          grep -q '"FlutterFramework"' manifest.json
-        working-directory: example
+          swift package show-dependencies --format json > "$RUNNER_TEMP/deps.json"
+          cat "$RUNNER_TEMP/deps.json"
+          python3 "$GITHUB_WORKSPACE/tool/plugin_takes_flutter_framework.py" "$RUNNER_TEMP/deps.json"
+        working-directory: example/${{ matrix.target }}/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage
 
   # A Flutter from before FlutterFramework, with Swift Package Manager turned
   # on: the plugin's package must resolve without it.
