@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
@@ -31,18 +32,30 @@ abstract final class NativeScanner {
   static Map<String, Object?> _arguments(ScannerConfig config, int session) =>
       <String, Object?>{...config.toNative(), 'session': session};
 
+  /// A code as a scanner answers it: a map with its format, or the bare code
+  /// from an older one.
+  static ScanResult? _result(Object? answer) {
+    final (Object? code, Object? format) = switch (answer) {
+      Map<Object?, Object?>() => (answer['code'], answer['format']),
+      _ => (answer, null),
+    };
+    if (code is! String || code.isEmpty) return null;
+    return ScanResult(code, format: BarcodeFormat.fromWire(format));
+  }
+
   /// Scans until a code is read, then returns it. Null when the user backs
   /// out; a [ScannerException] when the camera cannot be used.
-  static Future<String?> scan(
+  static Future<ScanResult?> scan(
     ScannerConfig config, {
     required int session,
   }) async {
     try {
-      final Object? code = await _channel.invokeMethod<Object?>(
-        'scanBarcode',
-        _arguments(config, session),
+      return _result(
+        await _channel.invokeMethod<Object?>(
+          'scanBarcode',
+          _arguments(config, session),
+        ),
       );
-      return code is String && code.isNotEmpty ? code : null;
     } on Object catch (error) {
       throw ScannerException.from(error);
     }
@@ -52,9 +65,12 @@ abstract final class NativeScanner {
   ///
   /// Cancelling the subscription closes the scanner. A failure is emitted as a
   /// [ScannerException], after which the stream closes.
-  static Stream<String> stream(ScannerConfig config, {required int session}) {
+  static Stream<ScanResult> stream(
+    ScannerConfig config, {
+    required int session,
+  }) {
     StreamSubscription<dynamic>? events;
-    late final StreamController<String> codes;
+    late final StreamController<ScanResult> codes;
 
     // Closes without waiting for the platform to acknowledge the end of the
     // event channel: the caller has nothing to wait for.
@@ -75,16 +91,16 @@ abstract final class NativeScanner {
       finish();
     }
 
-    codes = StreamController<String>(
+    codes = StreamController<ScanResult>(
       onListen: () {
         // Listening first: the native side only has somewhere to send codes
         // once the event channel is open.
         events = _events.receiveBroadcastStream().listen(
           (dynamic event) {
             if (event is! Map || event['session'] != session) return;
-            final Object? code = event['code'];
-            if (code is String && code.isNotEmpty) {
-              if (!codes.isClosed) codes.add(code);
+            final ScanResult? result = _result(event);
+            if (result != null) {
+              if (!codes.isClosed) codes.add(result);
             } else if (event['event'] == 'closed') {
               finish();
             }
@@ -105,6 +121,15 @@ abstract final class NativeScanner {
       },
     );
     return codes.stream;
+  }
+
+  /// A short beep, on the platforms whose plugin plays one.
+  static Future<void> beep() async {
+    try {
+      await _channel.invokeMethod<void>('beep');
+    } on Object {
+      // An older plugin, or no sound to play.
+    }
   }
 
   /// Closes the scanner of [session] if it is still open, even if it is still

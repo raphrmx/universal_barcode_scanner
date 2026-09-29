@@ -144,7 +144,9 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     controller.onScanned = { [weak self] barcode in
       guard let self = self, self.options?.session == options.session else { return }
       if options.isContinuousScan {
-        self.eventSink?(["session": options.session, "code": barcode])
+        self.eventSink?([
+          "session": options.session, "code": barcode.value, "format": barcode.format,
+        ])
       } else {
         self.finish(options, code: barcode, error: nil)
       }
@@ -182,7 +184,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
 
   /// Closes the scanner of `scan` and tells Dart how it ended. Does nothing
   /// once that scan is over.
-  private func finish(_ scan: ScannerOptions, code: String?, error: FlutterError?) {
+  private func finish(_ scan: ScannerOptions, code: ScannedCode?, error: FlutterError?) {
     guard let current = options, current.session == scan.session else { return }
     options = nil
     let result = pendingResult
@@ -214,7 +216,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     } else if let error = error {
       result?(error)
     } else {
-      result?(code)
+      result?(code?.payload)
     }
   }
 

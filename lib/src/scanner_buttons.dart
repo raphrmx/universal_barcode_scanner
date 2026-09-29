@@ -28,28 +28,36 @@ class ScannerButtons extends ChangeNotifier {
   /// Opens the other camera, or null where the scanner cannot.
   final VoidCallback? onSwitchCamera;
 
-  /// Opens the other camera. Reading resumes on it: a pause does not
-  /// outlive the camera it was asked of.
-  void switchCamera() {
-    final VoidCallback? onSwitchCamera = this.onSwitchCamera;
-    if (onSwitchCamera == null) return;
-    onSwitchCamera();
-    if (_paused || _torch) {
-      _paused = false;
-      _torch = false;
-      notifyListeners();
-    }
-  }
+  /// The zooms the zoom button goes through, in turn.
+  static const List<double> zoomSteps = <double>[1, 2, 3];
 
-  /// The scanner's controller, once there is one: until then the pause and
-  /// torch buttons do nothing.
-  ScannerController? controller;
-
+  ScannerController? _controller;
   bool _flipHorizontal;
   bool _flipVertical;
-  bool _paused = false;
-  bool _torch = false;
   bool _torchBusy = false;
+
+  /// The scanner's controller, once there is one: until then the pause, torch
+  /// and zoom buttons do nothing. Its state is what they show, whoever
+  /// changed it: a button, the app through the controller, or the scanner
+  /// pausing itself after a code.
+  ScannerController? get controller => _controller;
+  set controller(ScannerController? controller) {
+    if (identical(controller, _controller)) return;
+    _unlisten();
+    _controller = controller;
+    _zoomMost = null;
+    controller?.isPaused.addListener(notifyListeners);
+    controller?.isTorchOn.addListener(notifyListeners);
+    controller?.zoom.addListener(notifyListeners);
+    notifyListeners();
+  }
+
+  void _unlisten() {
+    final ScannerController? old = _controller;
+    old?.isPaused.removeListener(notifyListeners);
+    old?.isTorchOn.removeListener(notifyListeners);
+    old?.zoom.removeListener(notifyListeners);
+  }
 
   /// Whether the camera is shown mirrored left to right.
   bool get flipHorizontal => _flipHorizontal;
@@ -58,10 +66,13 @@ class ScannerButtons extends ChangeNotifier {
   bool get flipVertical => _flipVertical;
 
   /// Whether reading is paused, the camera left running.
-  bool get paused => _paused;
+  bool get paused => _controller?.isPaused.value ?? false;
 
   /// Whether the torch is on, as the scanner last said.
-  bool get torch => _torch;
+  bool get torch => _controller?.isTorchOn.value ?? false;
+
+  /// The zoom the camera shows, `1` for none.
+  double get zoom => _controller?.zoom.value ?? 1;
 
   void toggleFlipHorizontal() {
     _flipHorizontal = !_flipHorizontal;
@@ -84,35 +95,53 @@ class ScannerButtons extends ChangeNotifier {
   }
 
   Future<void> togglePause() async {
-    final ScannerController? controller = this.controller;
+    final ScannerController? controller = _controller;
     if (controller == null) return;
-    _paused = !_paused;
-    notifyListeners();
-    await (_paused ? controller.pauseScanning() : controller.resumeScanning());
-  }
-
-  /// A view that is not continuous pauses on its own after a code.
-  void pausedByScanner() {
-    if (_paused) return;
-    _paused = true;
-    notifyListeners();
+    await (paused ? controller.resumeScanning() : controller.pauseScanning());
   }
 
   /// The button changes once the scanner answers: most webcams have no
   /// torch, and the answer is then off.
   Future<void> toggleTorch() async {
-    final ScannerController? controller = this.controller;
+    final ScannerController? controller = _controller;
     if (controller == null || _torchBusy) return;
     _torchBusy = true;
     try {
-      final bool on = await controller.toggleFlash();
-      if (on != _torch) {
-        _torch = on;
-        notifyListeners();
-      }
+      await controller.toggleFlash();
     } finally {
       _torchBusy = false;
     }
+  }
+
+  /// The most the camera zoomed, once it gave less than was asked.
+  double? _zoomMost;
+
+  /// Goes to the next of [zoomSteps], and back to `1` after the last, or
+  /// after the most the camera can do.
+  Future<void> cycleZoom() async {
+    final ScannerController? controller = _controller;
+    if (controller == null) return;
+    final double now = zoom;
+    final double? most = _zoomMost;
+    final double next = most != null && now >= most - 0.01
+        ? 1
+        : zoomSteps.firstWhere(
+            (double step) => step > now + 0.01,
+            orElse: () => 1,
+          );
+    final double applied = await controller.setZoom(next);
+    if (next > 1 && applied < next - 0.01) _zoomMost = applied;
+    // No further at all: back to the start rather than stuck.
+    if (next > 1 && applied <= now + 0.01) await controller.setZoom(1);
+  }
+
+  /// Opens the other camera.
+  void switchCamera() => onSwitchCamera?.call();
+
+  @override
+  void dispose() {
+    _unlisten();
+    super.dispose();
   }
 }
 
@@ -215,6 +244,12 @@ class ScannerButtonGroup extends StatelessWidget {
             on: state.flipVertical,
             onPressed: state.toggleFlipVertical,
             icon: const _Flip(vertical: true),
+          ),
+          ScannerButton.zoom => _RoundButton(
+            label: labels.zoom,
+            on: state.zoom > 1.01,
+            onPressed: () => unawaited(state.cycleZoom()),
+            icon: _Zoom(state.zoom),
           ),
           // An action rather than a state: never shown on.
           ScannerButton.switchCamera => _RoundButton(
@@ -513,4 +548,45 @@ class _SwitchCamera extends _Icon {
       );
     }
   }
+}
+
+/// The zoom as a figure, `1×`, `2×`: what the camera shows now.
+class _Zoom extends _Icon {
+  const _Zoom(this.zoom);
+
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
+    final double rounded = (zoom * 10).roundToDouble() / 10;
+    final String figure = rounded == rounded.roundToDouble()
+        ? rounded.toStringAsFixed(0)
+        : rounded.toStringAsFixed(1);
+    final TextPainter text = TextPainter(
+      text: TextSpan(
+        text: '$figure\u00d7',
+        style: TextStyle(
+          color: fill.color,
+          fontSize: size.height * 0.62,
+          fontWeight: FontWeight.w700,
+          // No ambient style here: none underlines it.
+          decoration: TextDecoration.none,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    text
+      ..paint(
+        canvas,
+        Offset((size.width - text.width) / 2, (size.height - text.height) / 2),
+      )
+      ..dispose();
+  }
+
+  @override
+  bool operator ==(Object other) => other is _Zoom && other.zoom == zoom;
+
+  @override
+  int get hashCode => zoom.hashCode;
 }

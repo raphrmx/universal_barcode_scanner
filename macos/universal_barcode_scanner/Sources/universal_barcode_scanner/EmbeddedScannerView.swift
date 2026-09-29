@@ -148,14 +148,14 @@ final class EmbeddedScannerView: NSView {
     camera.readInside(options.hasWindow ? overlay.window : nil, of: previewLayer)
   }
 
-  private func onCodes(_ codes: [String]) {
+  private func onCodes(_ codes: [ScannedCode]) {
     // Every code of the frame goes through the gate, which follows each one
     // on its own.
     for code in codes {
       guard detecting else { return }
-      guard gate.accept(code) else { continue }
+      guard gate.accept(code.value) else { continue }
       if !options.isContinuousScan { setDetecting(false) }
-      channel.invokeMethod("onBarcodeDetected", arguments: code)
+      channel.invokeMethod("onBarcodeDetected", arguments: code.payload)
     }
   }
 
@@ -182,6 +182,9 @@ final class EmbeddedScannerView: NSView {
       result(nil)
     case "toggleFlash":
       result(false)
+    case "setZoom":
+      // A Mac's camera does not zoom.
+      result(1.0)
     default:
       result(FlutterMethodNotImplemented)
     }

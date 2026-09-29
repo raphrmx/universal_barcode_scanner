@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import Flutter
 import UIKit
 
@@ -11,7 +12,7 @@ private enum ScanPhase {
 
 /// How a scan ended.
 private enum ScanOutcome {
-  case code(String)
+  case code(ScannedCode)
   case cancelled
   case failed(FlutterError)
 }
@@ -89,6 +90,10 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     switch call.method {
     case "scanBarcode":
       requestScan(ScanOptions(arguments: arguments), result: result)
+    case "beep":
+      // The short system tone, at the ringer's volume.
+      AudioServicesPlaySystemSound(1057)
+      result(nil)
     case "close":
       let session = ScanOptions.session(in: arguments)
       if let current = scan,
@@ -162,7 +167,9 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
         return
       }
       if current.options.continuous {
-        self.eventSink?(["session": current.options.session, "code": code])
+        self.eventSink?([
+          "session": current.options.session, "code": code.value, "format": code.format,
+        ])
       } else {
         self.finish(current, .code(code))
       }
@@ -246,7 +253,7 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     }
     switch outcome {
     case .code(let code):
-      scan.result(code)
+      scan.result(code.payload)
     case .cancelled:
       scan.result(nil)
     case .failed(let error):

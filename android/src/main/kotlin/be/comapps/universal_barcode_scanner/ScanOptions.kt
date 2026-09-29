@@ -27,6 +27,9 @@ internal data class ScanOptions(
     /** `ALL_FORMATS`, `ONLY_QR_CODE` or `ONLY_BARCODE`. */
     val scanFormat: String,
     val delayMillis: Int,
+    /** Size of the scan window asked for, in logical pixels; zero for the default. */
+    val scanWindowWidth: Double = 0.0,
+    val scanWindowHeight: Double = 0.0,
 ) {
 
     /** Whether the scan window is square, for QR codes, rather than wide. */
@@ -79,6 +82,8 @@ internal data class ScanOptions(
         .putExtra(EXTRA_PREFIX + "cameraFace", cameraFace)
         .putExtra(EXTRA_PREFIX + "scanFormat", scanFormat)
         .putExtra(EXTRA_PREFIX + "delayMillis", delayMillis)
+        .putExtra(EXTRA_PREFIX + "scanWindowWidth", scanWindowWidth)
+        .putExtra(EXTRA_PREFIX + "scanWindowHeight", scanWindowHeight)
 
     companion object {
         private const val EXTRA_PREFIX = "be.comapps.universal_barcode_scanner."
@@ -98,6 +103,8 @@ internal data class ScanOptions(
             scanFormat = (map?.get("scanFormat") as? String).orIfEmpty("ALL_FORMATS"),
             // The codec sends an int or a long depending on the size.
             delayMillis = ((map?.get("delayMillis") as? Number)?.toInt() ?: 0).coerceAtLeast(0),
+            scanWindowWidth = optionalDouble(map, "scanWindowWidth"),
+            scanWindowHeight = optionalDouble(map, "scanWindowHeight"),
         )
 
         fun fromIntent(intent: Intent): ScanOptions = ScanOptions(
@@ -110,7 +117,27 @@ internal data class ScanOptions(
             cameraFace = intent.getStringExtra(EXTRA_PREFIX + "cameraFace").orIfEmpty("back"),
             scanFormat = intent.getStringExtra(EXTRA_PREFIX + "scanFormat").orIfEmpty("ALL_FORMATS"),
             delayMillis = intent.getIntExtra(EXTRA_PREFIX + "delayMillis", 0),
+            scanWindowWidth = intent.getDoubleExtra(EXTRA_PREFIX + "scanWindowWidth", 0.0),
+            scanWindowHeight = intent.getDoubleExtra(EXTRA_PREFIX + "scanWindowHeight", 0.0),
         )
+
+        /** The name every platform gives ML Kit's [format], as the web's BarcodeDetector does. */
+        fun formatName(format: Int): String = when (format) {
+            Barcode.FORMAT_AZTEC -> "aztec"
+            Barcode.FORMAT_CODABAR -> "codabar"
+            Barcode.FORMAT_CODE_39 -> "code_39"
+            Barcode.FORMAT_CODE_93 -> "code_93"
+            Barcode.FORMAT_CODE_128 -> "code_128"
+            Barcode.FORMAT_DATA_MATRIX -> "data_matrix"
+            Barcode.FORMAT_EAN_8 -> "ean_8"
+            Barcode.FORMAT_EAN_13 -> "ean_13"
+            Barcode.FORMAT_ITF -> "itf"
+            Barcode.FORMAT_PDF417 -> "pdf417"
+            Barcode.FORMAT_QR_CODE -> "qr_code"
+            Barcode.FORMAT_UPC_A -> "upc_a"
+            Barcode.FORMAT_UPC_E -> "upc_e"
+            else -> "unknown"
+        }
 
         /** Marks a call that named no session. */
         const val NO_SESSION = -1

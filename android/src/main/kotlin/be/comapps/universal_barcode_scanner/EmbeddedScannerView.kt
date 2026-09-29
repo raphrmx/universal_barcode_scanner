@@ -271,8 +271,9 @@ internal class EmbeddedScannerView(
             // each one on its own.
             if (!gate.accept(value, now)) continue
 
+            val found = mapOf("code" to value, "format" to ScanOptions.formatName(barcode.format))
             main.post {
-                if (!disposed) methodChannel.invokeMethod("onBarcodeDetected", value)
+                if (!disposed) methodChannel.invokeMethod("onBarcodeDetected", found)
             }
             if (!options.continuous) {
                 // Waits for resumeScanning before reading another one.
@@ -327,6 +328,18 @@ internal class EmbeddedScannerView(
                 detecting = true
                 scanOverlay.paused = false
                 result.success(null)
+            }
+            "setZoom" -> {
+                val bound = camera
+                val state = bound?.cameraInfo?.zoomState?.value
+                if (bound == null || state == null) {
+                    result.success(1.0)
+                    return
+                }
+                val wanted = (call.arguments as? Number)?.toFloat() ?: 1f
+                val ratio = wanted.coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                bound.cameraControl.setZoomRatio(ratio)
+                result.success(ratio.toDouble())
             }
             "toggleFlash" -> {
                 val bound = camera

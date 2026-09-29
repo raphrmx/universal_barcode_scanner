@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -28,7 +29,7 @@ class ScannerPage extends StatelessWidget {
   final ScannerConfig config;
 
   /// Called with every code read.
-  final ValueChanged<String> onScanned;
+  final ValueChanged<ScanResult> onScanned;
 
   /// Called when the scanner closes without a code.
   final VoidCallback onClose;
@@ -91,3 +92,6 @@ class EmbeddedScanner extends StatelessWidget {
   Widget build(BuildContext context) =>
       const Center(child: Text('Platform not supported'));
 }
+
+/// No sound to play here.
+void playBeep() {}

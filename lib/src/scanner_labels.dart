@@ -18,6 +18,7 @@ class ScannerLabels {
     this.flipHorizontal = 'Flip horizontally',
     this.flipVertical = 'Flip vertically',
     this.switchCamera = 'Switch camera',
+    this.zoom = 'Zoom',
     this.cameraBlocked = 'Camera blocked',
     this.cameraBlockedWeb =
         'The page needs permission to use the camera. Allow it in the '
@@ -92,6 +93,7 @@ class ScannerLabels {
     flipHorizontal: 'Horizontaal spiegelen',
     flipVertical: 'Verticaal spiegelen',
     switchCamera: 'Andere camera',
+    zoom: 'Zoomen',
     cameraBlocked: 'Camera geblokkeerd',
     cameraBlockedWeb:
         'De pagina heeft toestemming nodig om de camera te gebruiken. Sta '
@@ -169,6 +171,7 @@ class ScannerLabels {
   final String flipHorizontal;
   final String flipVertical;
   final String switchCamera;
+  final String zoom;
 
   /// The camera refused: the title, then what to do in a browser and in a
   /// desktop application.
@@ -207,6 +210,7 @@ class ScannerLabels {
     String? flipHorizontal,
     String? flipVertical,
     String? switchCamera,
+    String? zoom,
     String? cameraBlocked,
     String? cameraBlockedWeb,
     String? cameraBlockedDesktop,
@@ -230,6 +234,7 @@ class ScannerLabels {
     flipHorizontal: flipHorizontal ?? this.flipHorizontal,
     flipVertical: flipVertical ?? this.flipVertical,
     switchCamera: switchCamera ?? this.switchCamera,
+    zoom: zoom ?? this.zoom,
     cameraBlocked: cameraBlocked ?? this.cameraBlocked,
     cameraBlockedWeb: cameraBlockedWeb ?? this.cameraBlockedWeb,
     cameraBlockedDesktop: cameraBlockedDesktop ?? this.cameraBlockedDesktop,

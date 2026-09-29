@@ -4,6 +4,7 @@ import 'dart:ui' show Color, Size;
 import 'package:flutter/foundation.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
 /// Everything the scanner itself needs to know, whichever platform runs it.
@@ -18,6 +19,7 @@ class ScannerConfig {
     this.cancelLabel = 'Cancel',
     this.showTorchButton = false,
     this.scanWindow = ScanWindow.wide,
+    this.scanWindowSize,
     this.cameraFace = CameraFace.back,
     this.scanFormat = ScanFormat.all,
     this.scanDelay,
@@ -39,6 +41,10 @@ class ScannerConfig {
 
   /// Shape of the scan window: square for QR codes, wide for barcodes.
   final ScanWindow scanWindow;
+
+  /// Size of the scan window in logical pixels, or null for one picked from
+  /// the view and [scanWindow].
+  final Size? scanWindowSize;
 
   /// Which camera to open.
   final CameraFace cameraFace;
@@ -76,6 +82,7 @@ class ScannerConfig {
     cancelLabel: cancelLabel,
     showTorchButton: showTorchButton,
     scanWindow: scanWindow,
+    scanWindowSize: scanWindowSize,
     cameraFace: cameraFace ?? this.cameraFace,
     scanFormat: scanFormat,
     scanDelay: scanDelay,
@@ -96,6 +103,10 @@ class ScannerConfig {
     'showTorchButton': showTorchButton,
     'continuous': continuous,
     'scanWindow': scanWindow.name,
+    if (scanWindowSize case final Size size) ...<String, Object?>{
+      'scanWindowWidth': size.width,
+      'scanWindowHeight': size.height,
+    },
     'cameraFace': cameraFace.name,
     'scanFormat': scanFormat.wireName,
     'delayMillis': delayMillis,
@@ -117,6 +128,9 @@ class ScannerConfig {
         'delay': '$delayMillis',
         'facing': facingToPage(cameraFace),
         'window': scanWindow.name,
+        // A full page reads the size asked for; an embedded view sends the
+        // window Flutter lays out instead.
+        if (scanWindowSize case final Size size) ...windowToPage(size),
         ...flipToPage(flipHorizontal, flipVertical),
         'animate': animate ? '1' : '0',
         'labels': jsonEncode(labels.toPage(host: host)),
@@ -176,7 +190,9 @@ sealed class PageMessage {
     }
     if (decoded is! Map) return null;
     final Object? code = decoded['code'];
-    if (code is String && code.isNotEmpty) return PageCode(code);
+    if (code is String && code.isNotEmpty) {
+      return PageCode(code, format: BarcodeFormat.fromWire(decoded['format']));
+    }
     if (decoded['close'] == true) return const PageClose();
     final Object? error = decoded['error'];
     if (error is Map) {
@@ -184,6 +200,8 @@ sealed class PageMessage {
     }
     final Object? torch = decoded['torch'];
     if (torch is bool) return PageTorch(on: torch);
+    final Object? zoom = decoded['zoom'];
+    if (zoom is num) return PageZoom(zoom.toDouble());
     if (decoded['ready'] == true) return const PageReady();
     return null;
   }
@@ -191,11 +209,23 @@ sealed class PageMessage {
 
 /// A code the page read.
 final class PageCode extends PageMessage {
-  /// Wraps [code].
-  const PageCode(this.code);
+  /// Wraps [code], printed in [format].
+  const PageCode(this.code, {this.format = BarcodeFormat.unknown});
 
   /// The payload.
   final String code;
+
+  /// Its symbology.
+  final BarcodeFormat format;
+}
+
+/// The zoom the camera applied, in answer to `setZoom`.
+final class PageZoom extends PageMessage {
+  /// Wraps the zoom applied.
+  const PageZoom(this.zoom);
+
+  /// `1` for none.
+  final double zoom;
 }
 
 /// The user asked the page to close, with the Escape key.

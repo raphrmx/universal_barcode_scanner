@@ -23,8 +23,10 @@ internal object ScanEvents {
         sink = eventSink
     }
 
-    fun code(session: Int, value: String) {
-        main.post { sink?.success(mapOf("session" to session, "code" to value)) }
+    fun code(session: Int, value: String, format: String) {
+        main.post {
+            sink?.success(mapOf("session" to session, "code" to value, "format" to format))
+        }
     }
 
     /** The scanner is gone, whichever way it went. */

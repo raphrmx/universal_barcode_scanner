@@ -4,6 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -165,6 +169,10 @@ class UniversalBarcodeScannerPlugin :
                 ScannerActivity.close(ScanOptions.sessionOf(arguments))
                 result.success(null)
             }
+            "beep" -> {
+                beep()
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
@@ -221,7 +229,9 @@ class UniversalBarcodeScannerPlugin :
             return true
         }
         val code = if (resultCode == Activity.RESULT_OK) ScannerActivity.codeFrom(data) else null
-        result.success(code)
+        result.success(
+            code?.let { mapOf("code" to it, "format" to ScannerActivity.formatFrom(data)) },
+        )
         return true
     }
 
@@ -240,6 +250,18 @@ class UniversalBarcodeScannerPlugin :
     }
 
     // endregion
+
+    /** A short beep for a code read, at the notification volume. */
+    private fun beep() {
+        val tone = try {
+            ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+        } catch (e: RuntimeException) {
+            // No tone to be had, a device with its audio busy for one.
+            return
+        }
+        tone.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+        Handler(Looper.getMainLooper()).postDelayed({ tone.release() }, 250)
+    }
 
     // region StreamHandler
 

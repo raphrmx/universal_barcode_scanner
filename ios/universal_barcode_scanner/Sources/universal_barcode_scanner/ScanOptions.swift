@@ -8,6 +8,34 @@ enum ScanError {
   static let alreadyActive = "already_active"
 }
 
+/// A code read, and the name of its symbology as every platform gives it,
+/// the web's BarcodeDetector names.
+struct ScannedCode {
+  let value: String
+  let format: String
+
+  init(value: String, type: AVMetadataObject.ObjectType) {
+    self.value = value
+    switch type {
+    case .aztec: format = "aztec"
+    case .code39, .code39Mod43: format = "code_39"
+    case .code93: format = "code_93"
+    case .code128: format = "code_128"
+    case .dataMatrix: format = "data_matrix"
+    case .ean8: format = "ean_8"
+    case .ean13: format = "ean_13"
+    case .interleaved2of5, .itf14: format = "itf"
+    case .pdf417: format = "pdf417"
+    case .qr: format = "qr_code"
+    case .upce: format = "upc_e"
+    default: format = "unknown"
+    }
+  }
+
+  /// What goes to Dart.
+  var payload: [String: String] { ["code": value, "format": format] }
+}
+
 /// The arguments the Dart side sends, parsed once.
 struct ScanOptions {
   /// Tags every answer and event of this scan; see `NativeScanner`.
@@ -23,7 +51,7 @@ struct ScanOptions {
   let position: AVCaptureDevice.Position
   let scanFormat: String
   let delay: TimeInterval
-  /// Scan window asked for by the embedded view, in points.
+  /// Scan window asked for, in points.
   let windowSize: CGSize?
 
   init(arguments: [String: Any]) {

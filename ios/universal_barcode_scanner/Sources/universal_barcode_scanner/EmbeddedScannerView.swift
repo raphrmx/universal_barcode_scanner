@@ -183,14 +183,14 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 
-  private func onCodes(_ codes: [String]) {
+  private func onCodes(_ codes: [ScannedCode]) {
     // Every code of the frame goes through the gate, which follows each one
     // on its own.
     for code in codes {
       guard detecting else { return }
-      guard gate.accept(code) else { continue }
+      guard gate.accept(code.value) else { continue }
       if !options.continuous { setDetecting(false) }
-      channel.invokeMethod("onBarcodeDetected", arguments: code)
+      channel.invokeMethod("onBarcodeDetected", arguments: code.payload)
     }
   }
 
@@ -218,6 +218,9 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
       // From the camera's own state, which an interruption changes behind
       // the app's back.
       result(camera.setTorch(!camera.torchIsOn))
+    case "setZoom":
+      let wanted = (call.arguments as? NSNumber)?.doubleValue ?? 1
+      result(camera.setZoom(CGFloat(wanted)))
     default:
       result(FlutterMethodNotImplemented)
     }

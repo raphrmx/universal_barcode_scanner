@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -19,6 +20,17 @@ const Duration _flipDuration = Duration(milliseconds: 350);
 /// frame.
 const Duration _fadeDuration = Duration(milliseconds: 400);
 const Duration _fadeFallback = Duration(milliseconds: 1500);
+
+/// A short beep for a code read: the plugin's on Android and iOS, the
+/// system's alert sound on a desktop.
+void playBeep() {
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.android || TargetPlatform.iOS:
+      unawaited(NativeScanner.beep());
+    default:
+      unawaited(SystemSound.play(SystemSoundType.alert));
+  }
+}
 
 /// Platforms that reach a native scanner over the method channel.
 bool get _hasNativeScanner => switch (defaultTargetPlatform) {
@@ -55,7 +67,7 @@ class ScannerPage extends StatefulWidget {
   final ScannerConfig config;
 
   /// Called with every code read.
-  final ValueChanged<String> onScanned;
+  final ValueChanged<ScanResult> onScanned;
 
   /// Called when the scanner closes without a code: the user backed out, or a
   /// continuous scan ended.
@@ -88,7 +100,7 @@ class _ScannerPageState extends State<ScannerPage> {
   /// event from it never reaches the next scanner.
   final int _session = NativeScanner.newSession();
 
-  StreamSubscription<String>? _codes;
+  StreamSubscription<ScanResult>? _codes;
   ModalRoute<Object?>? _route;
 
   /// Whether the native scanner has answered for good, so there is nothing
@@ -158,16 +170,16 @@ class _ScannerPageState extends State<ScannerPage> {
 
   Future<void> _scanOnce() async {
     try {
-      final String? code = await NativeScanner.scan(
+      final ScanResult? result = await NativeScanner.scan(
         widget.config,
         session: _session,
       );
       _settled = true;
       if (!mounted || _stopped) return;
-      if (code == null) {
+      if (result == null) {
         widget.onClose();
       } else {
-        widget.onScanned(code);
+        widget.onScanned(result);
       }
     } on ScannerException catch (error) {
       _settled = true;
@@ -360,13 +372,17 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
 
   void _onPlatformViewCreated(int id) {
     if (!mounted) return;
-    // The view of the camera switched from goes with its controller.
+    // The view of the camera switched from goes with its controller, and
+    // hands its pause on to the new one.
+    final bool paused = _controller?.isPaused.value ?? false;
     _controller?.dispose();
-    final ChannelScannerController controller = ChannelScannerController(id)
-      ..onScanned = widget.onScanned
-      ..onError = widget.onError
-      ..onCameraStarted = _cameraStarted;
+    final ChannelScannerController controller =
+        ChannelScannerController(id, continuous: widget.config.continuous)
+          ..onScanned = widget.onScanned
+          ..onError = widget.onError
+          ..onCameraStarted = _cameraStarted;
     _controller = controller;
+    if (paused) unawaited(controller.pauseScanning());
     widget.onCreated(controller);
     if (widget.config.animate) {
       _arrivalDelay = Timer(_fadeFallback, _cameraStarted);

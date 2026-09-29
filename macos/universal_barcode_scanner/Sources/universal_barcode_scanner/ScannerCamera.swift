@@ -10,7 +10,7 @@ import Vision
 /// what Apple's own samples do on this platform.
 final class ScannerCamera: NSObject {
   /// Called on the main thread with the codes of each frame that has any.
-  var onCodes: (([String]) -> Void)?
+  var onCodes: (([ScannedCode]) -> Void)?
 
   /// Called on the main thread once, when the first frame arrives.
   var onFirstFrame: (() -> Void)?
@@ -149,7 +149,10 @@ extension ScannerCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
       let results = request.results as? [VNBarcodeObservation]
     else { return }
 
-    let codes = results.compactMap { $0.payloadStringValue }.filter { !$0.isEmpty }
+    let codes = results.compactMap { result -> ScannedCode? in
+      guard let value = result.payloadStringValue, !value.isEmpty else { return nil }
+      return ScannedCode(value: value, symbology: result.symbology)
+    }
     guard !codes.isEmpty else { return }
     DispatchQueue.main.async { [weak self] in self?.onCodes?(codes) }
   }
@@ -169,4 +172,35 @@ enum CameraAccess {
       completion(false)
     }
   }
+}
+
+/// A code read, and the name of its symbology as every platform gives it,
+/// the web's BarcodeDetector names.
+struct ScannedCode {
+  let value: String
+  let format: String
+
+  init(value: String, symbology: VNBarcodeSymbology) {
+    self.value = value
+    switch symbology {
+    case .aztec: format = "aztec"
+    case .code39, .code39Checksum, .code39FullASCII, .code39FullASCIIChecksum:
+      format = "code_39"
+    case .code93, .code93i: format = "code_93"
+    case .code128: format = "code_128"
+    case .dataMatrix: format = "data_matrix"
+    case .ean8: format = "ean_8"
+    case .ean13: format = "ean_13"
+    case .i2of5, .i2of5Checksum, .itf14: format = "itf"
+    case .pdf417: format = "pdf417"
+    case .qr: format = "qr_code"
+    case .upce: format = "upc_e"
+    default:
+      // Codabar came with macOS 12: by name, so older systems still build.
+      format = symbology.rawValue.hasSuffix("Codabar") ? "codabar" : "unknown"
+    }
+  }
+
+  /// What goes to Dart.
+  var payload: [String: String] { ["code": value, "format": format] }
 }

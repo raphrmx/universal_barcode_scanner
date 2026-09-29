@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/platform/shared.dart';
+import 'package:universal_barcode_scanner/src/scan_feedback.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
@@ -35,6 +37,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     super.key,
     required this.onCreated,
     this.onScanned,
+    this.onResult,
     this.onError,
     this.scanWindowSize,
     this.lineColor = kDefaultLineColor,
@@ -50,6 +53,8 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.buttonsAlignment = Alignment.centerRight,
     this.animate = true,
     this.labels = ScannerLabels.english,
+    this.vibrate = false,
+    this.beep = false,
   });
 
   /// Called once the view exists, with the controller that drives it. On
@@ -59,6 +64,9 @@ class UniversalBarcodeScanner extends StatefulWidget {
 
   /// Called with every code read.
   final ValueChanged<String>? onScanned;
+
+  /// Called with every code read, with the symbology it was printed in.
+  final ValueChanged<ScanResult>? onResult;
 
   /// Called when the camera cannot be used, for instance when the user
   /// refuses it. On the web, Windows and Linux the view also says so itself.
@@ -124,6 +132,12 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// [ScannerLabels.german] are ready to use.
   final ScannerLabels labels;
 
+  /// Whether the phone vibrates for each code read, where it can.
+  final bool vibrate;
+
+  /// Whether a short beep sounds for each code read.
+  final bool beep;
+
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
   static bool _animates(BuildContext context, bool animate) =>
@@ -141,24 +155,24 @@ class UniversalBarcodeScanner extends StatefulWidget {
   ///
   /// Completes with null when the user backs out without scanning, and with
   /// a [ScannerException] when the camera cannot be used on Android, iOS or
-  /// macOS. The route closes itself in every case.
+  /// macOS. The route closes itself in every case. [scanResult] does the
+  /// same and also says which symbology the code was printed in.
   ///
-  /// [bar], [child], [backgroundColor], [flip], `flipVertical`, `buttons`
-  /// and `buttonsAlignment` shape the Flutter page the web, Windows and Linux
-  /// scanner runs in. Android, iOS and macOS open a native screen over it and
-  /// do not use them, except that [ScannerButton.torch] in `buttons` shows
-  /// the native torch button as [showTorchButton] does.
+  /// [bar], [child], [backgroundColor], [flip], `flipVertical`, `buttons`,
+  /// `buttonsAlignment`, `animate` and `labels` shape the Flutter page the
+  /// web, Windows and Linux scanner runs in. Android, iOS and macOS open a
+  /// native screen over it and do not use them, except that
+  /// [ScannerButton.torch] in `buttons` shows the native torch button as
+  /// [showTorchButton] does.
   ///
-  /// `animate`, on by default, has the camera fade in when it starts and turn
-  /// over when flipped. Off anyway when the platform asks for reduced motion.
-  ///
-  /// `labels` holds the words of the buttons and of the page, English by
-  /// default: see [ScannerLabels].
-  ///
-  /// `buttons` puts a group of buttons over the camera: the torch, pausing,
-  /// and each flip. `buttonsAlignment` places it, down the right side by
-  /// default, [Alignment.centerRight]; it runs across when not centred on the
-  /// left or the right.
+  /// `buttons` puts a group of buttons over the camera, placed by
+  /// `buttonsAlignment`, down the right side by default; it runs across when
+  /// not centred on the left or the right. `animate`, on by default, has the
+  /// camera fade in when it starts and turn over when flipped, and is off
+  /// anyway when the platform asks for reduced motion. `labels` holds the
+  /// words of the buttons and of the page, English by default. `vibrate` and
+  /// `beep` signal each code read. `scanWindowSize` sets the size of the scan
+  /// window in logical pixels, on every platform.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -166,6 +180,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     String? cancelLabel,
     bool showTorchButton = false,
     ScanWindow scanWindow = ScanWindow.wide,
+    Size? scanWindowSize,
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
     ScannerBar? bar,
@@ -177,45 +192,77 @@ class UniversalBarcodeScanner extends StatefulWidget {
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
     bool animate = true,
     ScannerLabels labels = ScannerLabels.english,
+    bool vibrate = false,
+    bool beep = false,
   }) async {
-    final NavigatorState navigator = Navigator.of(context);
-    ScannerException? failure;
-    late final Route<String> route;
-
-    route = _route<String>(
-      ScannerPage(
-        config: ScannerConfig(
-          lineColor: lineColor,
-          cancelLabel: cancelLabel ?? bar?.cancelLabel ?? 'Cancel',
-          showTorchButton:
-              showTorchButton || buttons.contains(ScannerButton.torch),
-          scanWindow: scanWindow,
-          cameraFace: cameraFace,
-          scanFormat: scanFormat,
-          flipHorizontal: flip ?? flipsByDefault,
-          flipVertical: flipVertical,
-          animate: _animates(context, animate),
-          labels: labels,
-        ),
-        backgroundColor: backgroundColor,
+    final ScanResult? result = await _scanOnce(
+      context,
+      _Options(
+        lineColor: lineColor,
+        cancelLabel: cancelLabel,
+        showTorchButton: showTorchButton,
+        scanWindow: scanWindow,
+        scanWindowSize: scanWindowSize,
+        cameraFace: cameraFace,
+        scanFormat: scanFormat,
         bar: bar,
+        flip: flip,
+        flipVertical: flipVertical,
+        child: child,
+        backgroundColor: backgroundColor,
         buttons: buttons,
         buttonsAlignment: buttonsAlignment,
-        onScanned: (String code) => _leave(navigator, route, code),
-        onClose: () => _leave(navigator, route, null),
-        onError: (ScannerException error) {
-          failure = error;
-          _leave(navigator, route, null);
-        },
-        child: child,
+        animate: animate,
+        labels: labels,
+        vibrate: vibrate,
+        beep: beep,
       ),
     );
-
-    final String? code = await navigator.push(route);
-    final ScannerException? error = failure;
-    if (error != null) throw error;
-    return code;
+    return result?.text;
   }
+
+  /// [scan], with the symbology the code was printed in.
+  static Future<ScanResult?> scanResult(
+    BuildContext context, {
+    Color lineColor = kDefaultLineColor,
+    bool showTorchButton = false,
+    ScanWindow scanWindow = ScanWindow.wide,
+    Size? scanWindowSize,
+    CameraFace cameraFace = CameraFace.back,
+    ScanFormat scanFormat = ScanFormat.all,
+    ScannerBar? bar,
+    bool? flip,
+    bool flipVertical = false,
+    Widget? child,
+    Color? backgroundColor,
+    Set<ScannerButton> buttons = const <ScannerButton>{},
+    AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+    bool animate = true,
+    ScannerLabels labels = ScannerLabels.english,
+    bool vibrate = false,
+    bool beep = false,
+  }) => _scanOnce(
+    context,
+    _Options(
+      lineColor: lineColor,
+      showTorchButton: showTorchButton,
+      scanWindow: scanWindow,
+      scanWindowSize: scanWindowSize,
+      cameraFace: cameraFace,
+      scanFormat: scanFormat,
+      bar: bar,
+      flip: flip,
+      flipVertical: flipVertical,
+      child: child,
+      backgroundColor: backgroundColor,
+      buttons: buttons,
+      buttonsAlignment: buttonsAlignment,
+      animate: animate,
+      labels: labels,
+      vibrate: vibrate,
+      beep: beep,
+    ),
+  );
 
   /// Opens the scanner as a route and emits every code read until it closes.
   ///
@@ -227,7 +274,8 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// back button, a system gesture, or a pop from your own code. Cancelling
   /// the subscription closes the route, so `stream(context).first` scans one
   /// code and leaves. A camera that cannot be used on Android, iOS or macOS is
-  /// emitted as a [ScannerException] before the stream closes.
+  /// emitted as a [ScannerException] before the stream closes. [resultStream]
+  /// does the same with the symbology of each code.
   ///
   /// The other parameters are those of [scan].
   static Stream<String> stream(
@@ -237,6 +285,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     String? cancelLabel,
     bool showTorchButton = false,
     ScanWindow scanWindow = ScanWindow.wide,
+    Size? scanWindowSize,
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
     ScannerBar? bar,
@@ -249,51 +298,139 @@ class UniversalBarcodeScanner extends StatefulWidget {
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
     bool animate = true,
     ScannerLabels labels = ScannerLabels.english,
-  }) {
+    bool vibrate = false,
+    bool beep = false,
+  }) => _scanMany(
+    context,
+    _Options(
+      lineColor: lineColor,
+      cancelLabel: cancelLabel,
+      showTorchButton: showTorchButton,
+      scanWindow: scanWindow,
+      scanWindowSize: scanWindowSize,
+      cameraFace: cameraFace,
+      scanFormat: scanFormat,
+      bar: bar,
+      scanDelay: scanDelay,
+      flip: flip,
+      flipVertical: flipVertical,
+      child: child,
+      backgroundColor: backgroundColor,
+      buttons: buttons,
+      buttonsAlignment: buttonsAlignment,
+      animate: animate,
+      labels: labels,
+      vibrate: vibrate,
+      beep: beep,
+    ),
+  ).map((ScanResult result) => result.text);
+
+  /// [stream], with the symbology of each code.
+  static Stream<ScanResult> resultStream(
+    BuildContext context, {
+    Color lineColor = kDefaultLineColor,
+    bool showTorchButton = false,
+    ScanWindow scanWindow = ScanWindow.wide,
+    Size? scanWindowSize,
+    CameraFace cameraFace = CameraFace.back,
+    ScanFormat scanFormat = ScanFormat.all,
+    ScannerBar? bar,
+    Duration? scanDelay,
+    bool? flip,
+    bool flipVertical = false,
+    Widget? child,
+    Color? backgroundColor,
+    Set<ScannerButton> buttons = const <ScannerButton>{},
+    AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+    bool animate = true,
+    ScannerLabels labels = ScannerLabels.english,
+    bool vibrate = false,
+    bool beep = false,
+  }) => _scanMany(
+    context,
+    _Options(
+      lineColor: lineColor,
+      showTorchButton: showTorchButton,
+      scanWindow: scanWindow,
+      scanWindowSize: scanWindowSize,
+      cameraFace: cameraFace,
+      scanFormat: scanFormat,
+      bar: bar,
+      scanDelay: scanDelay,
+      flip: flip,
+      flipVertical: flipVertical,
+      child: child,
+      backgroundColor: backgroundColor,
+      buttons: buttons,
+      buttonsAlignment: buttonsAlignment,
+      animate: animate,
+      labels: labels,
+      vibrate: vibrate,
+      beep: beep,
+    ),
+  );
+
+  /// One code, or null when the user backs out.
+  static Future<ScanResult?> _scanOnce(
+    BuildContext context,
+    _Options options,
+  ) async {
+    final NavigatorState navigator = Navigator.of(context);
+    ScannerException? failure;
+    late final Route<ScanResult> route;
+
+    route = _route<ScanResult>(
+      options.page(
+        context,
+        continuous: false,
+        onScanned: (ScanResult result) {
+          ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
+          _leave(navigator, route, result);
+        },
+        onClose: () => _leave(navigator, route, null),
+        onError: (ScannerException error) {
+          failure = error;
+          _leave(navigator, route, null);
+        },
+      ),
+    );
+
+    final ScanResult? result = await navigator.push(route);
+    final ScannerException? error = failure;
+    if (error != null) throw error;
+    return result;
+  }
+
+  /// Every code until the route goes away.
+  static Stream<ScanResult> _scanMany(BuildContext context, _Options options) {
     final NavigatorState navigator = Navigator.of(context);
     late final Route<void> route;
 
-    final StreamController<String> codes = StreamController<String>(
+    final StreamController<ScanResult> results = StreamController<ScanResult>(
       // The caller stopped listening: nobody is left to read the scanner.
       onCancel: () => _leave<void>(navigator, route, null),
     );
 
     route = _route<void>(
-      ScannerPage(
-        config: ScannerConfig(
-          lineColor: lineColor,
-          cancelLabel: cancelLabel ?? bar?.cancelLabel ?? 'Cancel',
-          showTorchButton:
-              showTorchButton || buttons.contains(ScannerButton.torch),
-          scanWindow: scanWindow,
-          cameraFace: cameraFace,
-          scanFormat: scanFormat,
-          scanDelay: scanDelay,
-          continuous: true,
-          flipHorizontal: flip ?? flipsByDefault,
-          flipVertical: flipVertical,
-          animate: _animates(context, animate),
-          labels: labels,
-        ),
-        backgroundColor: backgroundColor,
-        bar: bar,
-        buttons: buttons,
-        buttonsAlignment: buttonsAlignment,
-        onScanned: (String code) {
-          if (!codes.isClosed) codes.add(code);
+      options.page(
+        context,
+        continuous: true,
+        onScanned: (ScanResult result) {
+          if (results.isClosed) return;
+          ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
+          results.add(result);
         },
         onClose: () => _leave<void>(navigator, route, null),
         onError: (ScannerException error) {
-          if (!codes.isClosed) codes.addError(error);
+          if (!results.isClosed) results.addError(error);
           _leave<void>(navigator, route, null);
         },
-        child: child,
       ),
     );
 
     // Covers every way out, including those that never reach onClose.
-    unawaited(navigator.push(route).whenComplete(codes.close));
-    return codes.stream;
+    unawaited(navigator.push(route).whenComplete(results.close));
+    return results.stream;
   }
 
   static Route<T> _route<T>(Widget page) => PageRouteBuilder<T>(
@@ -373,13 +510,13 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
 
   void _onCreated(ScannerController controller) {
     _buttons.controller = controller;
+    controller.onResult = _onResult;
     widget.onCreated(controller);
   }
 
-  void _onScanned(String code) {
-    // A view that is not continuous pauses on its own after a code.
-    if (!widget.continuous) _buttons.pausedByScanner();
-    widget.onScanned?.call(code);
+  void _onResult(ScanResult result) {
+    ScanFeedback.play(vibrate: widget.vibrate, beep: widget.beep);
+    widget.onResult?.call(result);
   }
 
   @override
@@ -399,7 +536,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         labels: widget.labels,
       ),
       scanWindowSize: widget.scanWindowSize,
-      onScanned: _onScanned,
+      onScanned: widget.onScanned,
       onError: widget.onError,
       onCreated: _onCreated,
       child: widget.child,
@@ -419,4 +556,83 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
       ],
     );
   }
+}
+
+/// What `scan`, `scanResult`, `stream` and `resultStream` are given, for the
+/// page they all open.
+class _Options {
+  const _Options({
+    required this.lineColor,
+    required this.showTorchButton,
+    required this.scanWindow,
+    required this.scanWindowSize,
+    required this.cameraFace,
+    required this.scanFormat,
+    required this.bar,
+    required this.flip,
+    required this.flipVertical,
+    required this.child,
+    required this.backgroundColor,
+    required this.buttons,
+    required this.buttonsAlignment,
+    required this.animate,
+    required this.labels,
+    required this.vibrate,
+    required this.beep,
+    this.cancelLabel,
+    this.scanDelay,
+  });
+
+  final Color lineColor;
+  final String? cancelLabel;
+  final bool showTorchButton;
+  final ScanWindow scanWindow;
+  final Size? scanWindowSize;
+  final CameraFace cameraFace;
+  final ScanFormat scanFormat;
+  final ScannerBar? bar;
+  final Duration? scanDelay;
+  final bool? flip;
+  final bool flipVertical;
+  final Widget? child;
+  final Color? backgroundColor;
+  final Set<ScannerButton> buttons;
+  final AlignmentGeometry buttonsAlignment;
+  final bool animate;
+  final ScannerLabels labels;
+  final bool vibrate;
+  final bool beep;
+
+  ScannerPage page(
+    BuildContext context, {
+    required bool continuous,
+    required ValueChanged<ScanResult> onScanned,
+    required VoidCallback onClose,
+    required ValueChanged<ScannerException> onError,
+  }) => ScannerPage(
+    config: ScannerConfig(
+      lineColor: lineColor,
+      cancelLabel: cancelLabel ?? bar?.cancelLabel ?? 'Cancel',
+      // The native screens have a torch button of their own.
+      showTorchButton: showTorchButton || buttons.contains(ScannerButton.torch),
+      scanWindow: scanWindow,
+      scanWindowSize: scanWindowSize,
+      cameraFace: cameraFace,
+      scanFormat: scanFormat,
+      scanDelay: scanDelay,
+      continuous: continuous,
+      flipHorizontal: flip ?? UniversalBarcodeScanner.flipsByDefault,
+      flipVertical: flipVertical,
+      animate: UniversalBarcodeScanner._animates(context, animate),
+      labels: labels,
+    ),
+    backgroundColor: backgroundColor,
+    bar: bar,
+    buttons: buttons,
+    buttonsAlignment: buttonsAlignment,
+    onScanned: onScanned,
+    onClose: onClose,
+    onError: onError,
+    child: child,
+  );
 }

@@ -214,6 +214,8 @@
   };
   var stopped = true;
   var delivered = false;
+  // The zoom the camera shows, 1 for none.
+  var zoomLevel = 1;
   // An embedded view pauses rather than stops: on the first code when it is
   // not continuous, and when the app asks.
   var paused = false;
@@ -597,7 +599,7 @@
         return;
       }
       for (var i = 0; i < codes.length; i++) {
-        onDecoded(codes[i]);
+        onDecoded(codes[i].text, codes[i].format);
       }
     }, function () {
       /* a frame lost, or the decoder gone: the next one tries again */
@@ -616,6 +618,14 @@
 
   function stopCamera() {
     generation++;
+    // Said to the host, whose buttons show them.
+    if (torchOn) {
+      post({ torch: false });
+    }
+    if (zoomLevel !== 1) {
+      post({ zoom: 1 });
+    }
+    zoomLevel = 1;
     if (stream) {
       stream.getTracks().forEach(function (track) { track.stop(); });
     }
@@ -725,6 +735,11 @@
     } else {
       var smallest = Math.min(width, height);
       boxWidth = boxHeight = Math.max(MIN_BOX, Math.floor(smallest * 0.7));
+    }
+    // A size asked for, as the other platforms take it.
+    if (settings.windowWidth > 0 && settings.windowHeight > 0) {
+      boxWidth = Math.max(MIN_BOX, settings.windowWidth);
+      boxHeight = Math.max(MIN_BOX, settings.windowHeight);
     }
     boxWidth = Math.min(boxWidth, width);
     boxHeight = Math.min(boxHeight, height);
@@ -855,6 +870,27 @@
     lastEmit = null;
   }
 
+  // Answers with the zoom applied: clamped to what the camera can do, and 1
+  // where it cannot zoom at all, as on most webcams.
+  function setZoom(wanted) {
+    var track = stream && stream.getVideoTracks()[0];
+    var capabilities = track && typeof track.getCapabilities === 'function'
+      ? track.getCapabilities() : {};
+    var range = capabilities.zoom;
+    if (!range || typeof range.max !== 'number' || range.max <= 1) {
+      post({ zoom: zoomLevel });
+      return;
+    }
+    var value = Math.min(range.max, Math.max(range.min || 1, Number(wanted) || 1));
+    track.applyConstraints({ advanced: [{ zoom: value }] }).then(
+      function () {
+        zoomLevel = value;
+        post({ zoom: value });
+      },
+      function () { post({ zoom: zoomLevel }); }
+    );
+  }
+
   // Answers with the torch's state, which stays off where the camera has no
   // torch the browser lets a page drive, as on most webcams.
   function toggleTorch() {
@@ -914,7 +950,7 @@
     return true;
   }
 
-  function onDecoded(text) {
+  function onDecoded(text, format) {
     if (stopped || delivered || paused || !text || !accept(text, Date.now())) {
       return;
     }
@@ -927,7 +963,7 @@
         enqueue(stopCamera);
       }
     }
-    post({ code: text });
+    post({ code: text, format: format || 'unknown' });
   }
 
   // JSON rather than the bare code, so that no code reads as a command.
@@ -950,15 +986,17 @@
     }
   });
 
-  // On the web, the embedded view's controller reaches the page through its
-  // parent: only that window, on this origin, and only these calls.
+  // On the web, the host reaches the page through its parent: only that
+  // window, on this origin, and only these calls, each with its arguments in
+  // order, as the desktop hosts call them.
   var CALLS = {
-    pauseScanning: function () { pauseScanning(); },
-    resumeScanning: function () { resumeScanning(); },
-    toggleTorch: function () { toggleTorch(); },
-    setWindow: function (data) { setWindow(data.width, data.height); },
-    setFlip: function (data) { setFlip(data.x, data.y); },
-    setFacing: function (data) { setFacing(data.facing); }
+    pauseScanning: pauseScanning,
+    resumeScanning: resumeScanning,
+    toggleTorch: toggleTorch,
+    setWindow: setWindow,
+    setFlip: setFlip,
+    setFacing: setFacing,
+    setZoom: setZoom
   };
   window.addEventListener('message', function (event) {
     if (event.source !== window.parent || event.origin !== window.location.origin) {
@@ -971,7 +1009,7 @@
       return;
     }
     if (data && typeof data.call === 'string' && CALLS.hasOwnProperty(data.call)) {
-      CALLS[data.call](data);
+      CALLS[data.call].apply(null, Array.isArray(data.args) ? data.args : []);
     }
   });
 
@@ -1004,6 +1042,7 @@
   window.setWindow = setWindow;
   window.setFlip = setFlip;
   window.setFacing = setFacing;
+  window.setZoom = setZoom;
   window.pauseScanning = pauseScanning;
   window.resumeScanning = resumeScanning;
   window.toggleTorch = toggleTorch;

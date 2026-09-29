@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
@@ -13,6 +14,32 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:web/web.dart' as html;
+
+/// One audio context for every beep: a browser caps how many a page opens.
+html.AudioContext? _audio;
+
+/// A short beep for a code read, a tone made here: no sound file to fetch.
+void playBeep() {
+  try {
+    final html.AudioContext audio = _audio ??= html.AudioContext();
+    final html.OscillatorNode tone = audio.createOscillator()
+      ..type = 'sine'
+      ..frequency.value = 1800;
+    final html.GainNode volume = audio.createGain();
+    final double now = audio.currentTime;
+    // Faded out rather than cut, which clicks.
+    volume.gain
+      ..setValueAtTime(0.2, now)
+      ..exponentialRampToValueAtTime(0.001, now + 0.12);
+    tone
+      ..connect(volume)
+      ..start(now)
+      ..stop(now + 0.12);
+    volume.connect(audio.destination);
+  } on Object {
+    // No audio in this browser: silence.
+  }
+}
 
 /// Barcode scanner for web, running the bundled page in an iframe.
 class ScannerPage extends StatefulWidget {
@@ -34,7 +61,7 @@ class ScannerPage extends StatefulWidget {
   final ScannerConfig config;
 
   /// Called with every code read.
-  final ValueChanged<String> onScanned;
+  final ValueChanged<ScanResult> onScanned;
 
   /// Called by the back button.
   final VoidCallback onClose;
@@ -68,38 +95,25 @@ class _ScannerPageState extends State<ScannerPage> {
   StreamSubscription<html.MessageEvent>? _messages;
   bool _delivered = false;
 
-  /// Drives the page for the buttons: pause and torch.
+  /// What the page is asked to show.
+  late final PageLink _link = PageLink(_call, widget.config);
+
+  /// Drives the page for the buttons.
   late final PageScannerController _controller = PageScannerController(
-    (PageCall call) => _post(<String, Object>{'call': call.name}),
+    _link,
     continuous: widget.config.continuous,
   );
 
   late final ScannerButtons _buttons = ScannerButtons(
     flipHorizontal: widget.config.flipHorizontal,
     flipVertical: widget.config.flipVertical,
-    onFlip: _sendFlip,
-    onSwitchCamera: _switchCamera,
+    onFlip: (bool horizontal, bool vertical) =>
+        _link.setFlip(horizontal: horizontal, vertical: vertical),
+    onSwitchCamera: _link.switchFace,
   )..controller = _controller;
 
-  /// Whether the page listens: a call before then is lost.
-  bool _pageReady = false;
-
-  /// The camera the buttons have switched to.
-  late CameraFace _face = widget.config.cameraFace;
-
-  void _switchCamera() {
-    _face = _face == CameraFace.front ? CameraFace.back : CameraFace.front;
-    _sendFace();
-  }
-
-  /// Sent once the page listens; until then the query string still says it.
-  void _sendFace() {
-    if (!_pageReady) return;
-    _post(<String, Object>{
-      'call': 'setFacing',
-      'facing': ScannerConfig.facingToPage(_face),
-    });
-  }
+  /// The settings the frame was opened with, in its address.
+  ScannerConfig? _openedWith;
 
   @override
   void initState() {
@@ -115,17 +129,14 @@ class _ScannerPageState extends State<ScannerPage> {
     super.dispose();
   }
 
+  void _call(String name, List<Object> arguments) =>
+      _post(<String, Object>{'call': name, 'args': arguments});
+
   void _post(Map<String, Object> message) {
     _iframe?.contentWindow?.postMessage(
       jsonEncode(message).toJS,
       html.window.location.origin.toJS,
     );
-  }
-
-  /// Sent once the page listens; until then the query string still says it.
-  void _sendFlip(bool horizontal, bool vertical) {
-    if (!_pageReady) return;
-    _post(<String, Object>{'call': 'setFlip', 'x': horizontal, 'y': vertical});
   }
 
   /// Sets the frame up. No cross-frame call is possible before it loads, so
@@ -137,13 +148,11 @@ class _ScannerPageState extends State<ScannerPage> {
   /// built alive.
   void _onElementCreated(Object element) {
     final html.HTMLIFrameElement iframe = element as html.HTMLIFrameElement;
+    final ScannerConfig config = _openedWith = _link.apply(widget.config);
     final Uri page = Uri(
       path: ScannerAsset.webPath,
       queryParameters: <String, String>{
-        ...widget.config.toPage(
-          host: 'web',
-          background: widget.backgroundColor,
-        ),
+        ...config.toPage(host: 'web', background: widget.backgroundColor),
         'start': '1',
       },
     );
@@ -165,25 +174,20 @@ class _ScannerPageState extends State<ScannerPage> {
 
     final PageMessage? message = PageMessage.parse(event.data.dartify());
     switch (message) {
-      case PageCode(:final String code):
+      case PageCode(:final String code, :final BarcodeFormat format):
         if (!widget.config.continuous) {
           if (_delivered) return;
           _delivered = true;
         }
-        widget.onScanned(code);
+        widget.onScanned(ScanResult(code, format: format));
       case PageClose():
         widget.onClose();
       case PageTorch():
+      case PageZoom():
         _controller.handle(message);
       case PageReady():
-        _pageReady = true;
-        // Buttons pressed while the page was loading.
-        if (_buttons.flipHorizontal != widget.config.flipHorizontal ||
-            _buttons.flipVertical != widget.config.flipVertical) {
-          _sendFlip(_buttons.flipHorizontal, _buttons.flipVertical);
-        }
-        if (_face != widget.config.cameraFace) _sendFace();
-        _controller.pageReady();
+        // Buttons pressed while the page was loading go to it now.
+        _link.ready(_openedWith ?? widget.config);
       // The page says itself why the camera did not start.
       case PageError():
       case null:
@@ -257,8 +261,11 @@ class EmbeddedScanner extends StatefulWidget {
 }
 
 class _EmbeddedScannerState extends State<EmbeddedScanner> {
+  /// What the page is asked to show.
+  late final PageLink _link = PageLink(_call, widget.config);
+
   late final PageScannerController _controller = PageScannerController(
-    (PageCall call) => _post(<String, Object>{'call': call.name}),
+    _link,
     continuous: widget.config.continuous,
   );
 
@@ -268,17 +275,10 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
   /// The scan window, as the last layout measured it.
   Size? _window;
 
-  /// The scan window the page was last told about.
-  Size? _pageWindow;
-
-  /// The flip the page was last told about, horizontal then vertical.
-  (bool, bool)? _pageFlip;
-
-  /// The camera the page was last told to open.
-  CameraFace? _pageFace;
-
-  /// Whether the page listens: before, a message would be dropped.
-  bool _pageReady = false;
+  /// The settings and the scan window the frame was opened with, in its
+  /// address.
+  ScannerConfig? _openedWith;
+  Size _openedWindow = Size.zero;
 
   /// Whether the camera did not start, which the page explains itself.
   bool _failed = false;
@@ -303,30 +303,13 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     _controller
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
-    _sendFlip();
-    _sendFace();
-  }
-
-  /// Tells the page about a camera it does not have open yet.
-  void _sendFace() {
-    final CameraFace face = widget.config.cameraFace;
-    if (!_pageReady || face == _pageFace) return;
-    _pageFace = face;
-    _post(<String, Object>{
-      'call': 'setFacing',
-      'facing': ScannerConfig.facingToPage(face),
-    });
-  }
-
-  /// Tells the page about a flip it does not have yet.
-  void _sendFlip() {
-    final (bool, bool) flip = (
-      widget.config.flipHorizontal,
-      widget.config.flipVertical,
-    );
-    if (!_pageReady || flip == _pageFlip) return;
-    _pageFlip = flip;
-    _post(<String, Object>{'call': 'setFlip', 'x': flip.$1, 'y': flip.$2});
+    final ScannerConfig config = widget.config;
+    _link
+      ..setFlip(
+        horizontal: config.flipHorizontal,
+        vertical: config.flipVertical,
+      )
+      ..setFace(config.cameraFace);
   }
 
   @override
@@ -338,9 +321,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     super.dispose();
   }
 
-  void _post(Map<String, Object> message) {
+  void _call(String name, List<Object> arguments) {
     _iframe?.contentWindow?.postMessage(
-      jsonEncode(message).toJS,
+      jsonEncode(<String, Object>{'call': name, 'args': arguments}).toJS,
       html.window.location.origin.toJS,
     );
   }
@@ -348,30 +331,17 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
   /// Called during the build, before the frame exists the first time.
   void _onWindow(Size window) {
     _window = window;
-    _sendWindow();
-  }
-
-  /// Tells the page about a scan window it does not have yet.
-  void _sendWindow() {
-    final Size? window = _window;
-    if (!_pageReady || window == null || window == _pageWindow) return;
-    _pageWindow = window;
-    _post(<String, Object>{
-      'call': 'setWindow',
-      'width': window.width.round(),
-      'height': window.height.round(),
-    });
+    _link.setWindow(window);
   }
 
   void _onElementCreated(Object element) {
     final html.HTMLIFrameElement iframe = element as html.HTMLIFrameElement;
-    final Size window = _pageWindow = _window ?? Size.zero;
-    _pageFlip = (widget.config.flipHorizontal, widget.config.flipVertical);
-    _pageFace = widget.config.cameraFace;
+    final Size window = _openedWindow = _window ?? Size.zero;
+    final ScannerConfig config = _openedWith = _link.apply(widget.config);
     final Uri page = Uri(
       path: ScannerAsset.webPath,
       queryParameters: <String, String>{
-        ...widget.config.toEmbeddedPage(host: 'web', window: window),
+        ...config.toEmbeddedPage(host: 'web', window: window),
         'start': '1',
       },
     );
@@ -393,11 +363,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     final PageMessage? message = PageMessage.parse(event.data.dartify());
     if (message is PageError && !_failed) setState(() => _failed = true);
     if (message is PageReady) {
-      _pageReady = true;
-      // A layout, a flip or a camera that changed while the page was loading.
-      _sendWindow();
-      _sendFlip();
-      _sendFace();
+      // A layout, a flip or a camera that changed while the page was loading
+      // goes to it now.
+      _link.ready(_openedWith ?? widget.config, window: _openedWindow);
     }
     _controller.handle(message);
   }
@@ -412,7 +380,7 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     scanWindowSize: widget.scanWindowSize,
     onWindow: _onWindow,
     failed: _failed,
-    paused: _controller.paused,
+    paused: _controller.isPaused,
     child: widget.child,
   );
 }

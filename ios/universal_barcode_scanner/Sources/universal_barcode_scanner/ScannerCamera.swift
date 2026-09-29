@@ -13,7 +13,7 @@ final class ScannerCamera {
   let session = AVCaptureSession()
 
   /// Called on the main thread with the codes of a frame, in no set order.
-  var onCodes: (([String]) -> Void)?
+  var onCodes: (([ScannedCode]) -> Void)?
   /// Called on the main thread once the camera runs, and whenever its format
   /// changes: the moments a rectangle of interest can be converted.
   var onRunning: (() -> Void)?
@@ -156,6 +156,21 @@ final class ScannerCamera {
 
   /// Turns the torch on or off, and returns whether it is now on.
   @discardableResult
+  /// Zooms to `factor`, as far as the camera can go, and returns the zoom
+  /// applied: 1 with no camera.
+  func setZoom(_ factor: CGFloat) -> Double {
+    guard let device = device else { return 1 }
+    let clamped = max(1, min(factor, device.activeFormat.videoMaxZoomFactor))
+    do {
+      try device.lockForConfiguration()
+      defer { device.unlockForConfiguration() }
+      device.videoZoomFactor = clamped
+      return Double(clamped)
+    } catch {
+      return Double(device.videoZoomFactor)
+    }
+  }
+
   func setTorch(_ on: Bool) -> Bool {
     guard let device = device, device.hasTorch else { return false }
     do {
@@ -203,7 +218,7 @@ final class ScannerCamera {
     }
   }
 
-  fileprivate func deliver(_ codes: [String]) {
+  fileprivate func deliver(_ codes: [ScannedCode]) {
     onCodes?(codes)
   }
 
@@ -250,11 +265,11 @@ private final class MetadataDelegate: NSObject, AVCaptureMetadataOutputObjectsDe
     from connection: AVCaptureConnection
   ) {
     // Every code of the frame: the gate follows each one on its own.
-    let codes = metadataObjects.compactMap { object -> String? in
+    let codes = metadataObjects.compactMap { object -> ScannedCode? in
       guard let code = (object as? AVMetadataMachineReadableCodeObject)?.stringValue,
         !code.isEmpty
       else { return nil }
-      return code
+      return ScannedCode(value: code, type: object.type)
     }
     if !codes.isEmpty { camera?.deliver(codes) }
   }

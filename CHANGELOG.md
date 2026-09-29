@@ -2,57 +2,53 @@
 
 ## 2.1.0
 
+### Changed
+
+- **The camera is now mirrored by default on a desktop and in a desktop
+  browser**, where it is a webcam facing the user; not on a phone or a
+  tablet. `flip` is a `bool?`: pass `false` for the old behaviour.
+  `UniversalBarcodeScanner.flipsByDefault` says what `null` does.
 - The web, Windows and Linux scanner decodes with zxing-cpp compiled to
   WebAssembly, through barcode-detector, in place of html5-qrcode, which has
-  not had a release since April 2023 and decoded with ZXing in JavaScript.
-  Where the browser has a barcode detector of its own it is still the one
-  used. On the web the decoding runs in a worker, off the app's thread; a
-  webview on `file://`, as on Linux, decodes in the page. The WebAssembly is
-  bundled, as base64 so that page can load it too: nothing is fetched from a
-  CDN.
-- The page drives the camera itself. A resized window or a resized embedded
-  view no longer restarts the camera: the frame is cropped to the scan window
-  on every read.
+  not had a release since April 2023. The browser's own detector is still
+  used where there is one. On the web the decoding runs in a worker, off the
+  app's thread. The WebAssembly is bundled: nothing is fetched from a CDN.
+- The page drives the camera itself: a resized window or view no longer
+  restarts it, and only the camera turns when flipped, so the scan box and
+  the page's messages stay the right way round.
+- `ScannerBar.cancelLabel` replaces the `cancelLabel` of `scan` and `stream`,
+  which is deprecated and still wins when given. It also labels the bar's
+  back button for a screen reader.
 - On Windows and Linux, a webview no longer in use is disposed rather than
   left loaded with a blank page. `webview_all` 1.4.3 or later.
-- `flip` defaults to mirroring the camera where it is a webcam facing the user,
-  on a desktop and in a desktop browser, and not on a phone or a tablet, as
-  `UniversalBarcodeScanner.flipsByDefault` says. Pass `false` to keep the old
-  behaviour. `flipVertical` shows the camera upside down.
-- On the web, Windows and Linux the page flips the camera itself, rather than
-  the whole view being mirrored: the scan box and the page's messages stay the
-  right way round. An embedded view follows a change of either flip while it
-  runs, without restarting the camera.
+
+### Added
+
+- `ScanResult` and `BarcodeFormat`: `scanResult`, `resultStream` and the
+  embedded view's `onResult` say which symbology each code was printed in, on
+  every platform. `scan`, `stream` and `onScanned` are unchanged.
 - `buttons` and `buttonsAlignment` on `scan`, `stream` and the embedded view:
-  a group of round buttons over the camera, among the torch, pausing and each
-  flip, placed with any `Alignment`, `Alignment.centerRight` by default. They run
-  down the side when centred on the left or the right, and keep clear of the
-  close button. On `scan` and `stream` they are drawn on the web, Windows and
-  Linux; the native screens of Android, iOS and macOS keep their own, and a
-  `torch` asked for shows the native torch button. The embedded view is drawn
-  by Flutter everywhere, so its buttons are too.
-- `ScannerBar.cancelLabel` replaces the `cancelLabel` of `scan` and `stream`,
-  which is deprecated and still wins when given. It labels the native cancel
-  button, as before, and the back button of the bar for a screen reader.
-- The example opens every mode with the buttons, and lets you pick where they
-  sit.
-- `animate`, on by default, on `scan`, `stream` and the embedded view: the
-  camera fades in once its first frame is there, and a flip turns it over
-  through its middle. The native embedded views of Android, iOS and macOS now
-  say when their first frame is on screen, and fade in then; one that never
-  says so, a camera that failed for one, is shown after a second and a half.
-  Off when the platform asks for reduced motion.
-- The example is called Universal Barcode Scanner on every platform, rather
-  than `example`.
-- `labels`, a `ScannerLabels`, on `scan`, `stream` and the embedded view: the
-  words of the buttons, for screen readers, and of the page when the camera
-  will not start, English by default. `ScannerLabels.french`, `.dutch` and
-  `.german` are ready to use; `copyWith` changes any of them.
-- `ScannerButton.switchCamera` goes from the camera facing away to the one
-  facing the user and back. On the web, Windows and Linux the page opens the
-  other camera in place; on Android, iOS and macOS the embedded view is made
-  again with it, and `onCreated` is called with its new controller.
-- The example has a camera switch and a choice of language.
+  round buttons over the camera for the torch, pausing, each flip, the zoom
+  and the other camera, down the right side by default. On `scan` and
+  `stream` they are drawn on the web, Windows and Linux; the native screens of
+  Android, iOS and macOS keep their own, and a `torch` asked for shows the
+  native torch button. The embedded view is drawn by Flutter everywhere, so
+  its buttons are too.
+- `flipVertical`, to show the camera upside down.
+- `labels`, a `ScannerLabels`: the words of the buttons, for screen readers,
+  and of the page when the camera will not start. English by default;
+  `ScannerLabels.french`, `.dutch` and `.german` are ready to use.
+- `animate`, on by default: the camera fades in once its first frame is on
+  screen, and a flip turns it over through its middle. The native embedded
+  views now say when their first frame is there. Off when the platform asks
+  for reduced motion.
+- `vibrate` and `beep`, to signal each code read.
+- `scanWindowSize` on `scan` and `stream`, as the embedded view already had.
+- On `ScannerController`: `isPaused`, `isTorchOn` and `zoom`, which follow the
+  view whoever changes it, and `setZoom`. The buttons show this state.
+- The example shows the symbology of each code, uses every button, and lets
+  you pick where the buttons sit and in which language the scanner speaks.
+  It is called Universal Barcode Scanner on every platform.
 
 ## 2.0.1
 

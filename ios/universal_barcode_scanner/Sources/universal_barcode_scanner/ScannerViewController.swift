@@ -7,7 +7,7 @@ import UIKit
 /// It reports and does not decide: the plugin dismisses it and answers Dart.
 final class ScannerViewController: UIViewController {
   /// Called with each code worth reporting. A single scan calls it once.
-  var onCode: ((String) -> Void)?
+  var onCode: ((ScannedCode) -> Void)?
   /// Called when the user leaves without a code, or the scanner was taken
   /// off the screen by someone else.
   var onCancel: (() -> Void)?
@@ -58,6 +58,7 @@ final class ScannerViewController: UIViewController {
 
     overlay.lineColor = options.lineColor
     overlay.squareWindow = options.squareWindow
+    overlay.windowSize = options.windowSize
     overlay.isHidden = !options.hasWindow
     overlay.onWindowChange = { [weak self] _ in self?.updateRectOfInterest() }
     view.addSubview(overlay)
@@ -195,12 +196,12 @@ final class ScannerViewController: UIViewController {
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
   }
 
-  private func handle(_ codes: [String]) {
+  private func handle(_ codes: [ScannedCode]) {
     guard !finished else { return }
     if options.continuous {
       // Every code of the frame goes through the gate, which follows each
       // one on its own.
-      for code in codes where gate.accept(code) {
+      for code in codes where gate.accept(code.value) {
         onCode?(code)
       }
       return

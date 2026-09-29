@@ -123,11 +123,21 @@ Opens the scanner as a route and comes back with what it read, or `null` if the 
 final String? code = await UniversalBarcodeScanner.scan(context);
 ```
 
+`scanResult` does the same and says which symbology the code was printed in:
+
+```dart
+final ScanResult? result = await UniversalBarcodeScanner.scanResult(context);
+if (result?.format == BarcodeFormat.ean13) {
+  // A product.
+}
+```
+
 | Parameter | Default | Effect |
 | --- | --- | --- |
 | `lineColor` | `Color(0xFFFF6666)` | Colour of the scan line, on every platform. |
 | `scanFormat` | `ScanFormat.all` | Symbologies to accept, on every platform. Fewer formats also scan faster. |
 | `scanWindow` | `ScanWindow.wide` | Shape of the scan window: `wide` for barcodes, `square` for QR codes, or `none` to read the whole frame with nothing drawn over it. |
+| `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. On every platform. |
 | `cameraFace` | `CameraFace.back` | Which camera to open. |
 | `showTorchButton` | `false` | Whether the native torch button is shown, when the camera has a torch. Android and iOS. |
 | `bar` | `null` | A `ScannerBar` above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux, except its `cancelLabel`, which labels the native cancel button. |
@@ -135,10 +145,12 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
 | `flip` | `null` | Mirrors the camera left to right. `null` mirrors it where it is a webcam facing the user, on a desktop and in a desktop browser, and not on a phone or a tablet. Web, Windows and Linux. |
 | `flipVertical` | `false` | Shows the camera upside down. Web, Windows and Linux. |
-| `buttons` | none | Buttons over the camera, from `ScannerButton`: `torch`, `pause`, `flipHorizontal`, `flipVertical`, `switchCamera`. Web, Windows and Linux; `torch` also shows the native torch button on Android and iOS. |
+| `buttons` | none | Buttons over the camera, from `ScannerButton`: `torch`, `pause`, `flipHorizontal`, `flipVertical`, `zoom`, `switchCamera`. Web, Windows and Linux; `torch` also shows the native torch button on Android and iOS. |
 | `labels` | `ScannerLabels.english` | The words of the buttons, for screen readers, and of the page when the camera will not start. `ScannerLabels.french`, `.dutch` and `.german` are ready to use, and `copyWith` changes any of them. Web, Windows and Linux. |
 | `animate` | `true` | Fades the camera in when it starts and turns it over when flipped. Off when the platform asks for reduced motion. Web, Windows and Linux. |
 | `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
+| `vibrate` | `false` | A short vibration for each code read, where the device has one. On every platform. |
+| `beep` | `false` | A short beep for each code read: a tone on Android, iOS and the web, the system's alert sound on a desktop. On every platform. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
@@ -181,7 +193,8 @@ A code held in front of the camera is emitted once, and again only after it has 
 for a second. `scanDelay` adds a least time between any two codes. A camera that cannot be used is
 emitted as a `ScannerException`, then the stream closes.
 
-`stream` takes the same parameters as `scan`, plus `scanDelay`.
+`stream` takes the same parameters as `scan`, plus `scanDelay`. `resultStream` emits a
+`ScanResult` for each code, with its symbology.
 
 ## Embed the camera
 
@@ -213,22 +226,29 @@ The controller drives the running camera:
 final bool torchOn = await controller.toggleFlash();
 await controller.pauseScanning();
 await controller.resumeScanning();
+final double zoom = await controller.setZoom(2);
 ```
+
+`isPaused`, `isTorchOn` and `zoom` on the controller say how the view stands, whoever changed it:
+the app, the buttons over the camera, or the view pausing itself after a code. The buttons show
+the same state.
 
 A paused view keeps its camera running and its scan line stops where it is, until
 `resumeScanning`. A view that is not `continuous` pauses the same way on its first code.
 
 `toggleFlash` answers false where there is no torch to drive: a Mac camera, and most webcams, which
-browsers and webviews give a page no control over.
+browsers and webviews give a page no control over. `setZoom` answers with the zoom the camera
+applied, `1` where it cannot zoom, which is the case of the same cameras.
 
 | Parameter | Default | Effect |
 | --- | --- | --- |
 | `onCreated` | required | Called once the view exists, with its `ScannerController`. |
 | `onScanned` | `null` | Called with every code read. |
+| `onResult` | `null` | Called with every code read, as a `ScanResult` with its symbology. |
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `labels`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the native view says when its first frame is on screen, and the camera fades in then. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `labels`, `vibrate`, `beep`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the native view says when its first frame is on screen, and the camera fades in then. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The flip is the exception: it follows the widget, and the

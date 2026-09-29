@@ -5,7 +5,7 @@ import Cocoa
 /// sweeping line, and a cancel button that Escape also presses.
 class ScannerViewController: NSViewController {
   /// Called on the main thread with each code worth reporting.
-  var onScanned: ((String) -> Void)?
+  var onScanned: ((ScannedCode) -> Void)?
   /// Called when the user closes the scanner without a result.
   var onCancelled: (() -> Void)?
   /// Called with an error code and a message when the camera cannot be used.
@@ -98,7 +98,9 @@ class ScannerViewController: NSViewController {
     previewLayer?.frame = bounds
     CATransaction.commit()
 
-    if overlay.layout(bounds: bounds, area: area, requested: nil, square: options.squareWindow) {
+    if overlay.layout(
+      bounds: bounds, area: area, requested: options.windowSize, square: options.squareWindow)
+    {
       updateRegionOfInterest()
     }
   }
@@ -137,13 +139,13 @@ class ScannerViewController: NSViewController {
   // MARK: - Decoding
 
   /// Runs on the main thread with the codes of one frame.
-  private func handle(_ codes: [String]) {
+  private func handle(_ codes: [ScannedCode]) {
     guard !hasResult, let first = codes.first else { return }
 
     if options.isContinuousScan {
       // Every code of the frame goes through the gate, which follows each
       // one on its own.
-      for code in codes where gate.accept(code) {
+      for code in codes where gate.accept(code.value) {
         onScanned?(code)
       }
       return

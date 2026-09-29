@@ -53,9 +53,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  StreamSubscription<String>? _stream;
+  StreamSubscription<ScanResult>? _stream;
   String? _code;
   String _mode = '';
+
+  /// The symbology of the last code, as the scanner reported it.
+  BarcodeFormat _format = BarcodeFormat.unknown;
   int _count = 0;
 
   /// Whether the camera sits in the result tile.
@@ -71,12 +74,14 @@ class _HomePageState extends State<HomePage> {
     ScannerButton.pause,
     ScannerButton.flipHorizontal,
     ScannerButton.flipVertical,
+    ScannerButton.zoom,
     ScannerButton.switchCamera,
   };
   static const Set<ScannerButton> _onceButtons = <ScannerButton>{
     ScannerButton.torch,
     ScannerButton.flipHorizontal,
     ScannerButton.flipVertical,
+    ScannerButton.zoom,
     ScannerButton.switchCamera,
   };
 
@@ -89,10 +94,11 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _found(String code, String mode) {
+  void _found(ScanResult result, String mode) {
     if (!mounted) return;
     setState(() {
-      _code = code;
+      _code = result.text;
+      _format = result.format;
       _mode = mode;
       _count++;
     });
@@ -115,7 +121,7 @@ class _HomePageState extends State<HomePage> {
     await _closeEmbedded();
     if (!mounted) return;
     try {
-      final String? code = await UniversalBarcodeScanner.scan(
+      final ScanResult? result = await UniversalBarcodeScanner.scanResult(
         context,
         bar: _appBar,
         cameraFace: CameraFace.back,
@@ -123,8 +129,10 @@ class _HomePageState extends State<HomePage> {
         buttons: _onceButtons,
         buttonsAlignment: _buttonsAt,
         labels: _labels,
+        vibrate: true,
+        beep: true,
       );
-      if (code != null) _found(code, 'one shot');
+      if (result != null) _found(result, 'one shot');
     } on ScannerException catch (error) {
       _failed(error);
     }
@@ -135,15 +143,17 @@ class _HomePageState extends State<HomePage> {
     await _stream?.cancel();
     await _closeEmbedded();
     if (!mounted) return;
-    _stream = UniversalBarcodeScanner.stream(
+    _stream = UniversalBarcodeScanner.resultStream(
       context,
       bar: _appBar,
       scanDelay: const Duration(seconds: 2),
       buttons: _allButtons,
       buttonsAlignment: _buttonsAt,
       labels: _labels,
+      vibrate: true,
+      beep: true,
     ).listen(
-      (String code) => _found(code, 'continuous'),
+      (ScanResult result) => _found(result, 'continuous'),
       onError: (Object error) {
         if (error is ScannerException) _failed(error);
       },
@@ -191,6 +201,7 @@ class _HomePageState extends State<HomePage> {
                 _Result(
                   code: _code,
                   mode: _mode,
+                  format: _format,
                   count: _count,
                   camera: _embedded
                       ? UniversalBarcodeScanner(
@@ -198,7 +209,10 @@ class _HomePageState extends State<HomePage> {
                           buttons: _allButtons,
                           buttonsAlignment: _buttonsAt,
                           labels: _labels,
-                          onScanned: (String code) => _found(code, 'embedded'),
+                          vibrate: true,
+                          beep: true,
+                          onResult: (ScanResult result) =>
+                              _found(result, 'embedded'),
                           onError: _failed,
                           onCreated: (ScannerController _) {},
                         )
@@ -304,6 +318,7 @@ class _Result extends StatelessWidget {
   const _Result({
     required this.code,
     required this.mode,
+    this.format = BarcodeFormat.unknown,
     required this.count,
     this.camera,
     this.controls = const <Widget>[],
@@ -311,6 +326,9 @@ class _Result extends StatelessWidget {
 
   final String? code;
   final String mode;
+
+  /// The symbology of [code].
+  final BarcodeFormat format;
   final int count;
 
   /// The embedded scanner, when it is open in this tile.
@@ -344,7 +362,11 @@ class _Result extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                value == null ? 'NOTHING SCANNED YET' : 'SCANNED, $mode',
+                value == null
+                    ? 'NOTHING SCANNED YET'
+                    : format == BarcodeFormat.unknown
+                        ? 'SCANNED, $mode'
+                        : 'SCANNED, $mode, ${_formatLabel(format)}',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -501,3 +523,21 @@ class _Note extends StatelessWidget {
     );
   }
 }
+
+/// How a symbology is usually written.
+String _formatLabel(BarcodeFormat format) => switch (format) {
+      BarcodeFormat.aztec => 'Aztec',
+      BarcodeFormat.codabar => 'Codabar',
+      BarcodeFormat.code39 => 'Code 39',
+      BarcodeFormat.code93 => 'Code 93',
+      BarcodeFormat.code128 => 'Code 128',
+      BarcodeFormat.dataMatrix => 'Data Matrix',
+      BarcodeFormat.ean8 => 'EAN-8',
+      BarcodeFormat.ean13 => 'EAN-13',
+      BarcodeFormat.itf => 'ITF',
+      BarcodeFormat.pdf417 => 'PDF417',
+      BarcodeFormat.qrCode => 'QR code',
+      BarcodeFormat.upcA => 'UPC-A',
+      BarcodeFormat.upcE => 'UPC-E',
+      BarcodeFormat.unknown => '',
+    };

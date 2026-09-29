@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
+import 'package:universal_barcode_scanner/src/scan_feedback.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
@@ -280,88 +281,137 @@ void main() {
       );
     });
 
+    /// A link that notes every call as `name(arguments)`.
+    PageLink link(
+      List<String> calls, {
+      ScannerConfig config = const ScannerConfig(),
+    }) => PageLink(
+      (String name, List<Object> arguments) =>
+          calls.add('$name(${arguments.join(', ')})'),
+      config,
+    );
+
     test('drives the page and hears back from it', () async {
-      final List<PageCall> calls = <PageCall>[];
+      final List<String> calls = <String>[];
       final PageScannerController controller = PageScannerController(
-        calls.add,
+        link(calls)..ready(const ScannerConfig()),
         continuous: true,
       );
-      final List<String> codes = <String>[];
+      final List<ScanResult> results = <ScanResult>[];
       ScannerException? error;
       controller
-        ..onScanned = codes.add
+        ..onResult = results.add
         ..onError = (ScannerException e) => error = e;
-      controller.pageReady();
 
       await controller.pauseScanning();
+      expect(controller.isPaused.value, isTrue);
       await controller.resumeScanning();
       final Future<bool> torch = controller.toggleFlash();
+      final Future<double> zoom = controller.setZoom(2);
       controller
-        ..handle(const PageCode('A'))
+        ..handle(const PageCode('A', format: BarcodeFormat.ean13))
         ..handle(const PageError('camera_unavailable', 'busy'))
-        ..handle(const PageTorch(on: true));
+        ..handle(const PageTorch(on: true))
+        ..handle(const PageZoom(2));
 
-      expect(calls, <PageCall>[
-        PageCall.pauseScanning,
-        PageCall.resumeScanning,
-        PageCall.toggleTorch,
+      expect(calls, <String>[
+        'pauseScanning()',
+        'resumeScanning()',
+        'toggleTorch()',
+        'setZoom(2.0)',
       ]);
       expect(await torch, isTrue);
-      expect(codes, <String>['A']);
+      expect(controller.isTorchOn.value, isTrue);
+      expect(await zoom, 2);
+      expect(controller.zoom.value, 2);
+      expect(results, <ScanResult>[
+        const ScanResult('A', format: BarcodeFormat.ean13),
+      ]);
       expect(error?.code, ScannerErrorCode.cameraUnavailable);
 
       controller
         ..dispose()
         ..handle(const PageCode('B'));
       await controller.pauseScanning();
-      expect(codes, <String>['A']);
-      expect(calls, hasLength(3));
+      expect(results, hasLength(1));
+      expect(calls, hasLength(4));
       expect(await controller.toggleFlash(), isFalse);
     });
 
     test('holds calls back until the page is up', () async {
-      final List<PageCall> calls = <PageCall>[];
+      final List<String> calls = <String>[];
+      final PageLink page = link(calls);
       final PageScannerController controller = PageScannerController(
-        calls.add,
+        page,
         continuous: true,
       );
 
       await controller.resumeScanning();
       await controller.pauseScanning();
       final Future<bool> torch = controller.toggleFlash();
+      page
+        ..setFlip(horizontal: true, vertical: false)
+        ..switchFace()
+        ..setWindow(const Size(200, 100));
       expect(calls, isEmpty);
 
-      controller.handle(const PageReady());
-      expect(calls, <PageCall>[PageCall.pauseScanning, PageCall.toggleTorch]);
+      page.ready(const ScannerConfig(), window: const Size(200, 100));
+      // What differs from what the page opened with, and no more.
+      expect(calls, <String>[
+        'setFlip(true, false)',
+        'setFacing(user)',
+        'pauseScanning()',
+        'toggleTorch()',
+      ]);
       controller.handle(const PageTorch(on: false));
       expect(await torch, isFalse);
 
       // A resume after a pause, both before the page was up, sends nothing.
-      final List<PageCall> later = <PageCall>[];
-      final PageScannerController other = PageScannerController(
-        later.add,
+      final List<String> later = <String>[];
+      final PageLink other = link(later);
+      final PageScannerController second = PageScannerController(
+        other,
         continuous: true,
       );
-      await other.pauseScanning();
-      await other.resumeScanning();
-      other.pageReady();
+      await second.pauseScanning();
+      await second.resumeScanning();
+      other.ready(const ScannerConfig());
       expect(later, isEmpty);
     });
 
-    test('says when the view stops reading', () async {
-      final PageScannerController controller = PageScannerController(
-        (PageCall _) {},
-        continuous: false,
-      )..pageReady();
-      expect(controller.paused.value, isFalse);
+    test('sends each change once, and none that changes nothing', () {
+      final List<String> calls = <String>[];
+      final PageLink page = link(
+        calls,
+        config: const ScannerConfig(flipHorizontal: true),
+      )..ready(const ScannerConfig(flipHorizontal: true));
 
-      // A view that is not continuous stops on its first code.
+      page
+        ..setFlip(horizontal: true, vertical: false)
+        ..setWindow(const Size(300, 120))
+        ..setWindow(const Size(300, 120))
+        ..setFace(CameraFace.back);
+      expect(calls, <String>['setWindow(300, 120)']);
+    });
+
+    test('says when the view stops reading', () async {
+      final List<String> calls = <String>[];
+      final PageScannerController controller = PageScannerController(
+        link(calls)..ready(const ScannerConfig()),
+        continuous: false,
+      );
+      expect(controller.isPaused.value, isFalse);
+
+      // A view that is not continuous stops on its first code, by itself:
+      // nothing to send.
       controller.handle(const PageCode('A'));
-      expect(controller.paused.value, isTrue);
+      expect(controller.isPaused.value, isTrue);
+      expect(calls, isEmpty);
       await controller.resumeScanning();
-      expect(controller.paused.value, isFalse);
+      expect(controller.isPaused.value, isFalse);
+      expect(calls, <String>['resumeScanning()']);
       await controller.pauseScanning();
-      expect(controller.paused.value, isTrue);
+      expect(controller.isPaused.value, isTrue);
       controller.dispose();
     });
 
@@ -513,6 +563,37 @@ void main() {
           (calls.single.arguments as Map<Object?, Object?>)['cancelLabel'],
           'Annuler',
         );
+      });
+    });
+
+    testWidgets('scanResult says which symbology the code is', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        answer = (MethodCall call) async => <String, Object?>{
+          'code': 'https://pub.dev',
+          'format': 'qr_code',
+        };
+        final BuildContext home = await pumpHome(tester);
+
+        ScanResult? result;
+        unawaited(
+          UniversalBarcodeScanner.scanResult(
+            home,
+            scanWindowSize: const Size(240, 120),
+          ).then((ScanResult? value) => result = value),
+        );
+        await _frames(tester);
+
+        expect(
+          result,
+          const ScanResult('https://pub.dev', format: BarcodeFormat.qrCode),
+        );
+        expect(result!.format.isTwoDimensional, isTrue);
+        final Map<Object?, Object?> arguments =
+            calls.single.arguments as Map<Object?, Object?>;
+        expect(arguments['scanWindowWidth'], 240);
+        expect(arguments['scanWindowHeight'], 120);
       });
     });
 
@@ -692,6 +773,35 @@ void main() {
       });
     });
 
+    testWidgets('resultStream says which symbology each code is', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        final BuildContext home = await pumpHome(tester);
+
+        final List<ScanResult> results = <ScanResult>[];
+        UniversalBarcodeScanner.resultStream(home).listen(results.add);
+        await _frames(tester);
+
+        final int session = openedSession();
+        sink!
+          ..success(<String, Object?>{
+            'session': session,
+            'code': '5412345678908',
+            'format': 'ean_13',
+          })
+          // From a scanner that does not say.
+          ..success(<String, Object?>{'session': session, 'code': 'B'})
+          ..success(<String, Object?>{'session': session, 'event': 'closed'});
+        await _deliver(tester);
+
+        expect(results, <ScanResult>[
+          const ScanResult('5412345678908', format: BarcodeFormat.ean13),
+          const ScanResult('B'),
+        ]);
+      });
+    });
+
     testWidgets('first() takes one code and closes the scanner', (
       WidgetTester tester,
     ) async {
@@ -832,12 +942,41 @@ void main() {
       expect(find.bySemanticsLabel('Reprendre'), findsOneWidget);
       expect(find.bySemanticsLabel('Lampe'), findsOneWidget);
 
-      // The other camera starts reading again.
+      // The pause is the scanner's: the other camera keeps it.
       await tester.tap(find.bySemanticsLabel('Changer de caméra'));
       await tester.pump();
       expect(calls, <String>['pause', 'switch']);
-      expect(state.paused, isFalse);
+      expect(state.paused, isTrue);
     });
+
+    test(
+      'go through the zooms, and back to 1 past what the camera can do',
+      () async {
+        final _ZoomingController camera = _ZoomingController(max: 2.5);
+        final ScannerButtons state = ScannerButtons(
+          flipHorizontal: false,
+          flipVertical: false,
+          onFlip: (bool h, bool v) {},
+        )..controller = camera;
+
+        await state.cycleZoom();
+        expect(state.zoom, 2);
+        await state.cycleZoom();
+        // 3 asked, 2.5 applied.
+        expect(state.zoom, 2.5);
+        await state.cycleZoom();
+        // Nothing further: round again.
+        expect(state.zoom, 1);
+        expect(camera.asked, <double>[2, 3, 1]);
+
+        // A camera that cannot zoom stays at 1.
+        final _ZoomingController webcam = _ZoomingController(max: 1);
+        state.controller = webcam;
+        await state.cycleZoom();
+        expect(state.zoom, 1);
+        state.dispose();
+      },
+    );
 
     testWidgets('show only those asked for, in a fixed order', (
       WidgetTester tester,
@@ -931,6 +1070,51 @@ void main() {
               .first,
         );
         expect(flip.properties.toggled, isTrue);
+      });
+    });
+  });
+
+  group('feedback', () {
+    testWidgets('vibrates and beeps when asked, and only then', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall call) async {
+          calls.add(call.method);
+          return null;
+        },
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('universal_barcode_scanner'),
+        (MethodCall call) async {
+          calls.add(call.method);
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger
+          ..setMockMethodCallHandler(SystemChannels.platform, null)
+          ..setMockMethodCallHandler(
+            const MethodChannel('universal_barcode_scanner'),
+            null,
+          );
+      });
+      await _on(TargetPlatform.android, () async {
+        ScanFeedback.play(vibrate: false, beep: false);
+        await tester.pump();
+        expect(calls, isEmpty);
+        ScanFeedback.play(vibrate: true, beep: true);
+        await tester.pump();
+        expect(calls, <String>['HapticFeedback.vibrate', 'beep']);
+      });
+      await _on(TargetPlatform.windows, () async {
+        calls.clear();
+        ScanFeedback.play(vibrate: false, beep: true);
+        await tester.pump();
+        // A desktop has the system's own alert sound.
+        expect(calls, <String>['SystemSound.play']);
       });
     });
   });
@@ -1242,12 +1426,44 @@ final class _RecordingController extends ScannerController {
   @override
   Future<bool> toggleFlash() async {
     calls.add('torch');
+    markTorch(torchAnswer);
     return torchAnswer;
   }
 
   @override
-  Future<void> pauseScanning() async => calls.add('pause');
+  Future<void> pauseScanning() async {
+    calls.add('pause');
+    markPaused(true);
+  }
 
   @override
-  Future<void> resumeScanning() async => calls.add('resume');
+  Future<void> resumeScanning() async {
+    calls.add('resume');
+    markPaused(false);
+  }
+}
+
+/// A camera that zooms as far as [max].
+final class _ZoomingController extends ScannerController {
+  _ZoomingController({required this.max});
+
+  final double max;
+  final List<double> asked = <double>[];
+
+  @override
+  Future<double> setZoom(double zoom) async {
+    asked.add(zoom);
+    final double applied = zoom.clamp(1, max).toDouble();
+    markZoom(applied);
+    return applied;
+  }
+
+  @override
+  Future<bool> toggleFlash() async => false;
+
+  @override
+  Future<void> pauseScanning() async {}
+
+  @override
+  Future<void> resumeScanning() async {}
 }

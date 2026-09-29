@@ -132,8 +132,10 @@ class ScannerActivity : AppCompatActivity(), View.OnClickListener {
             visibility = View.GONE
         }
 
-        findViewById<ScanWindowOverlay>(R.id.ubs_overlay)
-            .configure(options.lineColor, options.squareWindow, options.hasWindow)
+        findViewById<ScanWindowOverlay>(R.id.ubs_overlay).apply {
+            configure(options.lineColor, options.squareWindow, options.hasWindow)
+            setWindowSize(options.scanWindowWidth, options.scanWindowHeight)
+        }
 
         previewView = findViewById(R.id.ubs_preview)
         scanner = BarcodeScanning.getClient(options.mlKitOptions())
@@ -287,13 +289,17 @@ class ScannerActivity : AppCompatActivity(), View.OnClickListener {
         val now = SystemClock.elapsedRealtime()
         for (barcode in barcodes) {
             val value = barcode.rawValue?.takeIf { it.isNotEmpty() } ?: continue
+            val format = ScanOptions.formatName(barcode.format)
             if (options.continuous) {
                 // Every code in the frame goes through the gate, which
                 // follows each one on its own.
-                if (gate.accept(value, now)) ScanEvents.code(options.session, value)
+                if (gate.accept(value, now)) ScanEvents.code(options.session, value, format)
             } else if (finished.compareAndSet(false, true)) {
                 handler.post {
-                    setResult(RESULT_OK, Intent().putExtra(EXTRA_CODE, value))
+                    setResult(
+                        RESULT_OK,
+                        Intent().putExtra(EXTRA_CODE, value).putExtra(EXTRA_FORMAT, format),
+                    )
                     finish()
                 }
                 return
@@ -401,6 +407,7 @@ class ScannerActivity : AppCompatActivity(), View.OnClickListener {
 
         /** Key of the string extra carrying the code back to the plugin. */
         const val EXTRA_CODE = "be.comapps.universal_barcode_scanner.code"
+        const val EXTRA_FORMAT = "be.comapps.universal_barcode_scanner.format"
         const val EXTRA_ERROR_CODE = "be.comapps.universal_barcode_scanner.errorCode"
         const val EXTRA_ERROR_MESSAGE = "be.comapps.universal_barcode_scanner.errorMessage"
 
@@ -452,6 +459,9 @@ class ScannerActivity : AppCompatActivity(), View.OnClickListener {
         }
 
         fun codeFrom(data: Intent?): String? = data?.getStringExtra(EXTRA_CODE)
+
+        fun formatFrom(data: Intent?): String =
+            data?.getStringExtra(EXTRA_FORMAT) ?: "unknown"
 
         private fun otherLens(facing: Int): Int =
             if (facing == CameraSelector.LENS_FACING_FRONT) {

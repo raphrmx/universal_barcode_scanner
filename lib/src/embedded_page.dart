@@ -4,87 +4,188 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
-/// What the embedded view asks of the bundled page. Each name is a function
-/// the page exposes.
-enum PageCall {
-  /// Stops reporting codes, the camera left running.
-  pauseScanning,
-
-  /// Reports codes again, every code in sight counting as new.
-  resumeScanning,
-
-  /// Turns the torch over; the page answers with its new state.
-  toggleTorch,
-}
-
-/// The controller of an embedded view that runs the bundled page, on the web,
-/// Windows and Linux. It talks to the page through [send] and hears back
-/// through [handle].
+/// What a host wants the bundled page to show, handed over once the page
+/// listens and again whenever it changes: the flips, the camera, the scan
+/// window of an embedded view, and whether reading is paused.
 ///
-/// What the app asks before the page is up is held back and sent once the
-/// view calls [pageReady]: a page still loading would drop it.
-final class PageScannerController extends ScannerController {
-  /// Creates a controller that reaches its page through [send]. A view that
-  /// is not [continuous] pauses on its first code, as the page does.
-  PageScannerController(this._send, {required bool continuous})
-    : _continuous = continuous;
+/// Every host of the page keeps one, the web and the desktop, full page and
+/// embedded view alike. [call] reaches a function of the page by name, with
+/// its arguments in order.
+class PageLink {
+  /// Wants what [config] opens the page with.
+  PageLink(this.call, ScannerConfig config)
+    : _flip = (config.flipHorizontal, config.flipVertical),
+      _face = config.cameraFace;
 
-  final void Function(PageCall call) _send;
-  final bool _continuous;
+  /// Calls a function of the page.
+  final void Function(String name, List<Object> arguments) call;
 
-  /// Whether the view has stopped reading, which stops its scan line too.
-  final ValueNotifier<bool> paused = ValueNotifier<bool>(false);
+  bool _ready = false;
+  final List<VoidCallback> _whenReady = <VoidCallback>[];
+
+  (bool, bool) _flip;
+  CameraFace _face;
+  Size? _window;
+  bool _paused = false;
+
+  // What the page has, once it is up.
+  (bool, bool)? _pageFlip;
+  CameraFace? _pageFace;
+  Size? _pageWindow;
+  bool _pagePaused = false;
 
   /// Whether the page is up and takes calls.
-  bool _ready = false;
+  bool get isReady => _ready;
 
-  /// The last pause or resume asked before the page was up.
-  bool? _pausedBeforeReady;
+  /// The flips wanted, horizontal then vertical.
+  (bool, bool) get flip => _flip;
 
-  /// Whether a torch toggle was asked before the page was up.
-  bool _torchBeforeReady = false;
+  /// The camera wanted.
+  CameraFace get face => _face;
+
+  /// Whether reading is wanted paused.
+  bool get paused => _paused;
+
+  /// [config] with the flips and the camera as now wanted, for a page
+  /// configured again.
+  ScannerConfig apply(ScannerConfig config) => config.copyWith(
+    flipHorizontal: _flip.$1,
+    flipVertical: _flip.$2,
+    cameraFace: _face,
+  );
+
+  void setFlip({required bool horizontal, required bool vertical}) {
+    _flip = (horizontal, vertical);
+    _push();
+  }
+
+  void setFace(CameraFace face) {
+    _face = face;
+    _push();
+  }
+
+  /// Goes to the other camera.
+  void switchFace() =>
+      setFace(_face == CameraFace.front ? CameraFace.back : CameraFace.front);
+
+  void setWindow(Size window) {
+    _window = window;
+    _push();
+  }
+
+  void setPaused(bool paused) {
+    _paused = paused;
+    _push();
+  }
+
+  /// The page paused itself, on the first code of a view that is not
+  /// continuous: nothing to send.
+  void pausedByPage() {
+    _paused = true;
+    _pagePaused = true;
+  }
+
+  /// Runs [action] now if the page is up, or once it is.
+  void whenReady(VoidCallback action) {
+    if (_ready) {
+      action();
+    } else {
+      _whenReady.add(action);
+    }
+  }
+
+  /// The page is up with [config]'s flips and camera, and [window] for an
+  /// embedded view, not paused: whatever is wanted otherwise goes to it now.
+  void ready(ScannerConfig config, {Size? window}) {
+    if (_ready) return;
+    _ready = true;
+    _pageFlip = (config.flipHorizontal, config.flipVertical);
+    _pageFace = config.cameraFace;
+    _pageWindow = window;
+    _pagePaused = false;
+    _push();
+    final List<VoidCallback> actions = List<VoidCallback>.of(_whenReady);
+    _whenReady.clear();
+    for (final VoidCallback action in actions) {
+      action();
+    }
+  }
+
+  void _push() {
+    if (!_ready) return;
+    if (_flip != _pageFlip) {
+      _pageFlip = _flip;
+      call('setFlip', <Object>[_flip.$1, _flip.$2]);
+    }
+    if (_face != _pageFace) {
+      _pageFace = _face;
+      call('setFacing', <Object>[ScannerConfig.facingToPage(_face)]);
+    }
+    final Size? window = _window;
+    if (window != null && window != _pageWindow) {
+      _pageWindow = window;
+      call('setWindow', <Object>[window.width.round(), window.height.round()]);
+    }
+    if (_paused != _pagePaused) {
+      _pagePaused = _paused;
+      call(_paused ? 'pauseScanning' : 'resumeScanning', const <Object>[]);
+    }
+  }
+}
+
+/// The controller of a scanner that runs the bundled page, on the web,
+/// Windows and Linux, full page or embedded view. It reaches the page through
+/// [link] and hears back through [handle].
+final class PageScannerController extends ScannerController {
+  /// Drives the page behind [link]. A view that is not [continuous] pauses on
+  /// its first code, as the page does.
+  PageScannerController(this.link, {required bool continuous})
+    : _continuous = continuous;
+
+  /// What the page is asked to show.
+  final PageLink link;
+  final bool _continuous;
 
   /// The torch toggle waiting for the page's answer.
   Completer<bool>? _torch;
 
-  /// How long the page is given to answer a torch toggle: one that never
-  /// loaded never answers.
-  static const Duration _torchTimeout = Duration(seconds: 3);
+  /// The zoom waiting for the page's answer.
+  Completer<double>? _zoom;
 
-  /// The page is up and has its settings: what was held back goes out.
-  void pageReady() {
-    if (_ready || isDisposed) return;
-    _ready = true;
-    final bool? paused = _pausedBeforeReady;
-    _pausedBeforeReady = null;
-    if (paused ?? false) _send(PageCall.pauseScanning);
-    if (_torchBeforeReady) {
-      _torchBeforeReady = false;
-      _send(PageCall.toggleTorch);
-    }
-  }
+  /// How long the page is given to answer: one that never loaded never does.
+  static const Duration _answerTimeout = Duration(seconds: 3);
 
   /// Takes what the page posted.
   void handle(PageMessage? message) {
     switch (message) {
-      case PageCode(:final String code):
-        if (!_continuous) paused.value = true;
-        deliverCode(code);
+      case PageCode(:final String code, :final BarcodeFormat format):
+        if (!_continuous) {
+          link.pausedByPage();
+          markPaused(true);
+        }
+        deliverCode(code, format: format);
       case PageError(:final String code, :final String? message):
         deliverError(
           ScannerException(ScannerErrorCode.fromWire(code), message),
         );
       case PageTorch(:final bool on):
+        markTorch(on);
         final Completer<bool>? torch = _torch;
         _torch = null;
         if (torch != null && !torch.isCompleted) torch.complete(on);
+      case PageZoom(:final double zoom):
+        markZoom(zoom);
+        final Completer<double>? pending = _zoom;
+        _zoom = null;
+        if (pending != null && !pending.isCompleted) pending.complete(zoom);
+      // The host says when the page is up, and a view has no close: the
+      // Escape key is the page's, not the app's.
       case PageReady():
-        pageReady();
-      // A view has no close: the Escape key is the page's, not the app's.
       case PageClose():
       case null:
         break;
@@ -97,18 +198,32 @@ final class PageScannerController extends ScannerController {
     final Completer<bool>? pending = _torch;
     if (pending != null) return pending.future;
     final Completer<bool> torch = _torch = Completer<bool>();
-    if (_ready) {
-      _send(PageCall.toggleTorch);
-    } else {
-      _torchBeforeReady = true;
-    }
+    link.whenReady(() {
+      // Not sent late either: the torch would change with nobody told.
+      if (identical(_torch, torch)) link.call('toggleTorch', const <Object>[]);
+    });
     return torch.future.timeout(
-      _torchTimeout,
+      _answerTimeout,
       onTimeout: () {
         if (identical(_torch, torch)) _torch = null;
-        // Not sent late either: the torch would change with nobody told.
-        _torchBeforeReady = false;
         return false;
+      },
+    );
+  }
+
+  @override
+  Future<double> setZoom(double zoom) {
+    if (isDisposed) return Future<double>.value(1);
+    // A later zoom wins over one still waiting for its answer.
+    final Completer<double> slot = _zoom = Completer<double>();
+    link.whenReady(() {
+      if (identical(_zoom, slot)) link.call('setZoom', <Object>[zoom]);
+    });
+    return slot.future.timeout(
+      _answerTimeout,
+      onTimeout: () {
+        if (identical(_zoom, slot)) _zoom = null;
+        return this.zoom.value;
       },
     );
   }
@@ -116,24 +231,15 @@ final class PageScannerController extends ScannerController {
   @override
   Future<void> pauseScanning() async {
     if (isDisposed) return;
-    paused.value = true;
-    if (_ready) {
-      _send(PageCall.pauseScanning);
-    } else {
-      _pausedBeforeReady = true;
-    }
+    markPaused(true);
+    link.setPaused(true);
   }
 
   @override
   Future<void> resumeScanning() async {
     if (isDisposed) return;
-    paused.value = false;
-    if (_ready) {
-      _send(PageCall.resumeScanning);
-    } else {
-      // A page that starts is not paused: nothing to send.
-      _pausedBeforeReady = false;
-    }
+    markPaused(false);
+    link.setPaused(false);
   }
 
   @override
@@ -141,7 +247,9 @@ final class PageScannerController extends ScannerController {
     final Completer<bool>? torch = _torch;
     _torch = null;
     if (torch != null && !torch.isCompleted) torch.complete(false);
-    paused.dispose();
+    final Completer<double>? zoom = _zoom;
+    _zoom = null;
+    if (zoom != null && !zoom.isCompleted) zoom.complete(1);
     super.dispose();
   }
 }

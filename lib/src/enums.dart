@@ -57,6 +57,9 @@ enum ScannerButton {
   /// Shows the camera upside down.
   flipVertical,
 
+  /// Goes through 1x, 2x and 3x zoom, as far as the camera can go.
+  zoom,
+
   /// Goes from the camera facing away to the one facing the user, and back.
   switchCamera,
 }

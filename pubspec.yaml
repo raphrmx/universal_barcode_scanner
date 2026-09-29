@@ -44,8 +44,6 @@ dependencies:
   flutter_plugin_android_lifecycle: ^2.0.35
   web: ^1.1.1
   webview_all: ^1.4.3
-  webview_all_linux: ^1.4.3
-  webview_all_windows: ^1.4.3
 
 dev_dependencies:
   flutter_test:

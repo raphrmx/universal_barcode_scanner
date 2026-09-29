@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
@@ -12,8 +13,6 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:webview_all/webview_all.dart';
-import 'package:webview_all_linux/webview_all_linux.dart';
-import 'package:webview_all_windows/webview_all_windows.dart';
 
 /// Name of the JavaScript channel the bundled page posts scans on. It has to
 /// match the `CHANNEL` constant in `assets/barcode.html`.
@@ -75,6 +74,10 @@ class _Webview {
 
   Timer? release;
 
+  /// Calls the page's function [name] with [arguments], in order.
+  void call(String name, List<Object> arguments) =>
+      unawaited(run('$name(${arguments.map(jsonEncode).join(', ')})'));
+
   Future<void> run(String script) async {
     try {
       await controller.runJavaScript(script);
@@ -91,15 +94,17 @@ class _Webview {
     released = true;
     owner = null;
     scheduleMicrotask(() async {
+      // The Windows and Linux controllers of `webview_all` have a `dispose`
+      // their common interface does not declare. Called by name, so this
+      // package does not depend on either implementation.
+      final dynamic platform = controller.platform;
       try {
-        switch (controller.platform) {
-          case final WindowsWebViewController windows:
-            await windows.dispose();
-          case final LinuxWebViewController linux:
-            await linux.dispose();
-          default:
-            await controller.loadHtmlString(_blankPage);
-        }
+        // ignore: avoid_dynamic_calls
+        await (platform.dispose() as Future<void>);
+        // A platform without the method: the only way to learn it.
+        // ignore: avoid_catching_errors
+      } on NoSuchMethodError {
+        await controller.loadHtmlString(_blankPage);
       } on Object {
         // Already gone.
       }
@@ -186,7 +191,7 @@ class DesktopScannerPage extends StatefulWidget {
   final ScannerConfig config;
 
   /// Called with every code read.
-  final ValueChanged<String> onScanned;
+  final ValueChanged<ScanResult> onScanned;
 
   /// Called by the back button.
   final VoidCallback onClose;
@@ -217,30 +222,22 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
   /// Set on the first code of a single scan, so a second one is ignored.
   bool _delivered = false;
 
-  /// Drives the page for the buttons: pause and torch.
+  /// What the page is asked to show.
+  late final PageLink _link = PageLink(_lease.webview.call, widget.config);
+
+  /// Drives the page for the buttons.
   late final PageScannerController _controller = PageScannerController(
-    (PageCall call) => unawaited(_lease.webview.run('${call.name}()')),
+    _link,
     continuous: widget.config.continuous,
   );
 
   late final ScannerButtons _buttons = ScannerButtons(
     flipHorizontal: widget.config.flipHorizontal,
     flipVertical: widget.config.flipVertical,
-    // Before the page is up this is lost, and configure carries the flip.
     onFlip: (bool horizontal, bool vertical) =>
-        unawaited(_lease.webview.run('setFlip($horizontal, $vertical)')),
-    onSwitchCamera: _switchCamera,
+        _link.setFlip(horizontal: horizontal, vertical: vertical),
+    onSwitchCamera: _link.switchFace,
   )..controller = _controller;
-
-  /// The camera the buttons have switched to.
-  late CameraFace _face = widget.config.cameraFace;
-
-  /// Before the page is up this is lost, and configure carries the camera.
-  void _switchCamera() {
-    _face = _face == CameraFace.front ? CameraFace.back : CameraFace.front;
-    final String facing = jsonEncode(ScannerConfig.facingToPage(_face));
-    unawaited(_lease.webview.run('setFacing($facing)'));
-  }
 
   @override
   void initState() {
@@ -256,20 +253,18 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
     super.dispose();
   }
 
-  /// Hands the page its settings, which also starts the camera, with the
-  /// flips and the camera as the buttons now have them.
+  /// Hands the page its settings, as the buttons have them now, which also
+  /// starts the camera.
   @override
   void onPageLoaded() {
-    final Map<String, String> settings = widget.config
-        .copyWith(
-          flipHorizontal: _buttons.flipHorizontal,
-          flipVertical: _buttons.flipVertical,
-          cameraFace: _face,
-        )
-        .toPage(host: 'desktop', background: widget.backgroundColor);
+    final ScannerConfig config = _link.apply(widget.config);
+    final Map<String, String> settings = config.toPage(
+      host: 'desktop',
+      background: widget.backgroundColor,
+    );
     unawaited(_lease.webview.run('configure(${jsonEncode(settings)})'));
-    // After configure, which would otherwise undo a pause held back.
-    _controller.pageReady();
+    // Scripts run in order: what was held back lands after configure.
+    _link.ready(config);
   }
 
   @override
@@ -277,15 +272,16 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
     if (!mounted) return;
     final PageMessage? message = PageMessage.parse(data);
     switch (message) {
-      case PageCode(:final String code):
+      case PageCode(:final String code, :final BarcodeFormat format):
         if (!widget.config.continuous) {
           if (_delivered) return;
           _delivered = true;
         }
-        widget.onScanned(code);
+        widget.onScanned(ScanResult(code, format: format));
       case PageClose():
         _close();
       case PageTorch():
+      case PageZoom():
         _controller.handle(message);
       // The page says itself why the camera did not start.
       case PageError():
@@ -366,8 +362,11 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     implements _PageOwner {
   late final _Lease _lease = _Lease(this);
 
+  /// What the page is asked to show.
+  late final PageLink _link = PageLink(_lease.webview.call, widget.config);
+
   late final PageScannerController _controller = PageScannerController(
-    (PageCall call) => unawaited(_lease.webview.run('${call.name}()')),
+    _link,
     continuous: widget.config.continuous,
   );
 
@@ -399,24 +398,12 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
     final ScannerConfig config = widget.config;
-    final ScannerConfig old = oldWidget.config;
-    // Before configure, the page gets the current flip and camera with the
-    // rest.
-    if (!_configured) return;
-    if (config.flipHorizontal != old.flipHorizontal ||
-        config.flipVertical != old.flipVertical) {
-      unawaited(
-        _lease.webview.run(
-          'setFlip(${config.flipHorizontal}, ${config.flipVertical})',
-        ),
-      );
-    }
-    if (config.cameraFace != old.cameraFace) {
-      final String facing = jsonEncode(
-        ScannerConfig.facingToPage(config.cameraFace),
-      );
-      unawaited(_lease.webview.run('setFacing($facing)'));
-    }
+    _link
+      ..setFlip(
+        horizontal: config.flipHorizontal,
+        vertical: config.flipVertical,
+      )
+      ..setFace(config.cameraFace);
   }
 
   @override
@@ -435,28 +422,20 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     final Size? window = _window;
     if (_configured || window == null || !_lease.webview.loaded) return;
     _configured = true;
-    final Map<String, String> settings = widget.config.toEmbeddedPage(
+    final ScannerConfig config = _link.apply(widget.config);
+    final Map<String, String> settings = config.toEmbeddedPage(
       host: 'desktop',
       window: window,
     );
     unawaited(_lease.webview.run('configure(${jsonEncode(settings)})'));
-    // Scripts run in order, so what was held back lands after configure,
-    // which would otherwise undo a pause.
-    _controller.pageReady();
+    // Scripts run in order: what was held back lands after configure.
+    _link.ready(config, window: window);
   }
 
   void _onWindow(Size window) {
-    final Size? previous = _window;
     _window = window;
-    if (!_configured) {
-      _configure();
-    } else if (previous != window) {
-      unawaited(
-        _lease.webview.run(
-          'setWindow(${window.width.round()}, ${window.height.round()})',
-        ),
-      );
-    }
+    _link.setWindow(window);
+    _configure();
   }
 
   @override
@@ -474,7 +453,7 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     scanWindowSize: widget.scanWindowSize,
     onWindow: _onWindow,
     failed: _failed,
-    paused: _controller.paused,
+    paused: _controller.isPaused,
     child: widget.child,
   );
 }
