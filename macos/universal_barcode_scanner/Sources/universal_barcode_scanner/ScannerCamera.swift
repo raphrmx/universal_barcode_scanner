@@ -146,7 +146,7 @@ extension ScannerCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
     request.regionOfInterest = regionOfInterest
     let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
     guard (try? handler.perform([request])) != nil,
-      let results = request.results as? [VNBarcodeObservation]
+      let results = request.results
     else { return }
 
     let codes = results.compactMap { result -> ScannedCode? in
