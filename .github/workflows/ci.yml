@@ -154,6 +154,42 @@ jobs:
           :universal_barcode_scanner:testDebugUnitTest
         working-directory: example/android
 
+      # The plugin's Package.swift depends on FlutterFramework only where
+      # Flutter put one next to it. Here, on a Flutter that does, it must: read
+      # the manifest from where Flutter linked the plugin, as Xcode does.
+      - name: Check the plugin depends on FlutterFramework
+        if: matrix.target == 'macos' || matrix.target == 'ios'
+        run: |
+          plugin=$(ls -d ${{ matrix.target }}/Flutter/ephemeral/Packages/.packages/universal_barcode_scanner*)
+          swift package dump-package --package-path "$plugin" > manifest.json
+          grep -q '"FlutterFramework"' manifest.json
+        working-directory: example
+
+  # A Flutter from before FlutterFramework, with Swift Package Manager turned
+  # on: the plugin's package must resolve without it.
+  swiftpm-older:
+    runs-on: macos-latest
+
+    name: build macos (Flutter 3.38, Swift Package Manager)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.5
+
+      - name: Turn on Swift Package Manager
+        run: flutter config --enable-swift-package-manager
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: example
+
+      - name: Build
+        run: flutter build macos --debug
+        working-directory: example
+
   # The example was created by an older Flutter and still builds with AGP 8.
   # An app created today gets AGP 9, where the plugin compiles with the
   # built-in Kotlin support instead of applying the Kotlin plugin, and where

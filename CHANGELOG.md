@@ -1,5 +1,14 @@
 # Universal Barcode Scanner Versions
 
+## 2.1.4
+
+### Changed
+
+- On iOS and macOS, the plugin's Swift package depends on `FlutterFramework`
+  where Flutter provides it, from 3.44, as Flutter now asks of plugins. An
+  older Flutter with Swift Package Manager turned on has no such package,
+  and builds as before.
+
 ## 2.1.3
 
 ### Fixed
