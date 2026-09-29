@@ -14,6 +14,11 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 /// How long a flip takes to turn the camera over, as on the bundled page.
 const Duration _flipDuration = Duration(milliseconds: 350);
 
+/// How long the camera of a native view takes to fade in, and how long after
+/// the view is created that starts: roughly when its camera is up.
+const Duration _fadeDuration = Duration(milliseconds: 400);
+const Duration _fadeDelay = Duration(milliseconds: 350);
+
 /// Platforms that reach a native scanner over the method channel.
 bool get _hasNativeScanner => switch (defaultTargetPlatform) {
   TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,
@@ -300,10 +305,20 @@ class EmbeddedScanner extends StatefulWidget {
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
 
-class _EmbeddedScannerState extends State<EmbeddedScanner> {
+class _EmbeddedScannerState extends State<EmbeddedScanner>
+    with SingleTickerProviderStateMixin {
   static const String _viewType = 'universal_barcode_scanner/view';
 
   ScannerController? _controller;
+
+  /// Lifts the black laid over a native view while its camera starts. The
+  /// view does not say when its first frame is there, so the fade starts a
+  /// moment after the view is created, when the camera usually is.
+  late final AnimationController _arrival = AnimationController(
+    vsync: this,
+    duration: _fadeDuration,
+  );
+  Timer? _arrivalDelay;
 
   @override
   void didUpdateWidget(EmbeddedScanner oldWidget) {
@@ -318,6 +333,8 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     // A code or an error still in flight must not reach a widget that is
     // gone.
     _controller?.dispose();
+    _arrivalDelay?.cancel();
+    _arrival.dispose();
     super.dispose();
   }
 
@@ -334,6 +351,13 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
       ..onError = widget.onError;
     _controller = controller;
     widget.onCreated(controller);
+    if (widget.config.animate) {
+      _arrivalDelay = Timer(_fadeDelay, () {
+        if (mounted) _arrival.forward();
+      });
+    } else {
+      _arrival.value = 1;
+    }
   }
 
   @override
@@ -398,7 +422,22 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
         child: view,
       ),
     );
-    if (child == null) return camera;
-    return Stack(fit: StackFit.expand, children: <Widget>[camera, child]);
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        camera,
+        // A black veil rather than the view's own opacity, which not every
+        // platform applies to a native view.
+        IgnorePointer(
+          child: FadeTransition(
+            opacity: ReverseAnimation(
+              CurvedAnimation(parent: _arrival, curve: Curves.easeOut),
+            ),
+            child: const ColoredBox(color: Color(0xFF000000)),
+          ),
+        ),
+        ?child,
+      ],
+    );
   }
 }

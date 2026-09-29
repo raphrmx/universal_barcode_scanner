@@ -976,6 +976,59 @@ void main() {
       });
     });
 
+    testWidgets('fades a native view in from black, unless told not to', (
+      WidgetTester tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (MethodCall call) async => call.method == 'create' ? 0 : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        ),
+      );
+      await _on(TargetPlatform.iOS, () async {
+        Future<void> pump({bool animate = true}) => tester.pumpWidget(
+          MaterialApp(
+            home: UniversalBarcodeScanner(
+              key: ValueKey<bool>(animate),
+              onCreated: (ScannerController _) {},
+              animate: animate,
+            ),
+          ),
+        );
+        double veil() => tester
+            .widget<FadeTransition>(
+              find
+                  .ancestor(
+                    of: find.byWidgetPredicate(
+                      (Widget w) =>
+                          w is ColoredBox && w.color == const Color(0xFF000000),
+                    ),
+                    matching: find.byType(FadeTransition),
+                  )
+                  .first,
+            )
+            .opacity
+            .value;
+
+        await pump();
+        await tester.pump();
+        // The camera is not up yet: black.
+        expect(veil(), 1);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(veil(), 1);
+        await tester.pumpAndSettle();
+        expect(veil(), 0);
+
+        await pump(animate: false);
+        await tester.pump();
+        expect(veil(), 0);
+      });
+    });
+
     test('hands the page each flip', () {
       expect(
         const ScannerConfig(flipHorizontal: true).toPage(host: 'web'),

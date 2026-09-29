@@ -38,9 +38,10 @@
   sit.
 - `animate`, on by default, on `scan`, `stream` and the embedded view: the
   camera fades in once its first frame is there, and a flip turns it over
-  through its middle. On the web, Windows and Linux both; on the native
-  embedded views of Android, iOS and macOS the flip only, since they do not
-  report their first frame. Off when the platform asks for reduced motion.
+  through its middle. On the native embedded views of Android, iOS and macOS,
+  which do not report their first frame, the fade starts a moment after the
+  view is created, when the camera usually is. Off when the platform asks for
+  reduced motion.
 - The example is called Universal Barcode Scanner on every platform, rather
   than `example`.
 

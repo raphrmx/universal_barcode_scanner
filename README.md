@@ -227,7 +227,7 @@ browsers and webviews give a page no control over.
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the flip is animated, but the camera does not fade in: the native view does not say when its first frame arrives. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the camera fades in a moment after the view is created, when it is usually up: the native view does not say when its first frame arrives. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The flip is the exception: it follows the widget, and the
