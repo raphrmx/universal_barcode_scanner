@@ -62,7 +62,7 @@ class _HomePageState extends State<HomePage> {
   bool _embedded = false;
 
   /// Where the scanner's own buttons sit, in every mode.
-  Alignment _buttonsAt = Alignment.topRight;
+  Alignment _buttonsAt = Alignment.centerRight;
 
   /// The buttons over the camera: the torch, pausing and both flips. Pausing
   /// means little to a scan that ends on its first code.

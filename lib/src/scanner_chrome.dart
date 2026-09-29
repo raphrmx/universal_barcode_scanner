@@ -21,7 +21,7 @@ class ScannerChrome extends StatelessWidget {
     this.onClose,
     this.backgroundColor,
     this.buttons,
-    this.buttonsAlignment = Alignment.topRight,
+    this.buttonsAlignment = Alignment.centerRight,
   });
 
   /// The camera and whatever is drawn over it.

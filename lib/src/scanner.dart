@@ -46,7 +46,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.flip,
     this.flipVertical = false,
     this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.topRight,
+    this.buttonsAlignment = Alignment.centerRight,
   });
 
   /// Called once the view exists, with the controller that drives it.
@@ -129,8 +129,9 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// the native torch button as [showTorchButton] does.
   ///
   /// `buttons` puts a group of buttons over the camera: the torch, pausing,
-  /// and each flip. `buttonsAlignment` places it, [Alignment.topRight] by
-  /// default; it runs along the side when centred on the left or the right.
+  /// and each flip. `buttonsAlignment` places it, down the right side by
+  /// default, [Alignment.centerRight]; it runs across when not centred on the
+  /// left or the right.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -146,7 +147,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Widget? child,
     Color? backgroundColor,
     Set<ScannerButton> buttons = const <ScannerButton>{},
-    AlignmentGeometry buttonsAlignment = Alignment.topRight,
+    AlignmentGeometry buttonsAlignment = Alignment.centerRight,
   }) async {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
@@ -214,7 +215,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Widget? child,
     Color? backgroundColor,
     Set<ScannerButton> buttons = const <ScannerButton>{},
-    AlignmentGeometry buttonsAlignment = Alignment.topRight,
+    AlignmentGeometry buttonsAlignment = Alignment.centerRight,
   }) {
     final NavigatorState navigator = Navigator.of(context);
     late final Route<void> route;

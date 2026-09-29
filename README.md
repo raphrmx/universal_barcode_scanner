@@ -136,7 +136,7 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `flip` | `null` | Mirrors the camera left to right. `null` mirrors it where it is a webcam facing the user, on a desktop and in a desktop browser, and not on a phone or a tablet. Web, Windows and Linux. |
 | `flipVertical` | `false` | Shows the camera upside down. Web, Windows and Linux. |
 | `buttons` | none | Buttons over the camera, from `ScannerButton`: `torch`, `pause`, `flipHorizontal`, `flipVertical`. Web, Windows and Linux; `torch` also shows the native torch button on Android and iOS. |
-| `buttonsAlignment` | `Alignment.topRight` | Where the buttons sit. Centred on the left or the right, they run down the side. |
+| `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and

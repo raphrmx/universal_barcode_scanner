@@ -25,7 +25,7 @@
   runs, without restarting the camera.
 - `buttons` and `buttonsAlignment` on `scan`, `stream` and the embedded view:
   a group of round buttons over the camera, among the torch, pausing and each
-  flip, placed with any `Alignment`, `Alignment.topRight` by default. They run
+  flip, placed with any `Alignment`, `Alignment.centerRight` by default. They run
   down the side when centred on the left or the right, and keep clear of the
   close button. On `scan` and `stream` they are drawn on the web, Windows and
   Linux; the native screens of Android, iOS and macOS keep their own, and a

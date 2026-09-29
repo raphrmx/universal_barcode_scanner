@@ -21,7 +21,7 @@ class ScannerPage extends StatelessWidget {
     this.bar,
     this.backgroundColor,
     this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.topRight,
+    this.buttonsAlignment = Alignment.centerRight,
   });
 
   /// What to scan and how.

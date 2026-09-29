@@ -22,17 +22,18 @@ void main() {
     }
   });
 
-  testWidgets('places the buttons top right, and elsewhere on request', (
+  testWidgets('places the buttons on the right side, and elsewhere on request',
+      (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const ExampleApp());
     ChoiceChip chip(String label) =>
         tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
 
-    expect(chip('Top right').selected, isTrue);
+    expect(chip('Right side').selected, isTrue);
     await tester.tap(find.text('Bottom'));
     await tester.pump();
-    expect(chip('Top right').selected, isFalse);
+    expect(chip('Right side').selected, isFalse);
     expect(chip('Bottom').selected, isTrue);
   });
 
