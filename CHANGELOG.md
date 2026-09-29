@@ -1,5 +1,21 @@
 # Universal Barcode Scanner Versions
 
+## 2.1.0
+
+- The web, Windows and Linux scanner decodes with zxing-cpp compiled to
+  WebAssembly, through barcode-detector, in place of html5-qrcode, which has
+  not had a release since April 2023 and decoded with ZXing in JavaScript.
+  Where the browser has a barcode detector of its own it is still the one
+  used. On the web the decoding runs in a worker, off the app's thread; a
+  webview on `file://`, as on Linux, decodes in the page. The WebAssembly is
+  bundled, as base64 so that page can load it too: nothing is fetched from a
+  CDN.
+- The page drives the camera itself. A resized window or a resized embedded
+  view no longer restarts the camera: the frame is cropped to the scan window
+  on every read.
+- On Windows and Linux, a webview no longer in use is disposed rather than
+  left loaded with a blank page. `webview_all` 1.4.3 or later.
+
 ## 2.0.1
 
 - The README shows the embedded view at the top of the page, with the other

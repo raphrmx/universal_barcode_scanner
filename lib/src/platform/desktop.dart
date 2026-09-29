@@ -10,6 +10,8 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:webview_all/webview_all.dart';
+import 'package:webview_all_linux/webview_all_linux.dart';
+import 'package:webview_all_windows/webview_all_windows.dart';
 
 /// Name of the JavaScript channel the bundled page posts scans on. It has to
 /// match the `CHANNEL` constant in `assets/barcode.html`.
@@ -18,7 +20,8 @@ const String _channelName = 'UniversalBarcodeScanner';
 /// How long an idle webview is kept before it is let go.
 const Duration _idleBeforeRelease = Duration(minutes: 1);
 
-/// What an unused webview is left showing: no script, no camera.
+/// What an unused webview is left showing where it cannot be disposed: no
+/// script, no camera.
 const String _blankPage = '<!doctype html><title>.</title>';
 
 /// Whoever shows a webview: the scanner page, or an embedded view.
@@ -78,10 +81,27 @@ class _Webview {
     }
   }
 
+  /// Releases the native webview, and the camera with it.
+  ///
+  /// In a microtask: the scanner that let it go may be closing in this very
+  /// frame, and its webview widget is torn down after its own state.
   void letGo() {
     released = true;
     owner = null;
-    unawaited(controller.loadHtmlString(_blankPage));
+    scheduleMicrotask(() async {
+      try {
+        switch (controller.platform) {
+          case final WindowsWebViewController windows:
+            await windows.dispose();
+          case final LinuxWebViewController linux:
+            await linux.dispose();
+          default:
+            await controller.loadHtmlString(_blankPage);
+        }
+      } on Object {
+        // Already gone.
+      }
+    });
   }
 
   /// The page we load is our own and asks for exactly one thing, so granting
@@ -131,8 +151,6 @@ class _Lease {
     if (shared) {
       webview.release = Timer(_idleBeforeRelease, () {
         if (!identical(_kept, webview) || webview.owner != null) return;
-        // `webview_all` cannot dispose a controller, so the page is blanked
-        // and the reference dropped.
         webview.letGo();
         _kept = null;
       });
@@ -145,7 +163,7 @@ class _Lease {
 /// Scanner for the desktop platforms that have no native scanner: Windows and
 /// Linux.
 ///
-/// Both run the same bundled `html5-qrcode` page in a webview, WebView2 on
+/// Both run the same bundled scanner page in a webview, WebView2 on
 /// Windows and WebKitGTK on Linux, and both need the host to answer the
 /// page's camera permission request.
 class DesktopScannerPage extends StatefulWidget {

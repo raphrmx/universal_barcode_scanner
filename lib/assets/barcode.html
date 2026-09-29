@@ -5,12 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    /* In order to place the tracking correctly */
-    canvas.drawing, canvas.drawingBuffer {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
     html, body {
       height: 100%;
       margin: 0;
@@ -18,48 +12,54 @@
          has no business showing scrollbars over a camera. */
       overflow: hidden;
     }
-    /* The framing happens here rather than in the host, because the library
-       reads `#reader.clientWidth` to size the video and every piece of its
-       geometry follows from it. A host that sized the view to one box while
-       the page laid out for another got the whole overlay stretched. */
-    /* A column: the main axis is vertical, so justify-content centres the
-       reader in the window while flex-shrink cannot touch its width. The flex
-       stops at the body; #reader keeps the library's own layout inside. */
+    /* A column: justify-content centres the stage in the window. */
     body {
       background: var(--ubs-background, #000);
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-    /* The library draws the scan box of each frame at the size the box is
-       laid out, not at the camera's: laid out 640 wide, it decoded 640 pixels
-       of a 1280 camera. So #reader is laid out at the decoding width and
-       scaled down to the stage for display. A transform leaves the layout
-       size the library measures untouched. */
+    /* The camera, sized by the script from the video's own ratio, and the
+       scan box over it. The box's shadow shades the rest of the stage, which
+       clips it. */
     #stage {
       position: relative;
       flex: none;
       margin: 0 auto;
       overflow: hidden;
     }
-    #reader {
+    #stage video {
       position: absolute;
       left: 0;
       top: 0;
-      transform-origin: 0 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
     }
+    #box {
+      display: none;
+      position: absolute;
+      box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.48);
+    }
+    #box.shown { display: block; }
+    /* Four white corners, drawn as borders on four small squares. */
+    #box i {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border: 0 solid #fff;
+    }
+    #box i:nth-child(1) { left: -2px; top: -2px; border-width: 4px 0 0 4px; }
+    #box i:nth-child(2) { right: -2px; top: -2px; border-width: 4px 4px 0 0; }
+    #box i:nth-child(3) { left: -2px; bottom: -2px; border-width: 0 0 4px 4px; }
+    #box i:nth-child(4) { right: -2px; bottom: -2px; border-width: 0 4px 4px 0; }
 
-    /* The sweeping line. It is appended inside #qr-shaded-region, whose
-       borders draw the shading, so its content box is exactly the scan square
-       and the line needs no geometry of its own. */
-    /* Sized against the scale #reader is shown at, so it stays two pixels
-       thick on screen. */
+    /* The sweeping line, inside the box. */
     #ubs-scan-line {
-      --ubs-line: calc(2px / var(--ubs-scale, 1));
       position: absolute;
       left: 0;
       width: 100%;
-      height: var(--ubs-line);
+      height: 2px;
       background: var(--ubs-line-color, #ff6666);
       box-shadow: 0 0 8px 1px var(--ubs-line-color, #ff6666);
       opacity: 0.9;
@@ -69,12 +69,12 @@
 
     @keyframes ubs-sweep {
       0%   { top: 0; }
-      50%  { top: calc(100% - var(--ubs-line)); }
+      50%  { top: calc(100% - 2px); }
       100% { top: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      #ubs-scan-line { animation: none; top: calc(50% - var(--ubs-line) / 2); }
+      #ubs-scan-line { animation: none; top: calc(50% - 1px); }
     }
 
     /* Shown when the camera never starts. Without it the page is a black
@@ -96,8 +96,16 @@
        than letterboxed, as the native views do, and Flutter draws the scan
        window over it. */
     .ubs-embedded body { display: block; }
-    .ubs-embedded #stage { position: absolute; left: 0; top: 0; margin: 0; }
-    .ubs-embedded #qr-shaded-region { display: none !important; }
+    .ubs-embedded #stage {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+    .ubs-embedded #stage video { object-fit: cover; }
+    .ubs-embedded #box { display: none; }
     .ubs-embedded #ubs-message.shown {
       position: absolute;
       left: 0;
@@ -110,17 +118,16 @@
       font-size: 13px;
     }
   </style>
-  <script src="html5-qrcode.min.js"></script>
 </head>
 <body>
-<div id="stage"><div id="reader"></div></div>
+<div id="stage">
+  <video id="video" muted playsinline></video>
+  <div id="box"><i></i><i></i><i></i><i></i><div id="ubs-scan-line"></div></div>
+</div>
 <p id="ubs-message"></p>
 <script>
-// refer doc here https://github.com/mebjas/html5-qrcode
-
 // Scoped rather than global: a top-level `var closed` is `window.closed`, a
-// read-only property, and assigning it silently did nothing. The latch that
-// was meant to keep a stopped page stopped never held.
+// read-only property, and assigning it silently did nothing.
 (function () {
   'use strict';
 
@@ -128,35 +135,32 @@
   // the page answers its parent.
   var CHANNEL = 'UniversalBarcodeScanner';
   var message = document.getElementById('ubs-message');
-  var SHADED_REGION_ID = 'qr-shaded-region';
-  // The library refuses anything under 50px.
-  var MIN_QR_BOX = 60;
+  var stage = document.getElementById('stage');
+  var video = document.getElementById('video');
+  var box = document.getElementById('box');
+
+  // Smallest scan box, in CSS pixels.
+  var MIN_BOX = 60;
+  // Widest the camera is shown, in CSS pixels, outside an embedded view.
+  var MAX_SHOWN = 640;
   // A code held in front of the camera is read on every frame. It is reported
   // once, and again only after it has been out of sight this long.
   var SAME_CODE_GAP_MS = 1000;
+  // Shortest time between two frames handed to the decoder. A frame is only
+  // taken once the previous one is read, so a slow machine reads fewer.
+  var FRAME_MS = 66;
+  // How long a worker gets to load the decoder before the page does it
+  // itself.
+  var WORKER_TIMEOUT_MS = 8000;
 
-  var F = Html5QrcodeSupportedFormats;
-  // Same lists as the native scanners. Null leaves the library's own, which
-  // is every format it knows.
+  // Same lists as the native scanners, in BarcodeDetector's names. Null is
+  // every format the decoder knows.
   var FORMATS = {
     all: null,
-    qr: [F.QR_CODE],
-    barcode: [F.CODABAR, F.CODE_39, F.CODE_93, F.CODE_128, F.EAN_13, F.EAN_8,
-      F.ITF, F.PDF_417, F.UPC_A, F.UPC_E]
+    qr: ['qr_code'],
+    barcode: ['codabar', 'code_39', 'code_93', 'code_128', 'ean_13', 'ean_8',
+      'itf', 'pdf417', 'upc_a', 'upc_e']
   };
-
-  var reader = document.getElementById('reader');
-  var stage = document.getElementById('stage');
-  // Widest the scanner is shown, in CSS pixels.
-  var MAX_SHOWN = 640;
-  // Widths #reader is laid out at, and so decoded at: the camera's, as asked
-  // for below, landscape or portrait.
-  var DECODE_LANDSCAPE = 1280;
-  var DECODE_PORTRAIT = 720;
-  // Built on the first configure, and again only when the formats change:
-  // the library takes them at construction.
-  var scanner = null;
-  var scannerFormats = null;
 
   // Nothing runs until configure: the desktop hosts call it once the page is
   // up, the web host passes the same settings in the query string.
@@ -179,59 +183,20 @@
   // not continuous, and when the app asks.
   var paused = false;
   var torchOn = false;
-  // The view's size when the camera last started: an embedded view's scan
-  // box follows from it.
-  var startedWidth = 0;
-  var startedHeight = 0;
   // Every code in sight, by value: when it was last read and whether it has
   // been reported since it came into view.
   var sightings = {};
   var lastEmit = null;
-  var lastWidth = 0;
-  var resizeTimer = null;
+
+  // The camera as it runs, and the facing it was opened with.
+  var stream = null;
+  var streamFacing = null;
   // Starting and stopping the camera are asynchronous and must not overlap.
   var queue = Promise.resolve();
-
-  // No aspectRatio: forcing one overflows the host box. Left out, the video
-  // follows the camera's own ratio.
-  var config = {
-    // Decoding runs on the main thread when the browser has no native
-    // detector. Thirty frames a second kept it busy for nothing: a code is
-    // read just as fast at twelve.
-    fps: 12,
-    // Derived from the viewfinder: the library drops the shaded region as soon
-    // as the box is taller than the video.
-    // The library only decodes inside this box, so a linear barcode gets a
-    // wide one rather than a square it may not fit in.
-    qrbox: function (viewfinderWidth, viewfinderHeight) {
-      if (settings.embedded) {
-        // The window Flutter draws, brought back to the scale #reader is
-        // laid out at.
-        var scale = coverScale(viewfinderWidth, viewfinderHeight);
-        return {
-          width: Math.min(viewfinderWidth,
-            Math.max(MIN_QR_BOX, Math.round(settings.windowWidth / scale))),
-          height: Math.min(viewfinderHeight,
-            Math.max(MIN_QR_BOX, Math.round(settings.windowHeight / scale)))
-        };
-      }
-      if (settings.window === 'wide') {
-        var width = Math.max(MIN_QR_BOX, Math.floor(viewfinderWidth * 0.85));
-        var height = Math.max(MIN_QR_BOX, Math.min(
-          Math.floor(width * 0.45), Math.floor(viewfinderHeight * 0.85)));
-        return {
-          width: Math.min(width, viewfinderWidth),
-          height: Math.min(height, viewfinderHeight)
-        };
-      }
-      var smallest = Math.min(viewfinderWidth, viewfinderHeight);
-      var size = Math.max(MIN_QR_BOX, Math.floor(smallest * 0.7));
-      if (size > smallest) {
-        size = smallest;
-      }
-      return { width: size, height: size };
-    }
-  };
+  // Bumped on every stop, so the frame loop of a stopped camera winds down.
+  var generation = 0;
+  // The generation a frame loop runs for, so there is never a second one.
+  var reading = -1;
 
   // The web host passes the colour in the query string, the desktop hosts
   // call this once the page is up.
@@ -246,33 +211,6 @@
     if (css) {
       document.documentElement.style.setProperty('--ubs-background', css);
     }
-  }
-
-  // Hangs the sweeping line inside the library's own scan region, so it tracks
-  // the box when the library shrinks it.
-  function addScanLine() {
-    var region = document.getElementById(SHADED_REGION_ID);
-    if (!region) {
-      return false;
-    }
-    if (document.getElementById('ubs-scan-line')) {
-      return true;
-    }
-    var line = document.createElement('div');
-    line.id = 'ubs-scan-line';
-    region.appendChild(line);
-    return true;
-  }
-
-  // The region is not always created before the promise settles, hence the
-  // retry.
-  function installScanLine() {
-    var attempts = 0;
-    var timer = setInterval(function () {
-      if (addScanLine() || ++attempts > 20) {
-        clearInterval(timer);
-      }
-    }, 50);
   }
 
   /// What went wrong, in words, rather than a black rectangle.
@@ -290,7 +228,11 @@
     // A desktop webview has no address bar and nothing to reload: what the
     // user can do there is change the system settings and reopen.
     var desktop = settings.host === 'desktop';
-    if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
+    if (name === 'DecoderError') {
+      code = 'unknown';
+      title = 'The scanner did not load';
+      detail = text || 'The decoder could not be started.';
+    } else if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
       code = 'camera_permission_denied';
       title = 'Camera blocked';
       detail = desktop
@@ -298,7 +240,8 @@
           + 'then open the scanner again.'
         : 'The page needs permission to use the camera. Allow it in the '
           + 'address bar, then reload.';
-    } else if (name === 'NotFoundError' || /no camera|not found/i.test(text)) {
+    } else if (name === 'NotFoundError' || name === 'OverconstrainedError'
+        || /no camera|not found/i.test(text)) {
       title = 'No camera found';
       detail = desktop
         ? 'This computer has no camera the scanner can open.'
@@ -329,6 +272,7 @@
     message.appendChild(strong);
     message.appendChild(span);
     message.className = 'shown';
+    box.className = '';
   }
 
   function hideMessage() {
@@ -336,6 +280,295 @@
       message.className = '';
     }
   }
+
+  // ---------------------------------------------------------------------
+  // Decoding.
+
+  // Loads a script next to this page, once.
+  var scripts = {};
+  function loadScript(src) {
+    if (!scripts[src]) {
+      scripts[src] = new Promise(function (resolve, reject) {
+        var tag = document.createElement('script');
+        tag.src = src;
+        tag.onload = resolve;
+        tag.onerror = function () {
+          reject(new Error('Could not load ' + src + '.'));
+        };
+        document.head.appendChild(tag);
+      });
+    }
+    return scripts[src];
+  }
+
+  function closeFrame(frame) {
+    if (frame && typeof frame.close === 'function') {
+      frame.close();
+    }
+  }
+
+  // Reads frames on this page's thread, for when no worker can: the
+  // platform's detector where it has one, the bundled reader otherwise,
+  // loaded only then.
+  function pageDecoder(formats) {
+    return loadScript('decoder.js').then(function () {
+      return window.UbsDecoder.create(formats, function () {
+        return loadScript('barcode-detector.js').then(function () {
+          return loadScript('zxing-reader-wasm.js');
+        });
+      });
+    }).then(function (detector) {
+      return {
+        read: function (frame) {
+          return window.UbsDecoder.read(detector, frame).then(function (codes) {
+            closeFrame(frame);
+            return codes;
+          }, function (error) {
+            closeFrame(frame);
+            throw error;
+          });
+        },
+        end: function () {}
+      };
+    });
+  }
+
+  // Reads frames in a worker, off this page's thread. Rejects when the
+  // worker cannot start or load the decoder, and calls [onLost] when one that
+  // did fails later, for the page to take over.
+  function workerDecoder(formats, onLost) {
+    return new Promise(function (resolve, reject) {
+      var worker;
+      try {
+        worker = new Worker('decoder.js');
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      var pending = {};
+      var next = 0;
+      var ready = false;
+      var dead = false;
+      var timer = setTimeout(function () {
+        fail(new Error('The decoder worker did not answer.'));
+      }, WORKER_TIMEOUT_MS);
+
+      function fail(error) {
+        if (dead) {
+          return;
+        }
+        dead = true;
+        clearTimeout(timer);
+        worker.terminate();
+        for (var id in pending) {
+          pending[id].reject(error);
+        }
+        pending = {};
+        if (ready) {
+          onLost();
+        } else {
+          reject(error);
+        }
+      }
+
+      worker.onerror = function (event) {
+        event.preventDefault();
+        fail(new Error(event.message || 'The decoder worker failed.'));
+      };
+      worker.onmessage = function (event) {
+        var data = event.data || {};
+        if (data.type === 'ready' && !ready && !dead) {
+          ready = true;
+          clearTimeout(timer);
+          resolve({
+            read: function (frame) {
+              if (dead) {
+                closeFrame(frame);
+                return Promise.reject(new Error('The decoder worker is gone.'));
+              }
+              return new Promise(function (resolveRead, rejectRead) {
+                var id = ++next;
+                pending[id] = { resolve: resolveRead, reject: rejectRead };
+                var transfer = typeof frame.close === 'function'
+                  ? [frame] : [frame.data.buffer];
+                worker.postMessage({ type: 'frame', id: id, frame: frame },
+                  transfer);
+              });
+            },
+            end: function () {
+              dead = true;
+              worker.terminate();
+            }
+          });
+        } else if (data.type === 'codes' && pending[data.id]) {
+          pending[data.id].resolve(data.codes);
+          delete pending[data.id];
+        } else if (data.type === 'failed') {
+          fail(new Error(data.message));
+        }
+      };
+      worker.postMessage({ type: 'formats', formats: formats });
+    });
+  }
+
+  // The decoder for the formats asked for, built again when they change, and
+  // whether it could not be built at all, which holds until the next
+  // configure rather than being retried on every frame.
+  var decoder = null;
+  var decoderFormats = null;
+  var decoderBroken = false;
+
+  // A worker keeps the decoding off the page's thread, which matters most on
+  // the web, where that thread is the app's. The platform's own detector
+  // already runs elsewhere, so it needs none. A webview on file:// cannot
+  // start one, and the page decodes itself.
+  function decoderFor(key) {
+    if (decoder && decoderFormats === key) {
+      return decoder;
+    }
+    if (decoder) {
+      decoder.then(function (old) { old.end(); }, function () {});
+    }
+    var formats = FORMATS[key];
+    decoderFormats = key;
+    var useWorker = !('BarcodeDetector' in window)
+      && typeof Worker !== 'undefined'
+      && /^https?:$/.test(window.location.protocol);
+    var built = useWorker
+      ? workerDecoder(formats, function () {
+        // The worker died after starting: this page reads from now on.
+        if (decoder === built) {
+          decoder = pageDecoder(formats);
+          watch(decoder);
+        }
+      }).catch(function () {
+        return pageDecoder(formats);
+      })
+      : pageDecoder(formats);
+    decoder = built;
+    watch(built);
+    return built;
+  }
+
+  function watch(pending) {
+    pending.catch(function (error) {
+      if (decoder !== pending) {
+        return;
+      }
+      decoderBroken = true;
+      showMessage({
+        name: 'DecoderError',
+        message: String((error && error.message) || error)
+      });
+    });
+  }
+
+  // The part of the frame to decode, in the video's own pixels: the scan box
+  // shown, or the window Flutter draws over an embedded view, or the whole
+  // frame when there is none.
+  function cropRect() {
+    var vw = video.videoWidth;
+    var vh = video.videoHeight;
+    var whole = { x: 0, y: 0, width: vw, height: vh };
+    var rect;
+    if (settings.window === 'none') {
+      return whole;
+    } else if (settings.embedded) {
+      if (!settings.windowWidth || !settings.windowHeight) {
+        return whole;
+      }
+      // Cover: the frame is scaled to fill the view and centred in it, as
+      // the window is.
+      var scale = Math.max(document.body.clientWidth / vw,
+        document.body.clientHeight / vh) || 1;
+      var w = settings.windowWidth / scale;
+      var h = settings.windowHeight / scale;
+      rect = { x: (vw - w) / 2, y: (vh - h) / 2, width: w, height: h };
+    } else {
+      if (!box.offsetWidth) {
+        return whole;
+      }
+      var shown = stage.clientWidth / vw || 1;
+      rect = {
+        x: box.offsetLeft / shown,
+        y: box.offsetTop / shown,
+        width: box.offsetWidth / shown,
+        height: box.offsetHeight / shown
+      };
+    }
+    var x = Math.max(0, Math.floor(rect.x));
+    var y = Math.max(0, Math.floor(rect.y));
+    return {
+      x: x,
+      y: y,
+      width: Math.max(1, Math.min(vw - x, Math.ceil(rect.width))),
+      height: Math.max(1, Math.min(vh - y, Math.ceil(rect.height)))
+    };
+  }
+
+  // One frame, cropped: an ImageBitmap where the browser can make one, which
+  // costs this thread next to nothing, pixels read off a canvas otherwise.
+  var canvas = null;
+  function grab() {
+    var rect = cropRect();
+    if (typeof createImageBitmap === 'function') {
+      return createImageBitmap(video, rect.x, rect.y, rect.width, rect.height);
+    }
+    canvas = canvas || document.createElement('canvas');
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    var context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(video, rect.x, rect.y, rect.width, rect.height,
+      0, 0, rect.width, rect.height);
+    return Promise.resolve(context.getImageData(0, 0, rect.width, rect.height));
+  }
+
+  // Starts handing frames to the decoder, unless a loop already does for
+  // this camera.
+  function startReading() {
+    if (reading === generation) {
+      return;
+    }
+    reading = generation;
+    readFrames(generation);
+  }
+
+  // Hands frames to the decoder for as long as the camera of [run] runs.
+  function readFrames(run) {
+    if (run !== generation || stopped || delivered || decoderBroken) {
+      if (reading === run) {
+        reading = -1;
+      }
+      return;
+    }
+    var began = Date.now();
+    var again = function () {
+      setTimeout(function () {
+        readFrames(run);
+      }, Math.max(0, FRAME_MS - (Date.now() - began)));
+    };
+    if (paused || video.readyState < 2 || !video.videoWidth) {
+      again();
+      return;
+    }
+    decoderFor(settings.formats).then(function (ready) {
+      return grab().then(function (frame) {
+        return ready.read(frame);
+      });
+    }).then(function (codes) {
+      if (run !== generation) {
+        return;
+      }
+      for (var i = 0; i < codes.length; i++) {
+        onDecoded(codes[i]);
+      }
+    }, function () {
+      /* a frame lost, or the decoder gone: the next one tries again */
+    }).then(again);
+  }
+
+  // ---------------------------------------------------------------------
+  // The camera.
 
   // Runs one camera operation after the previous one has settled.
   function enqueue(task) {
@@ -345,89 +578,129 @@
   }
 
   function stopCamera() {
-    if (!scanner || !scanner.isScanning) {
-      return Promise.resolve();
+    generation++;
+    if (stream) {
+      stream.getTracks().forEach(function (track) { track.stop(); });
     }
-    return scanner.stop().catch(function () {
-      /* already stopped */
-    });
+    stream = null;
+    streamFacing = null;
+    video.srcObject = null;
+    torchOn = false;
+    box.className = '';
+    return Promise.resolve();
   }
 
   function startCamera() {
     if (stopped || delivered) {
       return Promise.resolve();
     }
-    if (!scanner || scannerFormats !== settings.formats) {
-      if (scanner) {
-        try {
-          scanner.clear();
-        } catch (error) {
-          /* nothing drawn yet */
-        }
-      }
-      var options = {
-        verbose: false,
-        // The browser's own detector where it has one, Chrome on Android and
-        // macOS among them: native code instead of JavaScript on every frame.
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-      };
-      if (FORMATS[settings.formats]) {
-        options.formatsToSupport = FORMATS[settings.formats];
-      }
-      scanner = new Html5Qrcode('reader', options);
-      scannerFormats = settings.formats;
+    // Already running this way: kept, rather than asked for again.
+    if (stream && streamFacing === settings.facing) {
+      fit();
+      startReading();
+      return Promise.resolve();
     }
-    layOut();
+    stopCamera();
+    // Loaded while the camera opens.
+    decoderFor(settings.formats);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showMessage({
+        name: 'NotSupportedError',
+        message: 'This page cannot reach a camera.'
+      });
+      return Promise.resolve();
+    }
     // Asked for explicitly: a browser hands out 640x480 when nothing is said,
     // about two pixels per bar for a barcode held at arm's length, where the
     // decoder gives up on the slightest blur. 1280x720 doubles that for a few
     // milliseconds more per frame; 1080p would cost twice as much again.
     // Continuous focus, where the camera has it, keeps a close code sharp.
-    var camera = {
-      videoConstraints: {
-        facingMode: settings.facing,
+    var facing = settings.facing;
+    return navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: facing,
         width: { ideal: 1280 },
         height: { ideal: 720 },
         advanced: [{ focusMode: 'continuous' }]
       }
-    };
-    var scanConfig = Object.assign({}, config, camera);
-    if (settings.window === 'none') {
-      // No box: the library reads the whole frame and shades nothing.
-      delete scanConfig.qrbox;
-    }
-    // A restarted camera comes back with its torch off.
-    torchOn = false;
-    startedWidth = document.body.clientWidth;
-    startedHeight = document.body.clientHeight;
-    return Promise.resolve().then(function () {
-      return scanner.start({ facingMode: settings.facing }, scanConfig, onDecoded);
-    }).then(
-      function () {
-        hideMessage();
-        // Embedded, the scan window is Flutter's.
-        if (settings.window !== 'none' && !settings.embedded) {
-          installScanLine();
+    }).then(function (opened) {
+      // Stopped or answered while the camera was opening.
+      if (stopped || delivered) {
+        opened.getTracks().forEach(function (track) { track.stop(); });
+        return;
+      }
+      stream = opened;
+      streamFacing = facing;
+      video.srcObject = opened;
+      return video.play().catch(function () {
+        /* muted and inline, so allowed to play; frames arrive regardless */
+      }).then(function () {
+        if (!decoderBroken) {
+          hideMessage();
         }
-        // Stopped or answered while the camera was opening.
-        if (stopped || delivered) {
-          return stopCamera();
-        }
-      },
-      showMessage
-    );
+        fit();
+        startReading();
+      });
+    }, showMessage);
   }
 
-  // The library measures its container only when starting, so a resized
-  // window leaves the video and the overlay on stale geometry.
-  function restartScanner() {
-    if (stopped || delivered) {
+  // ---------------------------------------------------------------------
+  // Layout.
+
+  // Sizes the stage to the video's ratio, as large as the window allows up
+  // to MAX_SHOWN wide, and places the scan box on it. Cheap, and all a resize
+  // needs: the frame is cropped from the box on every read, so the camera
+  // never restarts for it.
+  function fit() {
+    if (settings.embedded) {
+      stage.style.width = '';
+      stage.style.height = '';
       return;
     }
-    enqueue(function () {
-      return stopCamera().then(startCamera);
-    });
+    var vw = video.videoWidth || 16;
+    var vh = video.videoHeight || 9;
+    var body = document.body;
+    var width = Math.min(body.clientWidth, MAX_SHOWN,
+      body.clientHeight * vw / vh);
+    var height = width * vh / vw;
+    stage.style.width = Math.round(width) + 'px';
+    stage.style.height = Math.round(height) + 'px';
+
+    if (settings.window === 'none' || !stream) {
+      box.className = '';
+      return;
+    }
+    var boxWidth;
+    var boxHeight;
+    if (settings.window === 'wide') {
+      boxWidth = Math.max(MIN_BOX, Math.floor(width * 0.85));
+      boxHeight = Math.max(MIN_BOX, Math.min(Math.floor(boxWidth * 0.45),
+        Math.floor(height * 0.85)));
+    } else {
+      var smallest = Math.min(width, height);
+      boxWidth = boxHeight = Math.max(MIN_BOX, Math.floor(smallest * 0.7));
+    }
+    boxWidth = Math.min(boxWidth, width);
+    boxHeight = Math.min(boxHeight, height);
+    box.style.width = boxWidth + 'px';
+    box.style.height = boxHeight + 'px';
+    box.style.left = Math.round((width - boxWidth) / 2) + 'px';
+    box.style.top = Math.round((height - boxHeight) / 2) + 'px';
+    box.className = 'shown';
   }
+
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(fit).observe(document.body);
+  }
+  window.addEventListener('resize', fit);
+  // The video's size is known once it has metadata, and changes when a
+  // phone turns.
+  video.addEventListener('loadedmetadata', fit);
+  video.addEventListener('resize', fit);
+
+  // ---------------------------------------------------------------------
+  // What the hosts call.
 
   // Sets the page up and starts the camera. The desktop hosts call it every
   // time they show the page, which they keep loaded between two scans, so it
@@ -457,30 +730,20 @@
     paused = false;
     sightings = {};
     lastEmit = null;
-    restartScanner();
-  }
-
-  // An embedded view's scan window, when its layout changes it. The library
-  // takes the box only when starting, hence the restart.
-  function setWindow(width, height) {
-    width = Math.max(0, Math.round(width) || 0);
-    height = Math.max(0, Math.round(height) || 0);
-    if (width === settings.windowWidth && height === settings.windowHeight) {
-      return;
+    if (decoderBroken) {
+      decoderBroken = false;
+      decoder = null;
     }
-    settings.windowWidth = width;
-    settings.windowHeight = height;
-    scheduleRestart();
+    hideMessage();
+    fit();
+    enqueue(startCamera);
   }
 
-  // Debounced: a view being resized changes its size on every frame.
-  function scheduleRestart() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      if (!stopped) {
-        restartScanner();
-      }
-    }, 250);
+  // An embedded view's scan window, when its layout changes it. Read on the
+  // next frame: nothing restarts.
+  function setWindow(width, height) {
+    settings.windowWidth = Math.max(0, Math.round(width) || 0);
+    settings.windowHeight = Math.max(0, Math.round(height) || 0);
   }
 
   // What an embedded view's controller asks for.
@@ -503,35 +766,29 @@
       torchOn = on;
       post({ torch: on });
     };
-    var feature = null;
-    try {
-      feature = scanner && scanner.isScanning
-        ? scanner.getRunningTrackCameraCapabilities().torchFeature()
-        : null;
-    } catch (error) {
-      feature = null;
-    }
-    if (!feature || !feature.isSupported()) {
+    var track = stream && stream.getVideoTracks()[0];
+    var capabilities = track && typeof track.getCapabilities === 'function'
+      ? track.getCapabilities() : {};
+    if (!capabilities.torch) {
       answer(false);
       return;
     }
-    feature.apply(wanted).then(
+    track.applyConstraints({ advanced: [{ torch: wanted }] }).then(
       function () { answer(wanted); },
       function () { answer(torchOn); }
     );
-  }
-
-  function hasChannel() {
-    return typeof window[CHANNEL] !== 'undefined'
-      && typeof window[CHANNEL].postMessage === 'function';
   }
 
   // Called by the desktop hosts before the scanner goes away, to release the
   // camera.
   function stopScanner() {
     stopped = true;
-    clearTimeout(resizeTimer);
     enqueue(stopCamera);
+  }
+
+  function hasChannel() {
+    return typeof window[CHANNEL] !== 'undefined'
+      && typeof window[CHANNEL].postMessage === 'function';
   }
 
   // Whether a code read on this frame is worth reporting. Each code is
@@ -577,15 +834,15 @@
   }
 
   // JSON rather than the bare code, so that no code reads as a command.
-  function post(message) {
-    var data = JSON.stringify(message);
+  function post(data) {
+    var text = JSON.stringify(data);
     if (hasChannel()) {
-      window[CHANNEL].postMessage(data);
+      window[CHANNEL].postMessage(text);
       return;
     }
     // Naming the origin keeps the message from reaching a parent on another
     // one.
-    window.parent.postMessage(data, window.location.origin);
+    window.parent.postMessage(text, window.location.origin);
   }
 
   // The page holds the keyboard, so Escape has to be caught here to reach
@@ -639,97 +896,6 @@
       post({ ready: true });
     }
   }
-
-  // Embedded, the camera is shown at the view's width, however wide.
-  function shownWidth() {
-    return settings.embedded
-      ? document.body.clientWidth
-      : Math.min(document.body.clientWidth, MAX_SHOWN);
-  }
-
-  // The scale that makes a frame of this size cover the whole view, cropping
-  // what overflows, as the native views' aspect fill does.
-  function coverScale(width, height) {
-    var body = document.body;
-    return Math.max(body.clientWidth / Math.max(1, width),
-      body.clientHeight / Math.max(1, height)) || 1;
-  }
-
-  // The camera's width, as far as it can be known before it starts. A webcam
-  // films in landscape whatever the window's shape; only a phone or a tablet
-  // held upright films in portrait. Decoding at less than the shown width
-  // would throw pixels away.
-  function decodeWidth() {
-    var handheld = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    var portrait = handheld && window.innerHeight > window.innerWidth;
-    return Math.max(shownWidth(), portrait ? DECODE_PORTRAIT : DECODE_LANDSCAPE);
-  }
-
-  // Sets the width #reader is laid out, and decoded, at. Only before a start:
-  // the library measures it once.
-  function layOut() {
-    lastWidth = decodeWidth();
-    reader.style.width = lastWidth + 'px';
-    fit();
-  }
-
-  // Scales #reader to the stage. Cheap, and all a resize needs unless the
-  // decoding width itself has to change.
-  function fit() {
-    if (settings.embedded) {
-      fitCover();
-      return;
-    }
-    var shown = shownWidth();
-    var scale = shown / Math.max(1, reader.offsetWidth);
-    reader.style.transform = 'scale(' + scale + ')';
-    reader.style.setProperty('--ubs-scale', String(scale));
-    stage.style.width = shown + 'px';
-    stage.style.height = Math.round(reader.offsetHeight * scale) + 'px';
-  }
-
-  // Embedded: #reader scaled to cover the view and centred in it. Until the
-  // video is in, its height is guessed from the camera's usual 16:9.
-  function fitCover() {
-    var width = document.body.clientWidth;
-    var height = document.body.clientHeight;
-    var readerWidth = Math.max(1, reader.offsetWidth);
-    var readerHeight = reader.offsetHeight > 1
-      ? reader.offsetHeight : readerWidth * 9 / 16;
-    var scale = coverScale(readerWidth, readerHeight);
-    var left = (width - readerWidth * scale) / 2;
-    var top = (height - readerHeight * scale) / 2;
-    reader.style.transform = 'translate(' + left + 'px, ' + top + 'px) scale('
-      + scale + ')';
-    reader.style.setProperty('--ubs-scale', String(scale));
-    stage.style.width = width + 'px';
-    stage.style.height = height + 'px';
-  }
-
-  // A restart tears the camera down and back up, so it happens only when the
-  // decoding width changes, as when a phone turns, or when an embedded view
-  // with a scan window changes size, which changes the box; debounced.
-  function onResized() {
-    fit();
-    if (stopped) {
-      return;
-    }
-    var resized = settings.embedded && settings.window !== 'none'
-      && (document.body.clientWidth !== startedWidth
-        || document.body.clientHeight !== startedHeight);
-    if (!resized && decodeWidth() === lastWidth) {
-      return;
-    }
-    scheduleRestart();
-  }
-
-  // #reader grows once the video is in, which changes the stage's height;
-  // the body follows the window or the host view.
-  if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(fit).observe(reader);
-    new ResizeObserver(onResized).observe(document.body);
-  }
-  window.addEventListener('resize', onResized);
 
   // What the hosts call from outside.
   window.configure = configure;

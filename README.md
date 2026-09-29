@@ -28,16 +28,19 @@ one entry point.
 | Android | Native, CameraX and ML Kit | Native view |
 | iOS | Native, AVFoundation | Native view |
 | macOS | Native, AVFoundation and Vision | Native view |
-| Web | `html5-qrcode` in an iframe, bundled, no CDN call | The same page in an iframe |
-| Windows | `html5-qrcode` in a WebView2 | The same page in a WebView2 |
-| Linux | `html5-qrcode` in a WebKitGTK view | The same page in a WebKitGTK view |
+| Web | zxing-cpp in WebAssembly, in a worker, bundled, no CDN call | The same page in an iframe |
+| Windows | zxing-cpp in WebAssembly, in a WebView2 | The same page in a WebView2 |
+| Linux | zxing-cpp in WebAssembly, in a WebKitGTK view | The same page in a WebKitGTK view |
 
 Windows needs the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/),
 which ships with Windows 11 and with any recent Edge. Linux needs WebKitGTK, `libwebkit2gtk-4.1-0`
 on Debian and Ubuntu, which most desktop installs already carry.
 
-The same bundled page serves both, and the plugin answers its camera permission request on the host
-side. That last part is what usually stops a webview from scanning on Linux: WebKitGTK denies a
+The same bundled page serves all three. Where the browser has a barcode detector of its own, Chrome
+on Android and macOS among them, the page uses it; elsewhere it decodes with
+[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) compiled to WebAssembly, in a worker where the
+page can start one, so on the web the decoding stays off the app's thread. On the desktop the
+plugin answers the page's camera permission request on the host side. That last part is what usually stops a webview from scanning on Linux: WebKitGTK denies a
 media request the embedder does not handle.
 
 ## Install
@@ -280,6 +283,7 @@ colours.
 
 MIT, see [LICENSE](LICENSE).
 
-The web, Windows and Linux scanner runs [html5-qrcode](https://github.com/mebjas/html5-qrcode), bundled
-unmodified with the ZXing decoder it contains. Both are Apache 2.0; the licence travels with the file,
-in [`lib/assets/html5-qrcode.LICENSE.txt`](lib/assets/html5-qrcode.LICENSE.txt).
+The web, Windows and Linux scanner bundles [barcode-detector](https://github.com/Sec-ant/barcode-detector)
+and [zxing-wasm](https://github.com/Sec-ant/zxing-wasm), both MIT, and zxing-cpp, which zxing-wasm
+compiles and which is Apache 2.0. The licences travel with the files, in
+[`lib/assets/THIRD_PARTY_LICENSES.txt`](lib/assets/THIRD_PARTY_LICENSES.txt).
