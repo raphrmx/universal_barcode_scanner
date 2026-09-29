@@ -14,6 +14,7 @@ import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
+import 'package:universal_barcode_scanner/src/scanner_round_button.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 const MethodChannel _channel = MethodChannel('universal_barcode_scanner');

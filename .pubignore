@@ -21,3 +21,6 @@ example/macos/
 example/pubspec.lock
 example/web/
 example/windows/
+
+# The page tests run in CI, with Node; nothing an app needs.
+tool/

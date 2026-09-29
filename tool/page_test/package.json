@@ -1,0 +1,11 @@
+{
+  "name": "universal-barcode-scanner-page-test",
+  "private": true,
+  "description": "Tests of lib/assets/barcode.html in a browser, with a camera drawn on a canvas.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

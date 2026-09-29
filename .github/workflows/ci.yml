@@ -68,6 +68,33 @@ jobs:
           git checkout -- .
           flutter pub publish --dry-run
 
+  # The camera page the web, Windows and Linux scanners run, in a browser: what
+  # it reads, where in the frame, and on which thread. The camera is a canvas
+  # with a barcode drawn on it.
+  page:
+    runs-on: ubuntu-latest
+
+    name: page
+
+    defaults:
+      run:
+        working-directory: tool/page_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the page tests
+        run: npx playwright test
+
   # The point of this job is the native code. Five platforms means five
   # toolchains, and a plugin breaks in the ones its author cannot run locally.
   build:

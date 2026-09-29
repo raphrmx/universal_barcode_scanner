@@ -166,6 +166,9 @@
   // How long a worker gets to load the decoder before the page does it
   // itself.
   var WORKER_TIMEOUT_MS = 8000;
+  // Frames in a row a worker may fail to read before the page stops
+  // trusting it and reads by itself.
+  var WORKER_FAILURES = 5;
 
   // Same lists as the native scanners, in BarcodeDetector's names. Null is
   // every format the decoder knows.
@@ -339,108 +342,165 @@
     }
   }
 
-  // Reads frames on this page's thread, for when no worker can: the
-  // platform's detector where it has one, the bundled reader otherwise,
-  // loaded only then.
+  // Reads frames with [detector] on this page's thread: the platform's own,
+  // which does its work elsewhere anyway, or the bundled one where no worker
+  // can run.
+  function pageReader(detector) {
+    return {
+      read: function (frame) {
+        return window.UbsDecoder.read(detector, frame).then(function (codes) {
+          closeFrame(frame);
+          return codes;
+        }, function (error) {
+          closeFrame(frame);
+          throw error;
+        });
+      }
+    };
+  }
+
+  // The bundled reader on this page's thread, its scripts loaded only then.
   function pageDecoder(formats) {
     return loadScript('decoder.js').then(function () {
-      return window.UbsDecoder.create(formats, function () {
+      return window.UbsDecoder.bundled(formats, function () {
         return loadScript('barcode-detector.js').then(function () {
           return loadScript('zxing-reader-wasm.js');
         });
       });
-    }).then(function (detector) {
-      return {
-        read: function (frame) {
-          return window.UbsDecoder.read(detector, frame).then(function (codes) {
-            closeFrame(frame);
-            return codes;
-          }, function (error) {
-            closeFrame(frame);
-            throw error;
-          });
-        },
-        end: function () {}
-      };
-    });
+    }).then(pageReader);
   }
 
-  // Reads frames in a worker, off this page's thread. Rejects when the
-  // worker cannot start or load the decoder, and calls [onLost] when one that
-  // did fails later, for the page to take over.
-  function workerDecoder(formats, onLost) {
-    return new Promise(function (resolve, reject) {
-      var worker;
-      try {
-        worker = new Worker('decoder.js');
-      } catch (error) {
-        reject(error);
+  // The worker of the page, kept for as long as it works: the reader it
+  // compiled serves every list of formats, so a change costs one message.
+  // Once one has failed, the page reads by itself until it is reloaded.
+  var worker = null;
+  var workerFailed = false;
+
+  // Starts a worker, or answers null where none can run: a webview on
+  // file://, or a browser without them.
+  function startWorker() {
+    if (workerFailed || typeof Worker === 'undefined'
+      || !/^https?:$/.test(window.location.protocol)) {
+      return null;
+    }
+    var instance;
+    try {
+      instance = new Worker('decoder.js');
+    } catch (error) {
+      workerFailed = true;
+      return null;
+    }
+    var handle = {
+      // Called when a worker that had answered stops working, for the page
+      // to take over.
+      onLost: function () {},
+      use: use
+    };
+    var frames = {};
+    var requests = {};
+    var next = 0;
+    var answered = false;
+    var dead = false;
+    var failures = 0;
+
+    function fail(error) {
+      if (dead) {
         return;
       }
-      var pending = {};
-      var next = 0;
-      var ready = false;
-      var dead = false;
-      var timer = setTimeout(function () {
-        fail(new Error('The decoder worker did not answer.'));
-      }, WORKER_TIMEOUT_MS);
+      dead = true;
+      workerFailed = true;
+      if (worker === handle) {
+        worker = null;
+      }
+      instance.terminate();
+      var id;
+      for (id in frames) {
+        frames[id].reject(error);
+      }
+      // A request left waiting hands over to the page's reader through its
+      // own rejection; only without one is the loss said separately.
+      var waiting = false;
+      for (id in requests) {
+        waiting = true;
+        clearTimeout(requests[id].timer);
+        requests[id].reject(error);
+      }
+      frames = {};
+      requests = {};
+      if (answered && !waiting) {
+        handle.onLost();
+      }
+    }
 
-      function fail(error) {
-        if (dead) {
+    instance.onerror = function (event) {
+      event.preventDefault();
+      fail(new Error(event.message || 'The decoder worker failed.'));
+    };
+    instance.onmessage = function (event) {
+      var data = event.data || {};
+      if (data.type === 'formats' && requests[data.seq]) {
+        var request = requests[data.seq];
+        delete requests[data.seq];
+        clearTimeout(request.timer);
+        if (data.error) {
+          request.reject(new Error(data.error));
+        } else {
+          answered = true;
+          request.resolve();
+        }
+      } else if (data.type === 'codes' && frames[data.id]) {
+        var frame = frames[data.id];
+        delete frames[data.id];
+        if (!data.error) {
+          failures = 0;
+          frame.resolve(data.codes);
           return;
         }
-        dead = true;
-        clearTimeout(timer);
-        worker.terminate();
-        for (var id in pending) {
-          pending[id].reject(error);
-        }
-        pending = {};
-        if (ready) {
-          onLost();
-        } else {
-          reject(error);
+        // A frame the reader could not take is that frame lost; only a run
+        // of them says the worker no longer reads.
+        frame.reject(new Error(data.error));
+        if (++failures >= WORKER_FAILURES) {
+          fail(new Error(data.error));
         }
       }
+    };
 
-      worker.onerror = function (event) {
-        event.preventDefault();
-        fail(new Error(event.message || 'The decoder worker failed.'));
-      };
-      worker.onmessage = function (event) {
-        var data = event.data || {};
-        if (data.type === 'ready' && !ready && !dead) {
-          ready = true;
-          clearTimeout(timer);
-          resolve({
-            read: function (frame) {
-              if (dead) {
-                closeFrame(frame);
-                return Promise.reject(new Error('The decoder worker is gone.'));
-              }
-              return new Promise(function (resolveRead, rejectRead) {
-                var id = ++next;
-                pending[id] = { resolve: resolveRead, reject: rejectRead };
-                var transfer = typeof frame.close === 'function'
-                  ? [frame] : [frame.data.buffer];
-                worker.postMessage({ type: 'frame', id: id, frame: frame },
-                  transfer);
-              });
-            },
-            end: function () {
-              dead = true;
-              worker.terminate();
-            }
-          });
-        } else if (data.type === 'codes' && pending[data.id]) {
-          pending[data.id].resolve(data.codes);
-          delete pending[data.id];
-        } else if (data.type === 'failed') {
-          fail(new Error(data.message));
-        }
-      };
-      worker.postMessage({ type: 'formats', formats: formats });
-    });
+    function read(frame) {
+      if (dead) {
+        closeFrame(frame);
+        return Promise.reject(new Error('The decoder worker is gone.'));
+      }
+      return new Promise(function (resolve, reject) {
+        var id = ++next;
+        frames[id] = { resolve: resolve, reject: reject };
+        var transfer = typeof frame.close === 'function'
+          ? [frame] : [frame.data.buffer];
+        instance.postMessage({ type: 'frame', id: id, frame: frame }, transfer);
+      });
+    }
+
+    // A reader for [formats], once the worker has a detector for them.
+    // Rejects when it cannot build one, or does not answer in time.
+    function use(formats) {
+      if (dead) {
+        return Promise.reject(new Error('The decoder worker is gone.'));
+      }
+      return new Promise(function (resolve, reject) {
+        var seq = ++next;
+        requests[seq] = {
+          resolve: resolve,
+          reject: reject,
+          timer: setTimeout(function () {
+            fail(new Error('The decoder worker did not answer.'));
+          }, WORKER_TIMEOUT_MS)
+        };
+        instance.postMessage({ type: 'formats', seq: seq, formats: formats });
+      }).then(function () {
+        return { read: read };
+      });
+    }
+
+    return handle;
   }
 
   // The decoder for the formats asked for, built again when they change, and
@@ -450,33 +510,36 @@
   var decoderFormats = null;
   var decoderBroken = false;
 
-  // A worker keeps the decoding off the page's thread, which matters most on
-  // the web, where that thread is the app's. The platform's own detector
-  // already runs elsewhere, so it needs none. A webview on file:// cannot
-  // start one, and the page decodes itself.
+  // The platform's own detector where it reads every format asked for: it
+  // already works off this thread. Otherwise the bundled one, in a worker
+  // where one can run, which matters most on the web, where this thread is
+  // the app's, and on this page where none can.
   function decoderFor(key) {
     if (decoder && decoderFormats === key) {
       return decoder;
     }
-    if (decoder) {
-      decoder.then(function (old) { old.end(); }, function () {});
-    }
     var formats = FORMATS[key];
     decoderFormats = key;
-    var useWorker = !('BarcodeDetector' in window)
-      && typeof Worker !== 'undefined'
-      && /^https?:$/.test(window.location.protocol);
-    var built = useWorker
-      ? workerDecoder(formats, function () {
-        // The worker died after starting: this page reads from now on.
+    var built = loadScript('decoder.js').then(function () {
+      return window.UbsDecoder.native(formats);
+    }).then(function (detector) {
+      if (detector) {
+        return pageReader(detector);
+      }
+      var shared = worker || (worker = startWorker());
+      if (!shared) {
+        return pageDecoder(formats);
+      }
+      shared.onLost = function () {
         if (decoder === built) {
           decoder = pageDecoder(formats);
           watch(decoder);
         }
-      }).catch(function () {
+      };
+      return shared.use(formats).catch(function () {
         return pageDecoder(formats);
-      })
-      : pageDecoder(formats);
+      });
+    });
     decoder = built;
     watch(built);
     return built;
@@ -554,8 +617,11 @@
       return createImageBitmap(video, rect.x, rect.y, rect.width, rect.height);
     }
     canvas = canvas || document.createElement('canvas');
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+    // Setting a size, even the same one, drops the canvas's pixels.
+    if (canvas.width !== rect.width || canvas.height !== rect.height) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
     var context = canvas.getContext('2d', { willReadFrequently: true });
     context.drawImage(video, rect.x, rect.y, rect.width, rect.height,
       0, 0, rect.width, rect.height);

@@ -1,5 +1,27 @@
 # Universal Barcode Scanner Versions
 
+## 2.1.1
+
+### Fixed
+
+- On the web, Windows and Linux, a frame the decoder cannot read no longer
+  sends every later frame to the app's thread: a worker is given up only
+  after several unreadable frames in a row, or when it stops.
+- Where the browser has a barcode detector that does not read every format
+  asked for, the bundled reader now runs in a worker, and no longer on the
+  app's thread.
+
+### Changed
+
+- Changing the formats while the scanner is open keeps the worker and the
+  reader it compiled, rather than loading and compiling them again.
+- The bundled reader lets go of its encoded copy once compiled, and decodes
+  it natively where the browser can.
+- Without `createImageBitmap`, the canvas a frame is copied through keeps
+  its size from one frame to the next.
+- The page the web, Windows and Linux scanners run is tested in a browser,
+  in CI, with a camera drawn on a canvas.
+
 ## 2.1.0
 
 ### Changed

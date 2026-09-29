@@ -3,6 +3,7 @@ import 'package:universal_barcode_scanner/src/pointer_shield.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
+import 'package:universal_barcode_scanner/src/scanner_round_button.dart';
 
 /// Default colours of the scanner bar, dark because it sits over a camera.
 const Color _barBackground = Color(0xFF000000);

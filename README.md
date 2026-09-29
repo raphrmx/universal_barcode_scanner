@@ -312,6 +312,16 @@ cd example && flutter run
 flutter test
 ```
 
+The camera page the web, Windows and Linux scanners run has its own tests, in a browser with a
+camera drawn on a canvas. They need Node:
+
+```sh
+cd tool/page_test
+npm ci
+npx playwright install chromium
+npx playwright test
+```
+
 ## Dependencies
 
 `webview_all` for the Windows and Linux scanners, and `web` for the iframe on the web. Android

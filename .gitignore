@@ -30,3 +30,8 @@ migrate_working_dir/
 .dart_tool/
 .packages
 build/
+
+# The page tests: Node, and what Playwright leaves behind.
+/tool/page_test/node_modules/
+/tool/page_test/test-results/
+/tool/page_test/playwright-report/
