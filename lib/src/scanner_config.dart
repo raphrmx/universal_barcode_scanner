@@ -23,6 +23,7 @@ class ScannerConfig {
     this.continuous = false,
     this.flipHorizontal = false,
     this.flipVertical = false,
+    this.animate = true,
   });
 
   /// Colour of the scan line.
@@ -56,6 +57,10 @@ class ScannerConfig {
   /// Whether the camera is shown upside down.
   final bool flipVertical;
 
+  /// Whether the camera fades in when it starts and turns over when it is
+  /// flipped, rather than appearing and flipping at once.
+  final bool animate;
+
   /// This configuration with the camera flipped as given.
   ScannerConfig withFlip({required bool horizontal, required bool vertical}) =>
       ScannerConfig(
@@ -69,6 +74,7 @@ class ScannerConfig {
         continuous: continuous,
         flipHorizontal: horizontal,
         flipVertical: vertical,
+        animate: animate,
       );
 
   /// Milliseconds of [scanDelay], zero when there is none.
@@ -103,6 +109,7 @@ class ScannerConfig {
         'facing': cameraFace == CameraFace.front ? 'user' : 'environment',
         'window': scanWindow.name,
         ...flipToPage(flipHorizontal, flipVertical),
+        'animate': animate ? '1' : '0',
         'formats': switch (scanFormat) {
           ScanFormat.all => 'all',
           ScanFormat.onlyQrCode => 'qr',

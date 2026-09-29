@@ -47,6 +47,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.flipVertical = false,
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
+    this.animate = true,
   });
 
   /// Called once the view exists, with the controller that drives it.
@@ -108,6 +109,16 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// left or the right, across otherwise.
   final AlignmentGeometry buttonsAlignment;
 
+  /// Whether the camera turns over when flipped, and fades in when it starts
+  /// on the web, Windows and Linux, rather than changing at once. Off anyway
+  /// when the platform asks for reduced motion.
+  final bool animate;
+
+  /// Whether a scanner animates: when asked to, and the platform does not
+  /// ask for reduced motion.
+  static bool _animates(BuildContext context, bool animate) =>
+      animate && !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+
   /// Whether a scanner left without a `flip` mirrors the camera: on a desktop
   /// and in a desktop browser, where the camera is a webcam facing the user,
   /// and not on a phone or a tablet, where it faces away.
@@ -127,6 +138,9 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// scanner runs in. Android, iOS and macOS open a native screen over it and
   /// do not use them, except that [ScannerButton.torch] in `buttons` shows
   /// the native torch button as [showTorchButton] does.
+  ///
+  /// `animate`, on by default, has the camera fade in when it starts and turn
+  /// over when flipped. Off anyway when the platform asks for reduced motion.
   ///
   /// `buttons` puts a group of buttons over the camera: the torch, pausing,
   /// and each flip. `buttonsAlignment` places it, down the right side by
@@ -148,6 +162,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Color? backgroundColor,
     Set<ScannerButton> buttons = const <ScannerButton>{},
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+    bool animate = true,
   }) async {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
@@ -165,6 +180,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
           scanFormat: scanFormat,
           flipHorizontal: flip ?? flipsByDefault,
           flipVertical: flipVertical,
+          animate: _animates(context, animate),
         ),
         backgroundColor: backgroundColor,
         bar: bar,
@@ -216,6 +232,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Color? backgroundColor,
     Set<ScannerButton> buttons = const <ScannerButton>{},
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+    bool animate = true,
   }) {
     final NavigatorState navigator = Navigator.of(context);
     late final Route<void> route;
@@ -239,6 +256,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
           continuous: true,
           flipHorizontal: flip ?? flipsByDefault,
           flipVertical: flipVertical,
+          animate: _animates(context, animate),
         ),
         backgroundColor: backgroundColor,
         bar: bar,
@@ -353,6 +371,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         continuous: widget.continuous,
         flipHorizontal: _buttons.flipHorizontal,
         flipVertical: _buttons.flipVertical,
+        animate: UniversalBarcodeScanner._animates(context, widget.animate),
       ),
       scanWindowSize: widget.scanWindowSize,
       onScanned: _onScanned,

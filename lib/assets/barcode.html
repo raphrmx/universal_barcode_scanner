@@ -38,6 +38,17 @@
       height: 100%;
       object-fit: fill;
       transform: scale(var(--ubs-flip-x, 1), var(--ubs-flip-y, 1));
+      /* Hidden until its first frame, so the camera arrives rather than a
+         black box standing in for it. */
+      opacity: 0;
+    }
+    #stage video.live { opacity: 1; }
+    /* A flip turns the picture over through its middle, as a card does. */
+    .ubs-animate #stage video {
+      transition: opacity 0.4s ease-out, transform 0.35s ease-in-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ubs-animate #stage video { transition: none; }
     }
     #box {
       display: none;
@@ -181,7 +192,9 @@
     windowHeight: 0,
     // The camera shown mirrored left to right, and upside down.
     flipX: false,
-    flipY: false
+    flipY: false,
+    // Whether the camera fades in and turns over when flipped.
+    animate: true
   };
   var stopped = true;
   var delivered = false;
@@ -603,6 +616,7 @@
     }
     stream = null;
     streamFacing = null;
+    video.classList.remove('live');
     video.srcObject = null;
     torchOn = false;
     fit();
@@ -723,6 +737,12 @@
   // The video's size is known once it has metadata, and changes when a
   // phone turns.
   video.addEventListener('loadedmetadata', fit);
+  // Shown, faded in where it animates, once a frame is there to show.
+  video.addEventListener('playing', function () {
+    if (stream) {
+      video.classList.add('live');
+    }
+  });
   video.addEventListener('resize', fit);
 
   // ---------------------------------------------------------------------
@@ -751,6 +771,9 @@
     settings.windowHeight = Math.max(0, parseInt(options.windowHeight, 10) || 0);
     settings.flipX = options.flipX === true || options.flipX === '1';
     settings.flipY = options.flipY === true || options.flipY === '1';
+    // Anything but an explicit no animates, as the Dart side defaults to.
+    settings.animate = !(options.animate === false || options.animate === '0');
+    document.documentElement.classList.toggle('ubs-animate', settings.animate);
     applyFlip();
     document.documentElement.classList.toggle('ubs-embedded', settings.embedded);
 
@@ -929,7 +952,8 @@
       windowWidth: query.get('windowWidth'),
       windowHeight: query.get('windowHeight'),
       flipX: query.get('flipX'),
-      flipY: query.get('flipY')
+      flipY: query.get('flipY'),
+      animate: query.get('animate')
     });
     // The host holds its calls back until the page listens.
     post({ ready: true });

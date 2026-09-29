@@ -11,6 +11,9 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
+/// How long a flip takes to turn the camera over, as on the bundled page.
+const Duration _flipDuration = Duration(milliseconds: 350);
+
 /// Platforms that reach a native scanner over the method channel.
 bool get _hasNativeScanner => switch (defaultTargetPlatform) {
   TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,
@@ -377,17 +380,24 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
 
     final Widget? child = widget.child;
     final ScannerConfig config = widget.config;
-    final Widget camera = config.flipHorizontal || config.flipVertical
-        ? Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(
-              config.flipHorizontal ? -1 : 1,
-              config.flipVertical ? -1 : 1,
-              1,
-            ),
-            child: view,
-          )
-        : view;
+    // Always there, so a flip turns the camera over through its middle
+    // rather than jumping; at rest it is the identity.
+    final Widget camera = TweenAnimationBuilder<Offset>(
+      tween: Tween<Offset>(
+        end: Offset(
+          config.flipHorizontal ? -1 : 1,
+          config.flipVertical ? -1 : 1,
+        ),
+      ),
+      duration: config.animate ? _flipDuration : Duration.zero,
+      curve: Curves.easeInOut,
+      child: view,
+      builder: (BuildContext context, Offset scale, Widget? view) => Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.diagonal3Values(scale.dx, scale.dy, 1),
+        child: view,
+      ),
+    );
     if (child == null) return camera;
     return Stack(fit: StackFit.expand, children: <Widget>[camera, child]);
   }

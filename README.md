@@ -136,6 +136,7 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `flip` | `null` | Mirrors the camera left to right. `null` mirrors it where it is a webcam facing the user, on a desktop and in a desktop browser, and not on a phone or a tablet. Web, Windows and Linux. |
 | `flipVertical` | `false` | Shows the camera upside down. Web, Windows and Linux. |
 | `buttons` | none | Buttons over the camera, from `ScannerButton`: `torch`, `pause`, `flipHorizontal`, `flipVertical`. Web, Windows and Linux; `torch` also shows the native torch button on Android and iOS. |
+| `animate` | `true` | Fades the camera in when it starts and turns it over when flipped. Off when the platform asks for reduced motion. Web, Windows and Linux. |
 | `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
@@ -226,7 +227,7 @@ browsers and webviews give a page no control over.
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the flip is animated, but the camera does not fade in: the native view does not say when its first frame arrives. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The flip is the exception: it follows the widget, and the

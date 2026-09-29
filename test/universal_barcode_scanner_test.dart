@@ -149,6 +149,7 @@ void main() {
           'window': 'wide',
           'flipX': '0',
           'flipY': '0',
+          'animate': '1',
           'formats': 'barcode',
         },
       );
@@ -912,6 +913,67 @@ void main() {
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
+    });
+
+    test('tells the page whether to animate', () {
+      expect(const ScannerConfig().toPage(host: 'web')['animate'], '1');
+      expect(
+        const ScannerConfig(animate: false).toPage(host: 'web')['animate'],
+        '0',
+      );
+    });
+
+    testWidgets('turns a native view over when flipped, unless told not to', (
+      WidgetTester tester,
+    ) async {
+      // A native view needs the engine to create it: answer as it would.
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (MethodCall call) async => call.method == 'create' ? 0 : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        ),
+      );
+      await _on(TargetPlatform.iOS, () async {
+        Future<void> pump({required bool flip, bool animate = true}) =>
+            tester.pumpWidget(
+              MaterialApp(
+                home: UniversalBarcodeScanner(
+                  onCreated: (ScannerController _) {},
+                  flip: flip,
+                  animate: animate,
+                ),
+              ),
+            );
+        double scaleX() => tester
+            .widget<Transform>(
+              find
+                  .ancestor(
+                    of: find.byType(UiKitView),
+                    matching: find.byType(Transform),
+                  )
+                  .first,
+            )
+            .transform
+            .storage[0];
+
+        await pump(flip: false);
+        expect(scaleX(), 1);
+
+        await pump(flip: true);
+        await tester.pump(const Duration(milliseconds: 175));
+        // Half way through, edge on.
+        expect(scaleX(), closeTo(0, 0.1));
+        await tester.pumpAndSettle();
+        expect(scaleX(), -1);
+
+        await pump(flip: false, animate: false);
+        await tester.pump();
+        expect(scaleX(), 1);
+      });
     });
 
     test('hands the page each flip', () {
