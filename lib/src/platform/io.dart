@@ -314,11 +314,18 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
   /// Lifts the black laid over a native view while its camera starts. The
   /// view does not say when its first frame is there, so the fade starts a
   /// moment after the view is created, when the camera usually is.
-  late final AnimationController _arrival = AnimationController(
-    vsync: this,
-    duration: _fadeDuration,
-  );
+  ///
+  /// Made in [initState], never on first use: Windows and Linux show a
+  /// webview instead and never touch it, and a first use in [dispose] would
+  /// look up the tree the view is leaving.
+  late final AnimationController _arrival;
   Timer? _arrivalDelay;
+
+  @override
+  void initState() {
+    super.initState();
+    _arrival = AnimationController(vsync: this, duration: _fadeDuration);
+  }
 
   @override
   void didUpdateWidget(EmbeddedScanner oldWidget) {

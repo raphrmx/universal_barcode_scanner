@@ -1057,6 +1057,11 @@ void main() {
 
         expect(find.textContaining('embedded scanner view'), findsOneWidget);
         expect(tester.takeException(), isNull);
+
+        // Closed again: a view that never showed a native camera still goes
+        // cleanly, as on Windows and Linux.
+        await tester.pumpWidget(const SizedBox());
+        expect(tester.takeException(), isNull);
       });
     });
   });
