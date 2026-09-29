@@ -88,6 +88,26 @@ class _HomePageState extends State<HomePage> {
   /// The words of the buttons and of the page, in every mode.
   ScannerLabels _labels = ScannerLabels.english;
 
+  /// How the buttons look, in every mode.
+  ScannerButtonStyle _style = const ScannerButtonStyle();
+
+  static const List<(String, ScannerButtonStyle)> _styles =
+      <(String, ScannerButtonStyle)>[
+    ('Round', ScannerButtonStyle()),
+    (
+      'Square',
+      ScannerButtonStyle(
+        backgroundColor: Color(0xCCFFFFFF),
+        foregroundColor: Color(0xFF0E1014),
+        activeBackgroundColor: _accent,
+        activeForegroundColor: Color(0xFFFFFFFF),
+        focusColor: _accent,
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+      ),
+    ),
+    ('Large', ScannerButtonStyle(size: 56, iconSize: 26, spacing: 10)),
+  ];
+
   @override
   void dispose() {
     _stream?.cancel();
@@ -129,6 +149,7 @@ class _HomePageState extends State<HomePage> {
         buttons: _onceButtons,
         buttonsAlignment: _buttonsAt,
         labels: _labels,
+        buttonStyle: _style,
         vibrate: true,
         beep: true,
       );
@@ -150,6 +171,7 @@ class _HomePageState extends State<HomePage> {
       buttons: _allButtons,
       buttonsAlignment: _buttonsAt,
       labels: _labels,
+      buttonStyle: _style,
       vibrate: true,
       beep: true,
     ).listen(
@@ -209,6 +231,7 @@ class _HomePageState extends State<HomePage> {
                           buttons: _allButtons,
                           buttonsAlignment: _buttonsAt,
                           labels: _labels,
+                          buttonStyle: _style,
                           vibrate: true,
                           beep: true,
                           onResult: (ScanResult result) =>
@@ -248,6 +271,25 @@ class _HomePageState extends State<HomePage> {
                         label: Text(label),
                         selected: _buttonsAt == at,
                         onSelected: (bool _) => setState(() => _buttonsAt = at),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    const Text(
+                      'Look',
+                      style: TextStyle(fontSize: 13, color: _dim),
+                    ),
+                    for (final (String label, ScannerButtonStyle style)
+                        in _styles)
+                      ChoiceChip(
+                        label: Text(label),
+                        selected: _style == style,
+                        onSelected: (bool _) => setState(() => _style = style),
                       ),
                   ],
                 ),

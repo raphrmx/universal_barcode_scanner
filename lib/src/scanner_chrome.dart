@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
+import 'package:universal_barcode_scanner/src/pointer_shield.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 
 /// Default colours of the scanner bar, dark because it sits over a camera.
@@ -23,6 +25,7 @@ class ScannerChrome extends StatelessWidget {
     this.buttons,
     this.buttonsAlignment = Alignment.centerRight,
     this.closeLabel = 'Close',
+    this.buttonStyle = const ScannerButtonStyle(),
   });
 
   /// The camera and whatever is drawn over it.
@@ -43,8 +46,11 @@ class ScannerChrome extends StatelessWidget {
   /// Where [buttons] sit over the camera.
   final AlignmentGeometry buttonsAlignment;
 
-  /// What a screen reader says for the close button.
+  /// What the close button says, to a screen reader and in its tooltip.
   final String closeLabel;
+
+  /// How [buttons] and the close button look.
+  final ScannerButtonStyle buttonStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +72,10 @@ class ScannerChrome extends StatelessWidget {
             state: buttons.state,
             buttons: buttons.buttons,
             labels: buttons.labels,
+            style: buttonStyle,
             alignment: buttonsAlignment,
             inset: EdgeInsets.fromLTRB(
-              padding.left + 12 + (besideClose ? 52 : 0),
+              padding.left + 12 + (besideClose ? buttonStyle.size + 8 : 0),
               12,
               padding.right + 12,
               padding.bottom + 12,
@@ -99,60 +106,44 @@ class ScannerChrome extends StatelessWidget {
         Positioned(
           top: padding.top + 12,
           left: padding.left + 12,
-          child: _CloseButton(onPressed: onClose, label: closeLabel),
+          child: PointerShield(
+            child: ScannerRoundButton(
+              label: closeLabel,
+              onPressed: onClose,
+              style: buttonStyle,
+              tooltip: AxisDirection.right,
+              painter: _Cross.new,
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-/// A round button with a cross, over the camera.
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onPressed, required this.label});
-
-  final VoidCallback? onPressed;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: label,
-    child: GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: const SizedBox.square(
-        dimension: 44,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Color(0x99000000),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: CustomPaint(size: Size.square(14), painter: _Cross()),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
+/// A cross, for the close button.
 class _Cross extends CustomPainter {
-  const _Cross();
+  const _Cross(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = _barForeground
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
+    // The cross is lighter than the other icons: a little inside the square.
+    final Rect box = Offset.zero & size;
+    final Rect inner = box.deflate(size.shortestSide * 0.15);
     canvas
-      ..drawLine(Offset.zero, Offset(size.width, size.height), paint)
-      ..drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
+      ..drawLine(inner.topLeft, inner.bottomRight, paint)
+      ..drawLine(inner.topRight, inner.bottomLeft, paint);
   }
 
   @override
-  bool shouldRepaint(_Cross oldDelegate) => false;
+  bool shouldRepaint(_Cross oldDelegate) => oldDelegate.color != color;
 }
 
 /// The bar itself: a title, and a back button when one is asked for.
@@ -196,6 +187,7 @@ class _ScannerBar extends StatelessWidget {
                   onPressed: onClose,
                   label: bar.cancelLabel,
                   icon: bar.backIcon,
+                  focusColor: foreground,
                 )
               else
                 const SizedBox(width: 16),
@@ -213,28 +205,74 @@ class _ScannerBar extends StatelessWidget {
 }
 
 /// A tappable square holding the back icon. No ink ripple.
-class _BackButton extends StatelessWidget {
-  const _BackButton({required this.onPressed, required this.label, this.icon});
+class _BackButton extends StatefulWidget {
+  const _BackButton({
+    required this.onPressed,
+    required this.label,
+    required this.focusColor,
+    this.icon,
+  });
 
   final VoidCallback? onPressed;
   final String label;
   final Widget? icon;
 
+  /// The ring around it when the keyboard is on it.
+  final Color focusColor;
+
+  @override
+  State<_BackButton> createState() => _BackButtonState();
+}
+
+class _BackButtonState extends State<_BackButton> {
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: label,
+    label: widget.label,
     excludeSemantics: true,
-    child: GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: _barHeight,
-        height: _barHeight,
-        child: Center(
-          child:
-              icon ??
-              const CustomPaint(size: Size.square(20), painter: _Chevron()),
+    // Reached with Tab and pressed with Enter or Space too, the hand over it.
+    child: FocusableActionDetector(
+      enabled: widget.onPressed != null,
+      mouseCursor: SystemMouseCursors.click,
+      onShowFocusHighlight: (bool focused) =>
+          setState(() => _focused = focused),
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (ActivateIntent _) {
+            widget.onPressed?.call();
+            return null;
+          },
+        ),
+      },
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: _barHeight,
+          height: _barHeight,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: _focused
+                    ? Border.all(color: widget.focusColor, width: 2)
+                    : null,
+              ),
+              child: SizedBox.square(
+                dimension: 40,
+                child: Center(
+                  child:
+                      widget.icon ??
+                      const CustomPaint(
+                        size: Size.square(20),
+                        painter: _Chevron(),
+                      ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     ),

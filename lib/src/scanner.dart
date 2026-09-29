@@ -8,6 +8,7 @@ import 'package:universal_barcode_scanner/src/platform/shared.dart';
 import 'package:universal_barcode_scanner/src/scan_feedback.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -55,6 +56,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.labels = ScannerLabels.english,
     this.vibrate = false,
     this.beep = false,
+    this.buttonStyle = const ScannerButtonStyle(),
   });
 
   /// Called once the view exists, with the controller that drives it. On
@@ -138,6 +140,9 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// Whether a short beep sounds for each code read.
   final bool beep;
 
+  /// How [buttons] look: their size, colours and shape.
+  final ScannerButtonStyle buttonStyle;
+
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
   static bool _animates(BuildContext context, bool animate) =>
@@ -171,7 +176,8 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// camera fade in when it starts and turn over when flipped, and is off
   /// anyway when the platform asks for reduced motion. `labels` holds the
   /// words of the buttons and of the page, English by default. `vibrate` and
-  /// `beep` signal each code read. `scanWindowSize` sets the size of the scan
+  /// `beep` signal each code read. `buttonStyle` sets the look of the buttons
+  /// and of the close button. `scanWindowSize` sets the size of the scan
   /// window in logical pixels, on every platform.
   static Future<String?> scan(
     BuildContext context, {
@@ -194,6 +200,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     ScannerLabels labels = ScannerLabels.english,
     bool vibrate = false,
     bool beep = false,
+    ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
   }) async {
     final ScanResult? result = await _scanOnce(
       context,
@@ -216,6 +223,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
         labels: labels,
         vibrate: vibrate,
         beep: beep,
+        buttonStyle: buttonStyle,
       ),
     );
     return result?.text;
@@ -241,6 +249,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     ScannerLabels labels = ScannerLabels.english,
     bool vibrate = false,
     bool beep = false,
+    ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
   }) => _scanOnce(
     context,
     _Options(
@@ -261,6 +270,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       labels: labels,
       vibrate: vibrate,
       beep: beep,
+      buttonStyle: buttonStyle,
     ),
   );
 
@@ -300,6 +310,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     ScannerLabels labels = ScannerLabels.english,
     bool vibrate = false,
     bool beep = false,
+    ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
   }) => _scanMany(
     context,
     _Options(
@@ -322,6 +333,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       labels: labels,
       vibrate: vibrate,
       beep: beep,
+      buttonStyle: buttonStyle,
     ),
   ).map((ScanResult result) => result.text);
 
@@ -346,6 +358,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     ScannerLabels labels = ScannerLabels.english,
     bool vibrate = false,
     bool beep = false,
+    ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
   }) => _scanMany(
     context,
     _Options(
@@ -367,6 +380,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       labels: labels,
       vibrate: vibrate,
       beep: beep,
+      buttonStyle: buttonStyle,
     ),
   );
 
@@ -550,6 +564,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
           state: _buttons,
           buttons: widget.buttons,
           labels: widget.labels,
+          style: widget.buttonStyle,
           alignment: widget.buttonsAlignment,
           inset: const EdgeInsets.all(8),
         ),
@@ -579,6 +594,7 @@ class _Options {
     required this.labels,
     required this.vibrate,
     required this.beep,
+    required this.buttonStyle,
     this.cancelLabel,
     this.scanDelay,
   });
@@ -602,6 +618,7 @@ class _Options {
   final ScannerLabels labels;
   final bool vibrate;
   final bool beep;
+  final ScannerButtonStyle buttonStyle;
 
   ScannerPage page(
     BuildContext context, {
@@ -630,6 +647,7 @@ class _Options {
     bar: bar,
     buttons: buttons,
     buttonsAlignment: buttonsAlignment,
+    buttonStyle: buttonStyle,
     onScanned: onScanned,
     onClose: onClose,
     onError: onError,

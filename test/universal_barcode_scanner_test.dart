@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -1025,6 +1027,113 @@ void main() {
       expect(torch().top, pause().top);
     });
 
+    /// The group in an app, for keyboard focus, the mouse and tooltips.
+    Future<ScannerButtons> pumpInApp(
+      WidgetTester tester,
+      List<String> calls, {
+      ScannerButtonStyle style = const ScannerButtonStyle(),
+    }) async {
+      final ScannerButtons state = buttons(calls);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              height: 300,
+              child: ScannerButtonsOverlay(
+                state: state,
+                buttons: const <ScannerButton>{
+                  ScannerButton.torch,
+                  ScannerButton.pause,
+                },
+                style: style,
+                alignment: Alignment.centerRight,
+              ),
+            ),
+          ),
+        ),
+      );
+      return state;
+    }
+
+    testWidgets('are reached with Tab and pressed with Enter or Space', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      await pumpInApp(tester, calls);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      // The button the keyboard is on says what it does.
+      expect(find.text('Torch'), findsOneWidget);
+      // And has a ring around it, clear of its edge.
+      expect(
+        tester.getRect(_focusRing),
+        tester.getRect(find.bySemanticsLabel('Torch')).inflate(4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(calls, <String>['torch', 'pause']);
+      expect(find.bySemanticsLabel('Resume'), findsOneWidget);
+    });
+
+    testWidgets('show the hand, and say what they do when the mouse rests', (
+      WidgetTester tester,
+    ) async {
+      await pumpInApp(tester, <String>[]);
+      final TestGesture mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.bySemanticsLabel('Torch')));
+      await tester.pump();
+
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.click,
+      );
+      expect(find.text('Torch'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Torch'), findsOneWidget);
+      // Down the right side: the tooltip opens towards the middle.
+      expect(
+        tester.getRect(find.text('Torch')).right,
+        lessThan(tester.getRect(find.bySemanticsLabel('Torch')).left),
+      );
+
+      await mouse.moveTo(const Offset(10, 10));
+      await tester.pump();
+      expect(find.text('Torch'), findsNothing);
+    });
+
+    testWidgets('take the style they are given', (WidgetTester tester) async {
+      await pumpInApp(
+        tester,
+        <String>[],
+        style: const ScannerButtonStyle(
+          size: 56,
+          spacing: 20,
+          showTooltips: false,
+        ),
+      );
+      final Rect torch = tester.getRect(find.bySemanticsLabel('Torch'));
+      final Rect pause = tester.getRect(find.bySemanticsLabel('Pause'));
+      expect(torch.size, const Size(56, 56));
+      expect(pause.top - torch.bottom, 20);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Torch'), findsNothing);
+      expect(
+        const ScannerButtonStyle().copyWith(size: 30),
+        const ScannerButtonStyle(size: 30),
+      );
+    });
+
     testWidgets('keep clear of the close button without a bar', (
       WidgetTester tester,
     ) async {
@@ -1047,6 +1156,51 @@ void main() {
       final Rect close = tester.getRect(find.bySemanticsLabel('Close'));
       final Rect torch = tester.getRect(find.bySemanticsLabel('Torch'));
       expect(torch.left, greaterThan(close.right));
+
+      // The close button takes the same look, and the keyboard too.
+      bool closed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScannerChrome(
+            body: const SizedBox.expand(),
+            onClose: () => closed = true,
+            closeLabel: 'Fermer',
+            buttonStyle: const ScannerButtonStyle(size: 50),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(
+          find.byWidgetPredicate(
+            (Widget w) => w is ScannerRoundButton && w.label == 'Fermer',
+          ),
+        ),
+        const Size(50, 50),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(closed, isTrue);
+    });
+
+    testWidgets('leave the back button of a bar reachable too', (
+      WidgetTester tester,
+    ) async {
+      bool closed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScannerChrome(
+            body: const SizedBox.expand(),
+            bar: const ScannerBar(cancelLabel: 'Retour'),
+            onClose: () => closed = true,
+          ),
+        ),
+      );
+      expect(_focusRing, findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(_focusRing, findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      expect(closed, isTrue);
     });
 
     testWidgets('are drawn over an embedded view', (WidgetTester tester) async {
@@ -1061,15 +1215,13 @@ void main() {
         );
         expect(find.bySemanticsLabel('Flip horizontally'), findsOneWidget);
         // Mirrored by default off a phone.
-        final Semantics flip = tester.widget<Semantics>(
-          find
-              .ancestor(
-                of: find.byType(GestureDetector).first,
-                matching: find.byType(Semantics),
-              )
-              .first,
+        final ScannerRoundButton flip = tester.widget<ScannerRoundButton>(
+          find.byWidgetPredicate(
+            (Widget w) =>
+                w is ScannerRoundButton && w.label == 'Flip horizontally',
+          ),
         );
-        expect(flip.properties.toggled, isTrue);
+        expect(flip.on, isTrue);
       });
     });
   });
@@ -1467,3 +1619,11 @@ final class _ZoomingController extends ScannerController {
   @override
   Future<void> resumeScanning() async {}
 }
+
+/// The ring drawn around what the keyboard is on.
+final Finder _focusRing = find.byWidgetPredicate(
+  (Widget w) =>
+      w is DecoratedBox &&
+      w.decoration is BoxDecoration &&
+      (w.decoration as BoxDecoration).border != null,
+);

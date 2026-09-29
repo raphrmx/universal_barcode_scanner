@@ -34,6 +34,13 @@
   Android, iOS and macOS keep their own, and a `torch` asked for shows the
   native torch button. The embedded view is drawn by Flutter everywhere, so
   its buttons are too.
+- `buttonStyle`, a `ScannerButtonStyle`: the size, spacing, colours, focus
+  ring, corners and tooltips of the buttons and of the close button.
+- The buttons, the close button and the bar's back button work with the
+  mouse and the keyboard: the hand over them, a tooltip saying what each one
+  does, Tab to move between them with a ring around the one reached, Enter or
+  Space to press it. On the web they take the pointer from the camera's frame
+  beneath, which kept every click and move to itself.
 - `flipVertical`, to show the camera upside down.
 - `labels`, a `ScannerLabels`: the words of the buttons, for screen readers,
   and of the page when the camera will not start. English by default;
@@ -47,8 +54,8 @@
 - On `ScannerController`: `isPaused`, `isTorchOn` and `zoom`, which follow the
   view whoever changes it, and `setZoom`. The buttons show this state.
 - The example shows the symbology of each code, uses every button, and lets
-  you pick where the buttons sit and in which language the scanner speaks.
-  It is called Universal Barcode Scanner on every platform.
+  you pick where the buttons sit, how they look and in which language the
+  scanner speaks. It is called Universal Barcode Scanner on every platform.
 
 ## 2.0.1
 

@@ -8,6 +8,7 @@ import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
@@ -61,6 +62,7 @@ class ScannerPage extends StatefulWidget {
     this.backgroundColor,
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
+    this.buttonStyle = const ScannerButtonStyle(),
   });
 
   /// What to scan and how.
@@ -87,6 +89,9 @@ class ScannerPage extends StatefulWidget {
 
   /// Where [buttons] sit.
   final AlignmentGeometry buttonsAlignment;
+
+  /// How the buttons look.
+  final ScannerButtonStyle buttonStyle;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -208,6 +213,7 @@ class _ScannerPageState extends State<ScannerPage> {
         bar: widget.bar,
         buttons: widget.buttons,
         buttonsAlignment: widget.buttonsAlignment,
+        buttonStyle: widget.buttonStyle,
         child: widget.child,
       );
     }

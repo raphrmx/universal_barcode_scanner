@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
@@ -23,6 +24,7 @@ class ScannerPage extends StatelessWidget {
     this.backgroundColor,
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
+    this.buttonStyle = const ScannerButtonStyle(),
   });
 
   /// What to scan and how.
@@ -48,6 +50,9 @@ class ScannerPage extends StatelessWidget {
 
   /// Where [buttons] sit.
   final AlignmentGeometry buttonsAlignment;
+
+  /// How the buttons look.
+  final ScannerButtonStyle buttonStyle;
 
   /// Colour behind the camera.
   final Color? backgroundColor;

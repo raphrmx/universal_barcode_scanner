@@ -7,6 +7,7 @@ import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
@@ -185,6 +186,7 @@ class DesktopScannerPage extends StatefulWidget {
     this.backgroundColor,
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
+    this.buttonStyle = const ScannerButtonStyle(),
   });
 
   /// What to scan and how.
@@ -210,6 +212,9 @@ class DesktopScannerPage extends StatefulWidget {
 
   /// Where [buttons] sit.
   final AlignmentGeometry buttonsAlignment;
+
+  /// How the buttons look.
+  final ScannerButtonStyle buttonStyle;
 
   @override
   State<DesktopScannerPage> createState() => _DesktopScannerPageState();
@@ -312,6 +317,7 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
             ),
       buttonsAlignment: widget.buttonsAlignment,
       closeLabel: widget.config.labels.close,
+      buttonStyle: widget.buttonStyle,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),
     );

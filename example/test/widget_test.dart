@@ -8,11 +8,13 @@ void main() {
   ) async {
     await tester.pumpWidget(const ExampleApp());
 
-    expect(find.text('Embedded view'), findsOneWidget);
-
-    // The other cards are below the fold of the test window, so the list has
-    // not built them yet.
-    for (final String mode in <String>['Scan once', 'Scan continuously']) {
+    // The cards are below the fold of the test window, so the list has not
+    // built them all yet.
+    for (final String mode in <String>[
+      'Embedded view',
+      'Scan once',
+      'Scan continuously',
+    ]) {
       await tester.scrollUntilVisible(
         find.text(mode),
         200,

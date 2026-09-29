@@ -149,8 +149,27 @@ if (result?.format == BarcodeFormat.ean13) {
 | `labels` | `ScannerLabels.english` | The words of the buttons, for screen readers, and of the page when the camera will not start. `ScannerLabels.french`, `.dutch` and `.german` are ready to use, and `copyWith` changes any of them. Web, Windows and Linux. |
 | `animate` | `true` | Fades the camera in when it starts and turns it over when flipped. Off when the platform asks for reduced motion. Web, Windows and Linux. |
 | `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
+| `buttonStyle` | round and dark | A `ScannerButtonStyle`: the size, spacing, colours off and on, focus ring, corners and tooltips of the buttons and of the close button. Web, Windows and Linux. |
 | `vibrate` | `false` | A short vibration for each code read, where the device has one. On every platform. |
 | `beep` | `false` | A short beep for each code read: a tone on Android, iOS and the web, the system's alert sound on a desktop. On every platform. |
+
+The buttons work with the mouse and the keyboard as well as by touch: the hand shows over them, a
+tooltip says what each one does, Tab moves between them with a ring around the one reached, and
+Enter or Space presses it.
+
+```dart
+UniversalBarcodeScanner.scan(
+  context,
+  buttons: const <ScannerButton>{ScannerButton.torch, ScannerButton.zoom},
+  buttonStyle: const ScannerButtonStyle(
+    size: 52,
+    backgroundColor: Color(0xCCFFFFFF),
+    foregroundColor: Color(0xFF0E1014),
+    activeBackgroundColor: Color(0xFF2E9E6A),
+    borderRadius: BorderRadius.all(Radius.circular(10)),
+  ),
+);
+```
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
@@ -248,7 +267,7 @@ applied, `1` where it cannot zoom, which is the case of the same cameras.
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `animate`, `labels`, `vibrate`, `beep`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the native view says when its first frame is on screen, and the camera fades in then. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `buttonStyle`, `animate`, `labels`, `vibrate`, `beep`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the native view says when its first frame is on screen, and the camera fades in then. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The flip is the exception: it follows the widget, and the

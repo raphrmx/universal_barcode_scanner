@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/pointer_shield.dart';
+import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
@@ -147,7 +150,7 @@ class ScannerButtons extends ChangeNotifier {
 
 /// Places a [ScannerButtonGroup] at [alignment] inside the box it is given,
 /// [inset] from its edges. Along the side when centred on the left or the
-/// right, across otherwise.
+/// right, across otherwise, and with its tooltips towards the middle.
 class ScannerButtonsOverlay extends StatelessWidget {
   /// Shows [buttons] at [alignment].
   const ScannerButtonsOverlay({
@@ -157,6 +160,7 @@ class ScannerButtonsOverlay extends StatelessWidget {
     required this.alignment,
     this.inset = const EdgeInsets.all(12),
     this.labels = ScannerLabels.english,
+    this.style = const ScannerButtonStyle(),
   });
 
   final ScannerButtons state;
@@ -164,6 +168,7 @@ class ScannerButtonsOverlay extends StatelessWidget {
   final AlignmentGeometry alignment;
   final EdgeInsets inset;
   final ScannerLabels labels;
+  final ScannerButtonStyle style;
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +176,10 @@ class ScannerButtonsOverlay extends StatelessWidget {
       Directionality.maybeOf(context),
     );
     final bool alongSide = resolved.x.abs() == 1 && resolved.y.abs() < 1;
+    // Towards the middle of the view, where there is room.
+    final AxisDirection tooltips = alongSide
+        ? (resolved.x > 0 ? AxisDirection.left : AxisDirection.right)
+        : (resolved.y < 0 ? AxisDirection.down : AxisDirection.up);
     return Padding(
       padding: inset,
       child: Align(
@@ -183,6 +192,8 @@ class ScannerButtonsOverlay extends StatelessWidget {
             state: state,
             buttons: buttons,
             labels: labels,
+            style: style,
+            tooltips: tooltips,
             direction: alongSide ? Axis.vertical : Axis.horizontal,
           ),
         ),
@@ -200,122 +211,375 @@ class ScannerButtonGroup extends StatelessWidget {
     required this.buttons,
     this.direction = Axis.horizontal,
     this.labels = ScannerLabels.english,
+    this.style = const ScannerButtonStyle(),
+    this.tooltips = AxisDirection.left,
   });
 
   final ScannerButtons state;
   final Set<ScannerButton> buttons;
   final Axis direction;
 
-  /// What a screen reader says for each button.
+  /// What each button says, to a screen reader and in its tooltip.
   final ScannerLabels labels;
+
+  /// How the buttons look.
+  final ScannerButtonStyle style;
+
+  /// Where the tooltips open.
+  final AxisDirection tooltips;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: state,
     builder: (BuildContext context, Widget? _) {
       final List<Widget> children = <Widget>[];
+      void add(String label, bool on, VoidCallback onPressed, _Icon icon) {
+        if (children.isNotEmpty) {
+          children.add(SizedBox.square(dimension: style.spacing));
+        }
+        children.add(
+          ScannerRoundButton(
+            label: label,
+            on: on,
+            onPressed: onPressed,
+            style: style,
+            tooltip: tooltips,
+            painter: (Color color) => _IconPainter(icon, color),
+          ),
+        );
+      }
+
       for (final ScannerButton button in ScannerButton.values) {
         if (!buttons.contains(button)) continue;
-        if (children.isNotEmpty) {
-          children.add(const SizedBox.square(dimension: 8));
-        }
-        children.add(switch (button) {
-          ScannerButton.torch => _RoundButton(
-            label: labels.torch,
-            on: state.torch,
-            onPressed: () => unawaited(state.toggleTorch()),
-            icon: const _Bolt(),
-          ),
-          ScannerButton.pause => _RoundButton(
+        switch (button) {
+          case ScannerButton.torch:
+            add(
+              labels.torch,
+              state.torch,
+              () => unawaited(state.toggleTorch()),
+              const _Bolt(),
+            );
+          case ScannerButton.pause:
             // Says what a tap does: the icon shows it too.
-            label: state.paused ? labels.resume : labels.pause,
-            on: state.paused,
-            onPressed: () => unawaited(state.togglePause()),
-            icon: _PausePlay(paused: state.paused),
-          ),
-          ScannerButton.flipHorizontal => _RoundButton(
-            label: labels.flipHorizontal,
-            on: state.flipHorizontal,
-            onPressed: state.toggleFlipHorizontal,
-            icon: const _Flip(vertical: false),
-          ),
-          ScannerButton.flipVertical => _RoundButton(
-            label: labels.flipVertical,
-            on: state.flipVertical,
-            onPressed: state.toggleFlipVertical,
-            icon: const _Flip(vertical: true),
-          ),
-          ScannerButton.zoom => _RoundButton(
-            label: labels.zoom,
-            on: state.zoom > 1.01,
-            onPressed: () => unawaited(state.cycleZoom()),
-            icon: _Zoom(state.zoom),
-          ),
-          // An action rather than a state: never shown on.
-          ScannerButton.switchCamera => _RoundButton(
-            label: labels.switchCamera,
-            on: false,
-            onPressed: state.switchCamera,
-            icon: const _SwitchCamera(),
-          ),
-        });
+            add(
+              state.paused ? labels.resume : labels.pause,
+              state.paused,
+              () => unawaited(state.togglePause()),
+              _PausePlay(paused: state.paused),
+            );
+          case ScannerButton.flipHorizontal:
+            add(
+              labels.flipHorizontal,
+              state.flipHorizontal,
+              state.toggleFlipHorizontal,
+              const _Flip(vertical: false),
+            );
+          case ScannerButton.flipVertical:
+            add(
+              labels.flipVertical,
+              state.flipVertical,
+              state.toggleFlipVertical,
+              const _Flip(vertical: true),
+            );
+          case ScannerButton.zoom:
+            add(
+              labels.zoom,
+              state.zoom > 1.01,
+              () => unawaited(state.cycleZoom()),
+              _Zoom(state.zoom),
+            );
+          case ScannerButton.switchCamera:
+            // An action rather than a state: never shown on.
+            add(
+              labels.switchCamera,
+              false,
+              state.switchCamera,
+              const _SwitchCamera(),
+            );
+        }
       }
-      return Flex(
-        direction: direction,
-        mainAxisSize: MainAxisSize.min,
-        children: children,
+      return PointerShield(
+        child: Flex(
+          direction: direction,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
       );
     },
   );
 }
 
-/// Colours of a button, off and on.
-const Color _offBackground = Color(0x99000000);
-const Color _offForeground = Color(0xFFFFFFFF);
-const Color _onBackground = Color(0xE6FFFFFF);
-const Color _onForeground = Color(0xFF000000);
-
-/// A round button over the camera, the size of the close button, filled in
-/// white while what it turns on is on.
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
+/// A button over the camera: tapped, clicked, or reached with Tab and
+/// pressed with Enter or Space. It shows the hand over it, a ring when the
+/// keyboard is on it, and says what it does in a tooltip.
+class ScannerRoundButton extends StatefulWidget {
+  /// A button reading [label], drawn by [painter] in the colour it is given.
+  const ScannerRoundButton({
+    super.key,
     required this.label,
-    required this.on,
     required this.onPressed,
-    required this.icon,
+    required this.painter,
+    this.on = false,
+    this.style = const ScannerButtonStyle(),
+    this.tooltip = AxisDirection.left,
   });
 
   final String label;
+  final VoidCallback? onPressed;
+
+  /// Draws the icon in a colour.
+  final CustomPainter Function(Color color) painter;
+
+  /// Whether what the button turns on is on.
   final bool on;
-  final VoidCallback onPressed;
-  final _Icon icon;
+  final ScannerButtonStyle style;
+
+  /// Where the tooltip opens.
+  final AxisDirection tooltip;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    toggled: on,
-    label: label,
-    excludeSemantics: true,
-    child: GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox.square(
-        dimension: 44,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: on ? _onBackground : _offBackground,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: CustomPaint(
-              size: const Size.square(20),
-              painter: _IconPainter(icon, on ? _onForeground : _offForeground),
+  State<ScannerRoundButton> createState() => _ScannerRoundButtonState();
+}
+
+class _ScannerRoundButtonState extends State<ScannerRoundButton> {
+  /// How long the mouse rests on a button before it says what it does.
+  static const Duration _tooltipDelay = Duration(milliseconds: 500);
+
+  /// How far the focus ring stands out from the button.
+  static const double _ringOffset = 4;
+
+  final OverlayPortalController _tooltip = OverlayPortalController();
+  final LayerLink _link = LayerLink();
+  Timer? _tooltipTimer;
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  void dispose() {
+    _tooltipTimer?.cancel();
+    super.dispose();
+  }
+
+  void _press() {
+    _hideTooltip();
+    widget.onPressed?.call();
+  }
+
+  void _onHover(bool hovered) {
+    setState(() => _hovered = hovered);
+    if (hovered) {
+      _tooltipTimer?.cancel();
+      _tooltipTimer = Timer(_tooltipDelay, _showTooltip);
+    } else if (!_focused) {
+      _hideTooltip();
+    }
+  }
+
+  void _onFocus(bool focused) {
+    setState(() => _focused = focused);
+    if (focused) {
+      _showTooltip();
+    } else if (!_hovered) {
+      _hideTooltip();
+    }
+  }
+
+  void _showTooltip() {
+    if (mounted && widget.style.showTooltips) _tooltip.show();
+  }
+
+  void _hideTooltip() {
+    _tooltipTimer?.cancel();
+    _tooltipTimer = null;
+    if (_tooltip.isShowing) _tooltip.hide();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ScannerButtonStyle style = widget.style;
+    final Color background = widget.on
+        ? style.activeBackgroundColor
+        : style.backgroundColor;
+    final Color foreground = widget.on
+        ? style.activeForegroundColor
+        : style.foregroundColor;
+    final BorderRadius? radius = style.borderRadius;
+    final BoxShape shape = radius == null
+        ? BoxShape.circle
+        : BoxShape.rectangle;
+
+    final Widget button = Semantics(
+      button: true,
+      toggled: widget.on,
+      label: widget.label,
+      excludeSemantics: true,
+      // Hovered whatever input came last: a tooltip is for the mouse.
+      child: MouseRegion(
+        cursor: widget.onPressed == null
+            ? MouseCursor.defer
+            : SystemMouseCursors.click,
+        onEnter: (PointerEnterEvent _) => _onHover(true),
+        onExit: (PointerExitEvent _) => _onHover(false),
+        child: FocusableActionDetector(
+          enabled: widget.onPressed != null,
+          onShowFocusHighlight: _onFocus,
+          shortcuts: const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          },
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (ActivateIntent _) {
+                _press();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onPressed == null ? null : _press,
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox.square(
+              dimension: style.size,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  // The icon's colour laid lightly over the fill on hover.
+                  color: _hovered
+                      ? Color.alphaBlend(
+                          foreground.withValues(alpha: 0.14),
+                          background,
+                        )
+                      : background,
+                  shape: shape,
+                  borderRadius: radius,
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Center(
+                      child: CustomPaint(
+                        size: Size.square(style.iconSize),
+                        painter: widget.painter(foreground),
+                      ),
+                    ),
+                    // Around the button with a gap rather than on its edge,
+                    // so it shows whatever the fill.
+                    if (_focused)
+                      Positioned.fill(
+                        left: -_ringOffset,
+                        top: -_ringOffset,
+                        right: -_ringOffset,
+                        bottom: -_ringOffset,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: shape,
+                              borderRadius: radius == null
+                                  ? null
+                                  : radius + BorderRadius.circular(_ringOffset),
+                              border: Border.all(
+                                color: style.focusColor,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+
+    // A tooltip needs an overlay to open in; a view put somewhere with none
+    // simply goes without.
+    if (Overlay.maybeOf(context) == null) return button;
+    return CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _tooltip,
+        overlayChildBuilder: (BuildContext context) =>
+            _Tooltip(link: _link, side: widget.tooltip, label: widget.label),
+        child: button,
+      ),
+    );
+  }
+}
+
+/// What a button does, next to it.
+class _Tooltip extends StatelessWidget {
+  const _Tooltip({required this.link, required this.side, required this.label});
+
+  final LayerLink link;
+  final AxisDirection side;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    const double gap = 8;
+    final (
+      Alignment target,
+      Alignment follower,
+      Offset offset,
+    ) = switch (side) {
+      AxisDirection.left => (
+        Alignment.centerLeft,
+        Alignment.centerRight,
+        const Offset(-gap, 0),
+      ),
+      AxisDirection.right => (
+        Alignment.centerRight,
+        Alignment.centerLeft,
+        const Offset(gap, 0),
+      ),
+      AxisDirection.up => (
+        Alignment.topCenter,
+        Alignment.bottomCenter,
+        const Offset(0, -gap),
+      ),
+      AxisDirection.down => (
+        Alignment.bottomCenter,
+        Alignment.topCenter,
+        const Offset(0, gap),
+      ),
+    };
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: CompositedTransformFollower(
+        link: link,
+        targetAnchor: target,
+        followerAnchor: follower,
+        offset: offset,
+        child: IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xE6202124),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              child: Text(
+                label,
+                // Read out by the button itself.
+                semanticsLabel: '',
+                style: const TextStyle(
+                  color: Color(0xFFFFFFFF),
+                  fontSize: 12,
+                  // Without a Material ancestor the ambient style is
+                  // Flutter's fallback, which underlines in yellow.
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// An icon drawn in a square of any size, in one colour.
