@@ -36,7 +36,6 @@ class ScannerPage extends StatefulWidget {
     this.onError,
     this.child,
     this.bar,
-    this.flip = false,
     this.backgroundColor,
   });
 
@@ -58,9 +57,6 @@ class ScannerPage extends StatefulWidget {
 
   /// App bar above the webview scanner, or null for none.
   final ScannerBar? bar;
-
-  /// Whether the webview preview is mirrored.
-  final bool flip;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -180,7 +176,6 @@ class _ScannerPageState extends State<ScannerPage> {
         onScanned: widget.onScanned,
         onClose: widget.onClose,
         bar: widget.bar,
-        flip: widget.flip,
         child: widget.child,
       );
     }
@@ -267,7 +262,6 @@ class EmbeddedScanner extends StatefulWidget {
     this.onError,
     this.scanWindowSize,
     this.child,
-    this.flip = false,
   });
 
   /// What to scan and how.
@@ -287,9 +281,6 @@ class EmbeddedScanner extends StatefulWidget {
 
   /// Drawn over the camera.
   final Widget? child;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   @override
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
@@ -340,7 +331,6 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
         onScanned: widget.onScanned,
         onError: widget.onError,
         scanWindowSize: widget.scanWindowSize,
-        flip: widget.flip,
         child: widget.child,
       );
     }
@@ -375,10 +365,15 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     }
 
     final Widget? child = widget.child;
-    final Widget camera = widget.flip
+    final ScannerConfig config = widget.config;
+    final Widget camera = config.flipHorizontal || config.flipVertical
         ? Transform(
             alignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(-1, 1, 1),
+            transform: Matrix4.diagonal3Values(
+              config.flipHorizontal ? -1 : 1,
+              config.flipVertical ? -1 : 1,
+              1,
+            ),
             child: view,
           )
         : view;

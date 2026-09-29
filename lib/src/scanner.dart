@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
@@ -41,7 +42,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     this.scanDelay,
     this.child,
     this.continuous = false,
-    this.flip = false,
+    this.flip,
+    this.flipVertical = false,
   });
 
   /// Called once the view exists, with the controller that drives it.
@@ -82,8 +84,23 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// pauses on the first code until `ScannerController.resumeScanning`.
   final bool continuous;
 
-  /// Whether the preview is mirrored.
-  final bool flip;
+  /// Whether the camera is shown mirrored left to right. Null mirrors it
+  /// where the camera is a webcam facing the user, as [flipsByDefault] says.
+  /// Only the picture turns: codes read the same.
+  ///
+  /// It can change while the view runs: the camera keeps going.
+  final bool? flip;
+
+  /// Whether the camera is shown upside down, for a camera mounted that way.
+  final bool flipVertical;
+
+  /// Whether a scanner left without a `flip` mirrors the camera: on a desktop
+  /// and in a desktop browser, where the camera is a webcam facing the user,
+  /// and not on a phone or a tablet, where it faces away.
+  static bool get flipsByDefault => switch (defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => false,
+    _ => true,
+  };
 
   /// Opens the scanner as a route and returns the code that was read.
   ///
@@ -91,9 +108,9 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// a [ScannerException] when the camera cannot be used on Android, iOS or
   /// macOS. The route closes itself in every case.
   ///
-  /// [bar], [child], [backgroundColor] and [flip] shape the Flutter
-  /// page the web, Windows and Linux scanner runs in. Android, iOS and macOS
-  /// open a native screen over it and do not use them.
+  /// [bar], [child], [backgroundColor], [flip] and `flipVertical` shape the
+  /// Flutter page the web, Windows and Linux scanner runs in. Android, iOS
+  /// and macOS open a native screen over it and do not use them.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -103,7 +120,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     CameraFace cameraFace = CameraFace.back,
     ScanFormat scanFormat = ScanFormat.all,
     ScannerBar? bar,
-    bool flip = false,
+    bool? flip,
+    bool flipVertical = false,
     Widget? child,
     Color? backgroundColor,
   }) async {
@@ -120,10 +138,11 @@ class UniversalBarcodeScanner extends StatelessWidget {
           scanWindow: scanWindow,
           cameraFace: cameraFace,
           scanFormat: scanFormat,
+          flipHorizontal: flip ?? flipsByDefault,
+          flipVertical: flipVertical,
         ),
         backgroundColor: backgroundColor,
         bar: bar,
-        flip: flip,
         onScanned: (String code) => _leave(navigator, route, code),
         onClose: () => _leave(navigator, route, null),
         onError: (ScannerException error) {
@@ -163,7 +182,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     ScanFormat scanFormat = ScanFormat.all,
     ScannerBar? bar,
     Duration? scanDelay,
-    bool flip = false,
+    bool? flip,
+    bool flipVertical = false,
     Widget? child,
     Color? backgroundColor,
   }) {
@@ -186,10 +206,11 @@ class UniversalBarcodeScanner extends StatelessWidget {
           scanFormat: scanFormat,
           scanDelay: scanDelay,
           continuous: true,
+          flipHorizontal: flip ?? flipsByDefault,
+          flipVertical: flipVertical,
         ),
         backgroundColor: backgroundColor,
         bar: bar,
-        flip: flip,
         onScanned: (String code) {
           if (!codes.isClosed) codes.add(code);
         },
@@ -253,11 +274,12 @@ class UniversalBarcodeScanner extends StatelessWidget {
         scanFormat: scanFormat,
         scanDelay: scanDelay,
         continuous: continuous,
+        flipHorizontal: flip ?? flipsByDefault,
+        flipVertical: flipVertical,
       ),
       scanWindowSize: scanWindowSize,
       onScanned: onScanned,
       onError: onError,
-      flip: flip,
       onCreated: onCreated,
       child: child,
     );

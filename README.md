@@ -134,7 +134,8 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `bar` | `null` | A `ScannerBar` above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux. |
 | `child` | `null` | Drawn over the scanner, for instance a manual entry field. Web, Windows and Linux. |
 | `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
-| `flip` | `false` | Mirrors the preview. Web, Windows and Linux. |
+| `flip` | `null` | Mirrors the camera left to right. `null` mirrors it where it is a webcam facing the user, on a desktop and in a desktop browser, and not on a phone or a tablet. Web, Windows and Linux. |
+| `flipVertical` | `false` | Shows the camera upside down. Web, Windows and Linux. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
@@ -224,10 +225,11 @@ browsers and webviews give a page no control over.
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `child` | see above | As in `scan` and `stream`. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `child` | see above | As in `scan` and `stream`, on every platform. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
-give the widget a new key to change it. The callbacks are always the current widget's, and none is
+give the widget a new key to change it. The flip is the exception: it follows the widget, and the
+camera keeps running. The callbacks are always the current widget's, and none is
 called once the widget is gone.
 
 ## Scanner bar

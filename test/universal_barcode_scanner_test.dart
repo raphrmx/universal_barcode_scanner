@@ -146,6 +146,8 @@ void main() {
           'delay': '2000',
           'facing': 'user',
           'window': 'wide',
+          'flipX': '0',
+          'flipY': '0',
           'formats': 'barcode',
         },
       );
@@ -691,6 +693,41 @@ void main() {
   });
 
   group('UniversalBarcodeScanner', () {
+    test('mirrors a webcam by default, not a phone camera', () {
+      final Map<TargetPlatform, bool> expected = <TargetPlatform, bool>{
+        TargetPlatform.android: false,
+        TargetPlatform.iOS: false,
+        TargetPlatform.macOS: true,
+        TargetPlatform.windows: true,
+        TargetPlatform.linux: true,
+      };
+      try {
+        expected.forEach((TargetPlatform platform, bool flips) {
+          debugDefaultTargetPlatformOverride = platform;
+          expect(
+            UniversalBarcodeScanner.flipsByDefault,
+            flips,
+            reason: '$platform',
+          );
+        });
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    test('hands the page each flip', () {
+      expect(
+        const ScannerConfig(flipHorizontal: true).toPage(host: 'web'),
+        containsPair('flipX', '1'),
+      );
+      final Map<String, String> both = const ScannerConfig(
+        flipHorizontal: true,
+        flipVertical: true,
+      ).toEmbeddedPage(host: 'desktop', window: Size.zero);
+      expect(both['flipX'], '1');
+      expect(both['flipY'], '1');
+    });
+
     testWidgets('says so on a platform with no embedded view', (
       WidgetTester tester,
     ) async {

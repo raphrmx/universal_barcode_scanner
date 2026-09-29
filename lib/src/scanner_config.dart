@@ -21,6 +21,8 @@ class ScannerConfig {
     this.scanFormat = ScanFormat.all,
     this.scanDelay,
     this.continuous = false,
+    this.flipHorizontal = false,
+    this.flipVertical = false,
   });
 
   /// Colour of the scan line.
@@ -46,6 +48,13 @@ class ScannerConfig {
 
   /// Whether reading continues after the first code.
   final bool continuous;
+
+  /// Whether the camera is shown mirrored left to right, as a webcam facing
+  /// the user usually is. Only the picture turns: codes read the same.
+  final bool flipHorizontal;
+
+  /// Whether the camera is shown upside down.
+  final bool flipVertical;
 
   /// Milliseconds of [scanDelay], zero when there is none.
   int get delayMillis => scanDelay?.inMilliseconds ?? 0;
@@ -78,6 +87,7 @@ class ScannerConfig {
         'delay': '$delayMillis',
         'facing': cameraFace == CameraFace.front ? 'user' : 'environment',
         'window': scanWindow.name,
+        ...flipToPage(flipHorizontal, flipVertical),
         'formats': switch (scanFormat) {
           ScanFormat.all => 'all',
           ScanFormat.onlyQrCode => 'qr',
@@ -96,6 +106,13 @@ class ScannerConfig {
     'embedded': '1',
     ...windowToPage(window),
   };
+
+  /// How the page flips the camera.
+  static Map<String, String> flipToPage(bool horizontal, bool vertical) =>
+      <String, String>{
+        'flipX': horizontal ? '1' : '0',
+        'flipY': vertical ? '1' : '0',
+      };
 
   /// The scan window as the page reads it.
   static Map<String, String> windowToPage(Size window) => <String, String>{

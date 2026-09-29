@@ -175,7 +175,6 @@ class DesktopScannerPage extends StatefulWidget {
     required this.onClose,
     this.child,
     this.bar,
-    this.flip = false,
     this.backgroundColor,
   });
 
@@ -193,9 +192,6 @@ class DesktopScannerPage extends StatefulWidget {
 
   /// App bar shown above the scanner, or null for none.
   final ScannerBar? bar;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -267,21 +263,8 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
       backgroundColor: widget.backgroundColor,
       bar: widget.bar,
       onClose: _close,
-      body: Stack(
-        children: <Widget>[
-          // The page sizes its overlay from the width it measures itself, so
-          // the view is mirrored and never resized.
-          if (widget.flip)
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: view,
-            )
-          else
-            view,
-          ?widget.child,
-        ],
-      ),
+      // The page flips the camera itself, leaving its words readable.
+      body: Stack(children: <Widget>[view, ?widget.child]),
     );
   }
 }
@@ -302,7 +285,6 @@ class DesktopEmbeddedScanner extends StatefulWidget {
     this.onError,
     this.scanWindowSize,
     this.child,
-    this.flip = false,
   });
 
   /// What to scan and how.
@@ -322,9 +304,6 @@ class DesktopEmbeddedScanner extends StatefulWidget {
 
   /// Drawn over the camera.
   final Widget? child;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   @override
   State<DesktopEmbeddedScanner> createState() => _DesktopEmbeddedScannerState();
@@ -366,6 +345,18 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     _controller
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
+    final ScannerConfig config = widget.config;
+    final ScannerConfig old = oldWidget.config;
+    // Before configure, the page gets the current flip with the rest.
+    if (_configured &&
+        (config.flipHorizontal != old.flipHorizontal ||
+            config.flipVertical != old.flipVertical)) {
+      unawaited(
+        _lease.webview.run(
+          'setFlip(${config.flipHorizontal}, ${config.flipVertical})',
+        ),
+      );
+    }
   }
 
   @override
@@ -422,7 +413,6 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
     config: widget.config,
     scanWindowSize: widget.scanWindowSize,
     onWindow: _onWindow,
-    flip: widget.flip,
     failed: _failed,
     paused: _controller.paused,
     child: widget.child,

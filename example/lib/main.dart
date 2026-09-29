@@ -64,6 +64,11 @@ class _HomePageState extends State<HomePage> {
   bool _paused = false;
   bool _torch = false;
 
+  /// How the camera is shown, in every mode. Mirrored by default where the
+  /// camera is a webcam, as the package itself does.
+  bool _flipHorizontal = UniversalBarcodeScanner.flipsByDefault;
+  bool _flipVertical = false;
+
   @override
   void dispose() {
     _stream?.cancel();
@@ -126,6 +131,8 @@ class _HomePageState extends State<HomePage> {
         showTorchButton: true,
         cameraFace: CameraFace.back,
         scanFormat: ScanFormat.all,
+        flip: _flipHorizontal,
+        flipVertical: _flipVertical,
       );
       if (code != null) _found(code, 'one shot');
     } on ScannerException catch (error) {
@@ -143,6 +150,8 @@ class _HomePageState extends State<HomePage> {
       bar: _appBar,
       showTorchButton: true,
       scanDelay: const Duration(seconds: 2),
+      flip: _flipHorizontal,
+      flipVertical: _flipVertical,
     ).listen(
       (String code) => _found(code, 'continuous'),
       onError: (Object error) {
@@ -196,6 +205,9 @@ class _HomePageState extends State<HomePage> {
                   camera: _embedded
                       ? UniversalBarcodeScanner(
                           continuous: true,
+                          // Changed live: the camera keeps running.
+                          flip: _flipHorizontal,
+                          flipVertical: _flipVertical,
                           onScanned: (String code) => _found(code, 'embedded'),
                           onError: _failed,
                           onCreated: (ScannerController controller) =>
@@ -229,6 +241,29 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ]
                       : const <Widget>[],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    FilterChip(
+                      avatar: const Icon(Icons.swap_horiz, size: 18),
+                      label: const Text('Flip horizontally'),
+                      selected: _flipHorizontal,
+                      showCheckmark: false,
+                      onSelected: (bool on) =>
+                          setState(() => _flipHorizontal = on),
+                    ),
+                    FilterChip(
+                      avatar: const Icon(Icons.swap_vert, size: 18),
+                      label: const Text('Flip vertically'),
+                      selected: _flipVertical,
+                      showCheckmark: false,
+                      onSelected: (bool on) =>
+                          setState(() => _flipVertical = on),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 22),
                 _Mode(

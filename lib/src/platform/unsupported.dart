@@ -18,7 +18,6 @@ class ScannerPage extends StatelessWidget {
     this.onError,
     this.child,
     this.bar,
-    this.flip = false,
     this.backgroundColor,
   });
 
@@ -40,9 +39,6 @@ class ScannerPage extends StatelessWidget {
   /// App bar shown above the scanner, or null for none.
   final ScannerBar? bar;
 
-  /// Whether the preview is mirrored.
-  final bool flip;
-
   /// Colour behind the camera.
   final Color? backgroundColor;
 
@@ -62,7 +58,6 @@ class EmbeddedScanner extends StatelessWidget {
     this.onError,
     this.scanWindowSize,
     this.child,
-    this.flip = false,
   });
 
   /// What to scan and how.
@@ -82,9 +77,6 @@ class EmbeddedScanner extends StatelessWidget {
 
   /// Drawn over the camera.
   final Widget? child;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   @override
   Widget build(BuildContext context) =>

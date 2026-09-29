@@ -15,6 +15,15 @@
   on every read.
 - On Windows and Linux, a webview no longer in use is disposed rather than
   left loaded with a blank page. `webview_all` 1.4.3 or later.
+- `flip` defaults to mirroring the camera where it is a webcam facing the user,
+  on a desktop and in a desktop browser, and not on a phone or a tablet, as
+  `UniversalBarcodeScanner.flipsByDefault` says. Pass `false` to keep the old
+  behaviour. `flipVertical` shows the camera upside down.
+- On the web, Windows and Linux the page flips the camera itself, rather than
+  the whole view being mirrored: the scan box and the page's messages stay the
+  right way round. An embedded view follows a change of either flip while it
+  runs, without restarting the camera.
+- The example has a button for each flip.
 
 ## 2.0.1
 

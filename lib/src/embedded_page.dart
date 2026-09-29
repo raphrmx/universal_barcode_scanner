@@ -185,7 +185,6 @@ class EmbeddedPageFrame extends StatelessWidget {
     required this.onWindow,
     this.scanWindowSize,
     this.child,
-    this.flip = false,
     this.failed = false,
     this.paused,
   });
@@ -204,9 +203,6 @@ class EmbeddedPageFrame extends StatelessWidget {
 
   /// Drawn over the camera.
   final Widget? child;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   /// Whether the camera did not start. The page then explains why, and no
   /// scan window is drawn over its words.
@@ -234,16 +230,8 @@ class EmbeddedPageFrame extends StatelessWidget {
       return Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          // The page measures the view itself, so it is mirrored rather than
-          // resized.
-          if (flip)
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: view,
-            )
-          else
-            view,
+          // The page flips the camera itself, leaving its words readable.
+          view,
           if (window != null && !failed)
             IgnorePointer(
               child: ScanWindowOverlay(

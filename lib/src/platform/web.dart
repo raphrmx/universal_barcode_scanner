@@ -23,7 +23,6 @@ class ScannerPage extends StatefulWidget {
     this.onError,
     this.child,
     this.bar,
-    this.flip = false,
     this.backgroundColor,
   });
 
@@ -44,9 +43,6 @@ class ScannerPage extends StatefulWidget {
 
   /// App bar shown above the scanner, or null for none.
   final ScannerBar? bar;
-
-  /// Whether the preview is mirrored.
-  final bool flip;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -138,21 +134,8 @@ class _ScannerPageState extends State<ScannerPage> {
       backgroundColor: widget.backgroundColor,
       bar: widget.bar,
       onClose: widget.onClose,
-      body: Stack(
-        children: <Widget>[
-          // The page sizes its overlay from the width it measures itself, so
-          // the view is mirrored and never resized.
-          if (widget.flip)
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: view,
-            )
-          else
-            view,
-          ?widget.child,
-        ],
-      ),
+      // The page flips the camera itself, leaving its words readable.
+      body: Stack(children: <Widget>[view, ?widget.child]),
     );
   }
 }
@@ -161,8 +144,8 @@ class _ScannerPageState extends State<ScannerPage> {
 /// the widget, the camera filling it.
 ///
 /// What to scan is read once, when the frame is created: give the widget a
-/// new key to apply a different configuration. The callbacks are always the
-/// current widget's.
+/// new key to apply a different configuration. The flip follows the widget,
+/// and the callbacks are always the current widget's.
 class EmbeddedScanner extends StatefulWidget {
   /// Creates the web embedded view.
   const EmbeddedScanner({
@@ -173,7 +156,6 @@ class EmbeddedScanner extends StatefulWidget {
     this.onError,
     this.scanWindowSize,
     this.child,
-    this.flip = false,
   });
 
   /// What to scan and how.
@@ -194,9 +176,6 @@ class EmbeddedScanner extends StatefulWidget {
   /// Drawn over the camera.
   final Widget? child;
 
-  /// Whether the preview is mirrored.
-  final bool flip;
-
   @override
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
@@ -215,6 +194,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
 
   /// The scan window the page was last told about.
   Size? _pageWindow;
+
+  /// The flip the page was last told about, horizontal then vertical.
+  (bool, bool)? _pageFlip;
 
   /// Whether the page listens: before, a message would be dropped.
   bool _pageReady = false;
@@ -242,6 +224,18 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     _controller
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
+    _sendFlip();
+  }
+
+  /// Tells the page about a flip it does not have yet.
+  void _sendFlip() {
+    final (bool, bool) flip = (
+      widget.config.flipHorizontal,
+      widget.config.flipVertical,
+    );
+    if (!_pageReady || flip == _pageFlip) return;
+    _pageFlip = flip;
+    _post(<String, Object>{'call': 'setFlip', 'x': flip.$1, 'y': flip.$2});
   }
 
   @override
@@ -281,6 +275,7 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
   void _onElementCreated(Object element) {
     final html.HTMLIFrameElement iframe = element as html.HTMLIFrameElement;
     final Size window = _pageWindow = _window ?? Size.zero;
+    _pageFlip = (widget.config.flipHorizontal, widget.config.flipVertical);
     final Uri page = Uri(
       path: ScannerAsset.webPath,
       queryParameters: <String, String>{
@@ -307,8 +302,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     if (message is PageError && !_failed) setState(() => _failed = true);
     if (message is PageReady) {
       _pageReady = true;
-      // A layout that changed while the page was loading.
+      // A layout or a flip that changed while the page was loading.
       _sendWindow();
+      _sendFlip();
     }
     _controller.handle(message);
   }
@@ -322,7 +318,6 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     config: widget.config,
     scanWindowSize: widget.scanWindowSize,
     onWindow: _onWindow,
-    flip: widget.flip,
     failed: _failed,
     paused: _controller.paused,
     child: widget.child,
