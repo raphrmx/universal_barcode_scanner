@@ -41,3 +41,19 @@ enum CameraFace {
   /// The front camera.
   front,
 }
+
+/// A button over the camera, drawn by Flutter wherever the scanner is a
+/// Flutter page or view.
+enum ScannerButton {
+  /// Turns the torch on and off, where the camera has one a page may drive.
+  torch,
+
+  /// Stops reading codes and starts again, the camera left running.
+  pause,
+
+  /// Mirrors the camera left to right.
+  flipHorizontal,
+
+  /// Shows the camera upside down.
+  flipVertical,
+}

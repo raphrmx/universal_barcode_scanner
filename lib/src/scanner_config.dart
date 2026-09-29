@@ -56,6 +56,21 @@ class ScannerConfig {
   /// Whether the camera is shown upside down.
   final bool flipVertical;
 
+  /// This configuration with the camera flipped as given.
+  ScannerConfig withFlip({required bool horizontal, required bool vertical}) =>
+      ScannerConfig(
+        lineColor: lineColor,
+        cancelLabel: cancelLabel,
+        showTorchButton: showTorchButton,
+        scanWindow: scanWindow,
+        cameraFace: cameraFace,
+        scanFormat: scanFormat,
+        scanDelay: scanDelay,
+        continuous: continuous,
+        flipHorizontal: horizontal,
+        flipVertical: vertical,
+      );
+
   /// Milliseconds of [scanDelay], zero when there is none.
   int get delayMillis => scanDelay?.inMilliseconds ?? 0;
 

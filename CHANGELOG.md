@@ -23,7 +23,19 @@
   the whole view being mirrored: the scan box and the page's messages stay the
   right way round. An embedded view follows a change of either flip while it
   runs, without restarting the camera.
-- The example has a button for each flip.
+- `buttons` and `buttonsAlignment` on `scan`, `stream` and the embedded view:
+  a group of round buttons over the camera, among the torch, pausing and each
+  flip, placed with any `Alignment`, `Alignment.topRight` by default. They run
+  down the side when centred on the left or the right, and keep clear of the
+  close button. On `scan` and `stream` they are drawn on the web, Windows and
+  Linux; the native screens of Android, iOS and macOS keep their own, and a
+  `torch` asked for shows the native torch button. The embedded view is drawn
+  by Flutter everywhere, so its buttons are too.
+- `ScannerBar.cancelLabel` replaces the `cancelLabel` of `scan` and `stream`,
+  which is deprecated and still wins when given. It labels the native cancel
+  button, as before, and the back button of the bar for a screen reader.
+- The example opens every mode with the buttons, and lets you pick where they
+  sit.
 
 ## 2.0.1
 

@@ -129,13 +129,14 @@ final String? code = await UniversalBarcodeScanner.scan(context);
 | `scanFormat` | `ScanFormat.all` | Symbologies to accept, on every platform. Fewer formats also scan faster. |
 | `scanWindow` | `ScanWindow.wide` | Shape of the scan window: `wide` for barcodes, `square` for QR codes, or `none` to read the whole frame with nothing drawn over it. |
 | `cameraFace` | `CameraFace.back` | Which camera to open. |
-| `cancelLabel` | `'Cancel'` | Label of the cancel button. Android, iOS and macOS. |
-| `showTorchButton` | `false` | Whether the torch button is shown, when the camera has a torch. Android and iOS. |
-| `bar` | `null` | A `ScannerBar` above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux. |
+| `showTorchButton` | `false` | Whether the native torch button is shown, when the camera has a torch. Android and iOS. |
+| `bar` | `null` | A `ScannerBar` above the scanner. Without one, a close button sits over the camera. Web, Windows and Linux, except its `cancelLabel`, which labels the native cancel button. |
 | `child` | `null` | Drawn over the scanner, for instance a manual entry field. Web, Windows and Linux. |
 | `backgroundColor` | black | Colour around the camera. Web, Windows and Linux. |
 | `flip` | `null` | Mirrors the camera left to right. `null` mirrors it where it is a webcam facing the user, on a desktop and in a desktop browser, and not on a phone or a tablet. Web, Windows and Linux. |
 | `flipVertical` | `false` | Shows the camera upside down. Web, Windows and Linux. |
+| `buttons` | none | Buttons over the camera, from `ScannerButton`: `torch`, `pause`, `flipHorizontal`, `flipVertical`. Web, Windows and Linux; `torch` also shows the native torch button on Android and iOS. |
+| `buttonsAlignment` | `Alignment.topRight` | Where the buttons sit. Centred on the left or the right, they run down the side. |
 
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
@@ -225,7 +226,7 @@ browsers and webviews give a page no control over.
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
 | `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
-| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `child` | see above | As in `scan` and `stream`, on every platform. |
+| `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
 give the widget a new key to change it. The flip is the exception: it follows the widget, and the
@@ -247,7 +248,9 @@ UniversalBarcodeScanner.scan(
 );
 ```
 
-On Android, iOS and macOS the native screen draws its own controls and has no bar.
+On Android, iOS and macOS the native screen draws its own controls and has no bar. It still takes
+the bar's `cancelLabel`, `'Cancel'` by default, as the text of its cancel button; on the bar itself
+it is what a screen reader says for the back button.
 
 ## Migrating from 1.x
 

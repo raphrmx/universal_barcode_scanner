@@ -5,7 +5,9 @@ import 'dart:js_interop';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
+import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -24,6 +26,8 @@ class ScannerPage extends StatefulWidget {
     this.child,
     this.bar,
     this.backgroundColor,
+    this.buttons = const <ScannerButton>{},
+    this.buttonsAlignment = Alignment.topRight,
   });
 
   /// What to scan and how.
@@ -47,6 +51,12 @@ class ScannerPage extends StatefulWidget {
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
 
+  /// The buttons over the camera.
+  final Set<ScannerButton> buttons;
+
+  /// Where [buttons] sit.
+  final AlignmentGeometry buttonsAlignment;
+
   @override
   State<ScannerPage> createState() => _ScannerPageState();
 }
@@ -58,6 +68,21 @@ class _ScannerPageState extends State<ScannerPage> {
   StreamSubscription<html.MessageEvent>? _messages;
   bool _delivered = false;
 
+  /// Drives the page for the buttons: pause and torch.
+  late final PageScannerController _controller = PageScannerController(
+    (PageCall call) => _post(<String, Object>{'call': call.name}),
+    continuous: widget.config.continuous,
+  );
+
+  late final ScannerButtons _buttons = ScannerButtons(
+    flipHorizontal: widget.config.flipHorizontal,
+    flipVertical: widget.config.flipVertical,
+    onFlip: _sendFlip,
+  )..controller = _controller;
+
+  /// Whether the page listens: a call before then is lost.
+  bool _pageReady = false;
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +92,22 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   void dispose() {
     _messages?.cancel();
+    _controller.dispose();
+    _buttons.dispose();
     super.dispose();
+  }
+
+  void _post(Map<String, Object> message) {
+    _iframe?.contentWindow?.postMessage(
+      jsonEncode(message).toJS,
+      html.window.location.origin.toJS,
+    );
+  }
+
+  /// Sent once the page listens; until then the query string still says it.
+  void _sendFlip(bool horizontal, bool vertical) {
+    if (!_pageReady) return;
+    _post(<String, Object>{'call': 'setFlip', 'x': horizontal, 'y': vertical});
   }
 
   /// Sets the frame up. No cross-frame call is possible before it loads, so
@@ -105,7 +145,8 @@ class _ScannerPageState extends State<ScannerPage> {
     if (iframe == null || event.origin != html.window.location.origin) return;
     if (!event.source.strictEquals(iframe.contentWindow).toDart) return;
 
-    switch (PageMessage.parse(event.data.dartify())) {
+    final PageMessage? message = PageMessage.parse(event.data.dartify());
+    switch (message) {
       case PageCode(:final String code):
         if (!widget.config.continuous) {
           if (_delivered) return;
@@ -114,11 +155,18 @@ class _ScannerPageState extends State<ScannerPage> {
         widget.onScanned(code);
       case PageClose():
         widget.onClose();
-      // The page says itself why the camera did not start, and has no torch
-      // button to answer.
-      case PageError():
       case PageTorch():
+        _controller.handle(message);
       case PageReady():
+        _pageReady = true;
+        // Buttons pressed while the page was loading.
+        if (_buttons.flipHorizontal != widget.config.flipHorizontal ||
+            _buttons.flipVertical != widget.config.flipVertical) {
+          _sendFlip(_buttons.flipHorizontal, _buttons.flipVertical);
+        }
+        _controller.pageReady();
+      // The page says itself why the camera did not start.
+      case PageError():
       case null:
         break;
     }
@@ -134,6 +182,10 @@ class _ScannerPageState extends State<ScannerPage> {
       backgroundColor: widget.backgroundColor,
       bar: widget.bar,
       onClose: widget.onClose,
+      buttons: widget.buttons.isEmpty
+          ? null
+          : ScannerButtonGroup(state: _buttons, buttons: widget.buttons),
+      buttonsAlignment: widget.buttonsAlignment,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),
     );

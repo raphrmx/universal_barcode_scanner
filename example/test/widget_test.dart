@@ -1,5 +1,4 @@
 import 'package:example/main.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,27 +22,18 @@ void main() {
     }
   });
 
-  testWidgets('mirrors the camera by default on a desktop, and toggles', (
+  testWidgets('places the buttons top right, and elsewhere on request', (
     WidgetTester tester,
   ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    try {
-      await tester.pumpWidget(const ExampleApp());
-      FilterChip chip(String label) => tester.widget<FilterChip>(
-            find.widgetWithText(FilterChip, label),
-          );
+    await tester.pumpWidget(const ExampleApp());
+    ChoiceChip chip(String label) =>
+        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
 
-      expect(chip('Flip horizontally').selected, isTrue);
-      expect(chip('Flip vertically').selected, isFalse);
-
-      await tester.tap(find.text('Flip horizontally'));
-      await tester.tap(find.text('Flip vertically'));
-      await tester.pump();
-      expect(chip('Flip horizontally').selected, isFalse);
-      expect(chip('Flip vertically').selected, isTrue);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
+    expect(chip('Top right').selected, isTrue);
+    await tester.tap(find.text('Bottom'));
+    await tester.pump();
+    expect(chip('Top right').selected, isFalse);
+    expect(chip('Bottom').selected, isTrue);
   });
 
   testWidgets('the result panel starts empty', (WidgetTester tester) async {

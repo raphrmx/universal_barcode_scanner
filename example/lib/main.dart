@@ -60,14 +60,23 @@ class _HomePageState extends State<HomePage> {
 
   /// Whether the camera sits in the result tile.
   bool _embedded = false;
-  ScannerController? _controller;
-  bool _paused = false;
-  bool _torch = false;
 
-  /// How the camera is shown, in every mode. Mirrored by default where the
-  /// camera is a webcam, as the package itself does.
-  bool _flipHorizontal = UniversalBarcodeScanner.flipsByDefault;
-  bool _flipVertical = false;
+  /// Where the scanner's own buttons sit, in every mode.
+  Alignment _buttonsAt = Alignment.topRight;
+
+  /// The buttons over the camera: the torch, pausing and both flips. Pausing
+  /// means little to a scan that ends on its first code.
+  static const Set<ScannerButton> _allButtons = <ScannerButton>{
+    ScannerButton.torch,
+    ScannerButton.pause,
+    ScannerButton.flipHorizontal,
+    ScannerButton.flipVertical,
+  };
+  static const Set<ScannerButton> _onceButtons = <ScannerButton>{
+    ScannerButton.torch,
+    ScannerButton.flipHorizontal,
+    ScannerButton.flipVertical,
+  };
 
   @override
   void dispose() {
@@ -93,31 +102,7 @@ class _HomePageState extends State<HomePage> {
 
   /// Embedded: the camera opens in the result tile, and closes from the same
   /// button.
-  void _toggleEmbedded() {
-    setState(() {
-      _embedded = !_embedded;
-      _controller = null;
-      _paused = false;
-      _torch = false;
-    });
-  }
-
-  Future<void> _togglePause() async {
-    final ScannerController? controller = _controller;
-    if (controller == null) return;
-    if (_paused) {
-      await controller.resumeScanning();
-    } else {
-      await controller.pauseScanning();
-    }
-    if (mounted) setState(() => _paused = !_paused);
-  }
-
-  /// Most webcams have no torch an app can drive: the answer says so.
-  Future<void> _toggleTorch() async {
-    final bool on = await _controller?.toggleFlash() ?? false;
-    if (mounted) setState(() => _torch = on);
-  }
+  void _toggleEmbedded() => setState(() => _embedded = !_embedded);
 
   /// One shot: opens the scanner, comes back with a code or null.
   Future<void> _scanOnce() async {
@@ -128,11 +113,10 @@ class _HomePageState extends State<HomePage> {
       final String? code = await UniversalBarcodeScanner.scan(
         context,
         bar: _appBar,
-        showTorchButton: true,
         cameraFace: CameraFace.back,
         scanFormat: ScanFormat.all,
-        flip: _flipHorizontal,
-        flipVertical: _flipVertical,
+        buttons: _onceButtons,
+        buttonsAlignment: _buttonsAt,
       );
       if (code != null) _found(code, 'one shot');
     } on ScannerException catch (error) {
@@ -148,10 +132,9 @@ class _HomePageState extends State<HomePage> {
     _stream = UniversalBarcodeScanner.stream(
       context,
       bar: _appBar,
-      showTorchButton: true,
       scanDelay: const Duration(seconds: 2),
-      flip: _flipHorizontal,
-      flipVertical: _flipVertical,
+      buttons: _allButtons,
+      buttonsAlignment: _buttonsAt,
     ).listen(
       (String code) => _found(code, 'continuous'),
       onError: (Object error) {
@@ -205,35 +188,15 @@ class _HomePageState extends State<HomePage> {
                   camera: _embedded
                       ? UniversalBarcodeScanner(
                           continuous: true,
-                          // Changed live: the camera keeps running.
-                          flip: _flipHorizontal,
-                          flipVertical: _flipVertical,
+                          buttons: _allButtons,
+                          buttonsAlignment: _buttonsAt,
                           onScanned: (String code) => _found(code, 'embedded'),
                           onError: _failed,
-                          onCreated: (ScannerController controller) =>
-                              _controller = controller,
+                          onCreated: (ScannerController _) {},
                         )
                       : null,
                   controls: _embedded
                       ? <Widget>[
-                          OutlinedButton.icon(
-                            onPressed: _toggleTorch,
-                            icon: Icon(
-                              _torch
-                                  ? Icons.flashlight_on
-                                  : Icons.flashlight_off,
-                              size: 18,
-                            ),
-                            label: const Text('Torch'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _togglePause,
-                            icon: Icon(
-                              _paused ? Icons.play_arrow : Icons.pause,
-                              size: 18,
-                            ),
-                            label: Text(_paused ? 'Resume' : 'Pause'),
-                          ),
                           OutlinedButton.icon(
                             onPressed: _toggleEmbedded,
                             icon: const Icon(Icons.close, size: 18),
@@ -246,31 +209,32 @@ class _HomePageState extends State<HomePage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
-                    FilterChip(
-                      avatar: const Icon(Icons.swap_horiz, size: 18),
-                      label: const Text('Flip horizontally'),
-                      selected: _flipHorizontal,
-                      showCheckmark: false,
-                      onSelected: (bool on) =>
-                          setState(() => _flipHorizontal = on),
+                    const Text(
+                      'Buttons',
+                      style: TextStyle(fontSize: 13, color: _dim),
                     ),
-                    FilterChip(
-                      avatar: const Icon(Icons.swap_vert, size: 18),
-                      label: const Text('Flip vertically'),
-                      selected: _flipVertical,
-                      showCheckmark: false,
-                      onSelected: (bool on) =>
-                          setState(() => _flipVertical = on),
-                    ),
+                    for (final (String label, Alignment at)
+                        in const <(String, Alignment)>[
+                      ('Top right', Alignment.topRight),
+                      ('Top left', Alignment.topLeft),
+                      ('Bottom', Alignment.bottomCenter),
+                      ('Right side', Alignment.centerRight),
+                    ])
+                      ChoiceChip(
+                        label: Text(label),
+                        selected: _buttonsAt == at,
+                        onSelected: (bool _) => setState(() => _buttonsAt = at),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 22),
                 _Mode(
                   title: 'Embedded view',
                   body: 'Puts the camera inside your own layout, here the tile '
-                      'above, with a controller for the torch and for '
-                      'pausing.',
+                      'above, with buttons for the torch, pausing and '
+                      'flipping.',
                   action: 'Open',
                   // Closed from the tile, next to the other controls.
                   onPressed: _embedded ? null : _toggleEmbedded,

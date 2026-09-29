@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -19,6 +20,8 @@ class ScannerPage extends StatelessWidget {
     this.child,
     this.bar,
     this.backgroundColor,
+    this.buttons = const <ScannerButton>{},
+    this.buttonsAlignment = Alignment.topRight,
   });
 
   /// What to scan and how.
@@ -38,6 +41,12 @@ class ScannerPage extends StatelessWidget {
 
   /// App bar shown above the scanner, or null for none.
   final ScannerBar? bar;
+
+  /// The buttons over the camera, on Windows and Linux.
+  final Set<ScannerButton> buttons;
+
+  /// Where [buttons] sit.
+  final AlignmentGeometry buttonsAlignment;
 
   /// Colour behind the camera.
   final Color? backgroundColor;

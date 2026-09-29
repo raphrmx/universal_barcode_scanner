@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 
 /// Default colours of the scanner bar, dark because it sits over a camera.
 const Color _barBackground = Color(0xFF000000);
@@ -19,6 +20,8 @@ class ScannerChrome extends StatelessWidget {
     this.bar,
     this.onClose,
     this.backgroundColor,
+    this.buttons,
+    this.buttonsAlignment = Alignment.topRight,
   });
 
   /// The camera and whatever is drawn over it.
@@ -33,10 +36,42 @@ class ScannerChrome extends StatelessWidget {
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
 
+  /// The buttons over the camera, or null for none.
+  final ScannerButtonGroup? buttons;
+
+  /// Where [buttons] sit over the camera.
+  final AlignmentGeometry buttonsAlignment;
+
   @override
   Widget build(BuildContext context) {
     final ScannerBar? bar = this.bar;
     final EdgeInsets padding = MediaQuery.paddingOf(context);
+    final ScannerButtonGroup? buttons = this.buttons;
+    Widget body = this.body;
+    if (buttons != null) {
+      final Alignment at = buttonsAlignment.resolve(
+        Directionality.maybeOf(context),
+      );
+      // Without a bar the close button holds the top left corner.
+      final bool besideClose = bar == null && at.x < 0 && at.y < 0;
+      body = Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          body,
+          ScannerButtonsOverlay(
+            state: buttons.state,
+            buttons: buttons.buttons,
+            alignment: buttonsAlignment,
+            inset: EdgeInsets.fromLTRB(
+              padding.left + 12 + (besideClose ? 52 : 0),
+              12,
+              padding.right + 12,
+              padding.bottom + 12,
+            ),
+          ),
+        ],
+      );
+    }
     final Widget page = ColoredBox(
       color: backgroundColor ?? _barBackground,
       child: Column(
@@ -151,7 +186,11 @@ class _ScannerBar extends StatelessWidget {
           child: Row(
             children: <Widget>[
               if (back)
-                _BackButton(onPressed: onClose, icon: bar.backIcon)
+                _BackButton(
+                  onPressed: onClose,
+                  label: bar.cancelLabel,
+                  icon: bar.backIcon,
+                )
               else
                 const SizedBox(width: 16),
               if (bar.centerTitle) ...<Widget>[
@@ -169,22 +208,28 @@ class _ScannerBar extends StatelessWidget {
 
 /// A tappable square holding the back icon. No ink ripple.
 class _BackButton extends StatelessWidget {
-  const _BackButton({required this.onPressed, this.icon});
+  const _BackButton({required this.onPressed, required this.label, this.icon});
 
   final VoidCallback? onPressed;
+  final String label;
   final Widget? icon;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onPressed,
-    behavior: HitTestBehavior.opaque,
-    child: SizedBox(
-      width: _barHeight,
-      height: _barHeight,
-      child: Center(
-        child:
-            icon ??
-            const CustomPaint(size: Size.square(20), painter: _Chevron()),
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    excludeSemantics: true,
+    child: GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: _barHeight,
+        height: _barHeight,
+        child: Center(
+          child:
+              icon ??
+              const CustomPaint(size: Size.square(20), painter: _Chevron()),
+        ),
       ),
     ),
   );

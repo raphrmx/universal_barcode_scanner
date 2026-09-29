@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
@@ -37,6 +38,8 @@ class ScannerPage extends StatefulWidget {
     this.child,
     this.bar,
     this.backgroundColor,
+    this.buttons = const <ScannerButton>{},
+    this.buttonsAlignment = Alignment.topRight,
   });
 
   /// What to scan and how.
@@ -57,6 +60,12 @@ class ScannerPage extends StatefulWidget {
 
   /// App bar above the webview scanner, or null for none.
   final ScannerBar? bar;
+
+  /// The buttons over the camera, on Windows and Linux.
+  final Set<ScannerButton> buttons;
+
+  /// Where [buttons] sit.
+  final AlignmentGeometry buttonsAlignment;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -176,6 +185,8 @@ class _ScannerPageState extends State<ScannerPage> {
         onScanned: widget.onScanned,
         onClose: widget.onClose,
         bar: widget.bar,
+        buttons: widget.buttons,
+        buttonsAlignment: widget.buttonsAlignment,
         child: widget.child,
       );
     }

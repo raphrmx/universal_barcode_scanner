@@ -4,8 +4,8 @@ import 'package:flutter/widgets.dart';
 /// button.
 ///
 /// Without one, the camera fills the route and a close button sits over it.
-/// The native scanners of Android, iOS and macOS draw their own chrome and do
-/// not use it.
+/// The native scanners of Android, iOS and macOS draw their own chrome: of
+/// this they only take [cancelLabel].
 class ScannerBar {
   /// Describes the bar.
   const ScannerBar({
@@ -15,6 +15,7 @@ class ScannerBar {
     this.backIcon,
     this.backgroundColor,
     this.foregroundColor,
+    this.cancelLabel = 'Cancel',
   });
 
   /// Title text, or null for no title.
@@ -35,4 +36,9 @@ class ScannerBar {
 
   /// Colour of the title and of the default back icon. White when null.
   final Color? foregroundColor;
+
+  /// What leaving the scanner is called: the text of the cancel button on
+  /// the native scanners of Android, iOS and macOS, and what a screen reader
+  /// says for the back button of this bar.
+  final String cancelLabel;
 }

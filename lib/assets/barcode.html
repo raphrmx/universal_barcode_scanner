@@ -605,7 +605,7 @@
     streamFacing = null;
     video.srcObject = null;
     torchOn = false;
-    box.className = '';
+    fit();
     return Promise.resolve();
   }
 
@@ -677,6 +677,13 @@
       stage.style.height = '';
       return;
     }
+    // No camera, no stage: a message alone sits in the middle.
+    if (!stream) {
+      stage.style.width = '0';
+      stage.style.height = '0';
+      box.className = '';
+      return;
+    }
     var vw = video.videoWidth || 16;
     var vh = video.videoHeight || 9;
     var body = document.body;
@@ -686,7 +693,7 @@
     stage.style.width = Math.round(width) + 'px';
     stage.style.height = Math.round(height) + 'px';
 
-    if (settings.window === 'none' || !stream) {
+    if (settings.window === 'none') {
       box.className = '';
       return;
     }
@@ -924,10 +931,8 @@
       flipX: query.get('flipX'),
       flipY: query.get('flipY')
     });
-    // The embedded view holds its calls back until the page listens.
-    if (settings.embedded) {
-      post({ ready: true });
-    }
+    // The host holds its calls back until the page listens.
+    post({ ready: true });
   }
 
   // What the hosts call from outside.

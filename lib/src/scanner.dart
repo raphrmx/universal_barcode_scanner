@@ -6,6 +6,7 @@ import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/platform/shared.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
+import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
@@ -27,7 +28,7 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 ///   onCreated: (ScannerController c) => controller = c,
 /// );
 /// ```
-class UniversalBarcodeScanner extends StatelessWidget {
+class UniversalBarcodeScanner extends StatefulWidget {
   /// Creates an embedded scanner view.
   const UniversalBarcodeScanner({
     super.key,
@@ -44,6 +45,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     this.continuous = false,
     this.flip,
     this.flipVertical = false,
+    this.buttons = const <ScannerButton>{},
+    this.buttonsAlignment = Alignment.topRight,
   });
 
   /// Called once the view exists, with the controller that drives it.
@@ -94,6 +97,17 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// Whether the camera is shown upside down, for a camera mounted that way.
   final bool flipVertical;
 
+  /// Buttons drawn over the camera, on every platform: the torch, pausing,
+  /// and each flip. None by default.
+  ///
+  /// They drive the view as its controller would, and the flips start from
+  /// [flip] and [flipVertical].
+  final Set<ScannerButton> buttons;
+
+  /// Where [buttons] sit over the camera. Along the side when centred on the
+  /// left or the right, across otherwise.
+  final AlignmentGeometry buttonsAlignment;
+
   /// Whether a scanner left without a `flip` mirrors the camera: on a desktop
   /// and in a desktop browser, where the camera is a webcam facing the user,
   /// and not on a phone or a tablet, where it faces away.
@@ -108,13 +122,20 @@ class UniversalBarcodeScanner extends StatelessWidget {
   /// a [ScannerException] when the camera cannot be used on Android, iOS or
   /// macOS. The route closes itself in every case.
   ///
-  /// [bar], [child], [backgroundColor], [flip] and `flipVertical` shape the
-  /// Flutter page the web, Windows and Linux scanner runs in. Android, iOS
-  /// and macOS open a native screen over it and do not use them.
+  /// [bar], [child], [backgroundColor], [flip], `flipVertical`, `buttons`
+  /// and `buttonsAlignment` shape the Flutter page the web, Windows and Linux
+  /// scanner runs in. Android, iOS and macOS open a native screen over it and
+  /// do not use them, except that [ScannerButton.torch] in `buttons` shows
+  /// the native torch button as [showTorchButton] does.
+  ///
+  /// `buttons` puts a group of buttons over the camera: the torch, pausing,
+  /// and each flip. `buttonsAlignment` places it, [Alignment.topRight] by
+  /// default; it runs along the side when centred on the left or the right.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
-    String cancelLabel = 'Cancel',
+    @Deprecated('Use ScannerBar.cancelLabel. Removed in 3.0.0.')
+    String? cancelLabel,
     bool showTorchButton = false,
     ScanWindow scanWindow = ScanWindow.wide,
     CameraFace cameraFace = CameraFace.back,
@@ -124,6 +145,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     bool flipVertical = false,
     Widget? child,
     Color? backgroundColor,
+    Set<ScannerButton> buttons = const <ScannerButton>{},
+    AlignmentGeometry buttonsAlignment = Alignment.topRight,
   }) async {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
@@ -133,8 +156,9 @@ class UniversalBarcodeScanner extends StatelessWidget {
       ScannerPage(
         config: ScannerConfig(
           lineColor: lineColor,
-          cancelLabel: cancelLabel,
-          showTorchButton: showTorchButton,
+          cancelLabel: cancelLabel ?? bar?.cancelLabel ?? 'Cancel',
+          showTorchButton:
+              showTorchButton || buttons.contains(ScannerButton.torch),
           scanWindow: scanWindow,
           cameraFace: cameraFace,
           scanFormat: scanFormat,
@@ -143,6 +167,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
         ),
         backgroundColor: backgroundColor,
         bar: bar,
+        buttons: buttons,
+        buttonsAlignment: buttonsAlignment,
         onScanned: (String code) => _leave(navigator, route, code),
         onClose: () => _leave(navigator, route, null),
         onError: (ScannerException error) {
@@ -175,7 +201,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
   static Stream<String> stream(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
-    String cancelLabel = 'Cancel',
+    @Deprecated('Use ScannerBar.cancelLabel. Removed in 3.0.0.')
+    String? cancelLabel,
     bool showTorchButton = false,
     ScanWindow scanWindow = ScanWindow.wide,
     CameraFace cameraFace = CameraFace.back,
@@ -186,6 +213,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
     bool flipVertical = false,
     Widget? child,
     Color? backgroundColor,
+    Set<ScannerButton> buttons = const <ScannerButton>{},
+    AlignmentGeometry buttonsAlignment = Alignment.topRight,
   }) {
     final NavigatorState navigator = Navigator.of(context);
     late final Route<void> route;
@@ -199,8 +228,9 @@ class UniversalBarcodeScanner extends StatelessWidget {
       ScannerPage(
         config: ScannerConfig(
           lineColor: lineColor,
-          cancelLabel: cancelLabel,
-          showTorchButton: showTorchButton,
+          cancelLabel: cancelLabel ?? bar?.cancelLabel ?? 'Cancel',
+          showTorchButton:
+              showTorchButton || buttons.contains(ScannerButton.torch),
           scanWindow: scanWindow,
           cameraFace: cameraFace,
           scanFormat: scanFormat,
@@ -211,6 +241,8 @@ class UniversalBarcodeScanner extends StatelessWidget {
         ),
         backgroundColor: backgroundColor,
         bar: bar,
+        buttons: buttons,
+        buttonsAlignment: buttonsAlignment,
         onScanned: (String code) {
           if (!codes.isClosed) codes.add(code);
         },
@@ -265,23 +297,80 @@ class UniversalBarcodeScanner extends StatelessWidget {
   static final Expando<bool> _left = Expando<bool>('left');
 
   @override
+  State<UniversalBarcodeScanner> createState() =>
+      _UniversalBarcodeScannerState();
+}
+
+class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
+  late final ScannerButtons _buttons = ScannerButtons(
+    flipHorizontal: widget.flip ?? UniversalBarcodeScanner.flipsByDefault,
+    flipVertical: widget.flipVertical,
+    // The view follows its config's flip, so a rebuild is all it takes.
+    onFlip: (bool horizontal, bool vertical) => setState(() {}),
+  );
+
+  @override
+  void didUpdateWidget(UniversalBarcodeScanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Flips set by the app win over the buttons, but only when they change.
+    if (widget.flip != oldWidget.flip ||
+        widget.flipVertical != oldWidget.flipVertical) {
+      _buttons.setFlip(
+        horizontal: widget.flip ?? UniversalBarcodeScanner.flipsByDefault,
+        vertical: widget.flipVertical,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _buttons.dispose();
+    super.dispose();
+  }
+
+  void _onCreated(ScannerController controller) {
+    _buttons.controller = controller;
+    widget.onCreated(controller);
+  }
+
+  void _onScanned(String code) {
+    // A view that is not continuous pauses on its own after a code.
+    if (!widget.continuous) _buttons.pausedByScanner();
+    widget.onScanned?.call(code);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return EmbeddedScanner(
+    final UniversalBarcodeScanner widget = this.widget;
+    final Widget scanner = EmbeddedScanner(
       config: ScannerConfig(
-        lineColor: lineColor,
-        scanWindow: scanWindow,
-        cameraFace: cameraFace,
-        scanFormat: scanFormat,
-        scanDelay: scanDelay,
-        continuous: continuous,
-        flipHorizontal: flip ?? flipsByDefault,
-        flipVertical: flipVertical,
+        lineColor: widget.lineColor,
+        scanWindow: widget.scanWindow,
+        cameraFace: widget.cameraFace,
+        scanFormat: widget.scanFormat,
+        scanDelay: widget.scanDelay,
+        continuous: widget.continuous,
+        flipHorizontal: _buttons.flipHorizontal,
+        flipVertical: _buttons.flipVertical,
       ),
-      scanWindowSize: scanWindowSize,
-      onScanned: onScanned,
-      onError: onError,
-      onCreated: onCreated,
-      child: child,
+      scanWindowSize: widget.scanWindowSize,
+      onScanned: _onScanned,
+      onError: widget.onError,
+      onCreated: _onCreated,
+      child: widget.child,
+    );
+    if (widget.buttons.isEmpty) return scanner;
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        scanner,
+        ScannerButtonsOverlay(
+          state: _buttons,
+          buttons: widget.buttons,
+          alignment: widget.buttonsAlignment,
+          inset: const EdgeInsets.all(8),
+        ),
+      ],
     );
   }
 }

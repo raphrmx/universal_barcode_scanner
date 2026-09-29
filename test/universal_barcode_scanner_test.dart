@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
+import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -437,6 +438,53 @@ void main() {
   });
 
   group('scan', () {
+    testWidgets("hands the native screen the bar's cancel label", (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        answer = (MethodCall call) async => null;
+        final BuildContext home = await pumpHome(tester);
+
+        unawaited(
+          UniversalBarcodeScanner.scan(
+            home,
+            bar: const ScannerBar(cancelLabel: 'Retour'),
+            buttons: const <ScannerButton>{ScannerButton.torch},
+          ),
+        );
+        await _frames(tester);
+
+        final Map<Object?, Object?> arguments =
+            calls.single.arguments as Map<Object?, Object?>;
+        expect(arguments['cancelLabel'], 'Retour');
+        // A torch button asked for shows the native one.
+        expect(arguments['showTorchButton'], true);
+      });
+    });
+
+    testWidgets('still takes the old cancelLabel, first', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        answer = (MethodCall call) async => null;
+        final BuildContext home = await pumpHome(tester);
+
+        unawaited(
+          UniversalBarcodeScanner.scan(
+            home,
+            cancelLabel: 'Annuler',
+            bar: const ScannerBar(cancelLabel: 'Retour'),
+          ),
+        );
+        await _frames(tester);
+
+        expect(
+          (calls.single.arguments as Map<Object?, Object?>)['cancelLabel'],
+          'Annuler',
+        );
+      });
+    });
+
     testWidgets('returns the code and closes the route', (
       WidgetTester tester,
     ) async {
@@ -672,6 +720,157 @@ void main() {
     });
   });
 
+  group('the buttons', () {
+    /// A controller that records what the buttons ask of it.
+    ScannerButtons buttons(List<String> calls, {bool torchAnswer = true}) =>
+        ScannerButtons(
+          flipHorizontal: true,
+          flipVertical: false,
+          onFlip: (bool h, bool v) => calls.add('flip $h $v'),
+        )..controller = _RecordingController(calls, torchAnswer);
+
+    Widget host(
+      ScannerButtons state,
+      Set<ScannerButton> set, {
+      AlignmentGeometry alignment = Alignment.topRight,
+    }) => Directionality(
+      textDirection: TextDirection.ltr,
+      // Loose, so the box keeps its own size under the test window.
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 400,
+          height: 300,
+          child: ScannerButtonsOverlay(
+            state: state,
+            buttons: set,
+            alignment: alignment,
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('drive the controller and the flips', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      final ScannerButtons state = buttons(calls);
+      await tester.pumpWidget(host(state, ScannerButton.values.toSet()));
+
+      await tester.tap(find.bySemanticsLabel('Flip horizontally'));
+      await tester.tap(find.bySemanticsLabel('Flip vertically'));
+      await tester.tap(find.bySemanticsLabel('Pause'));
+      await tester.tap(find.bySemanticsLabel('Torch'));
+      await tester.pump();
+
+      expect(calls, <String>[
+        'flip false false',
+        'flip false true',
+        'pause',
+        'torch',
+      ]);
+      expect(state.paused, isTrue);
+      expect(state.torch, isTrue);
+      // The pause button now offers to resume.
+      expect(find.bySemanticsLabel('Resume'), findsOneWidget);
+    });
+
+    testWidgets('show only those asked for, in a fixed order', (
+      WidgetTester tester,
+    ) async {
+      final ScannerButtons state = buttons(<String>[]);
+      await tester.pumpWidget(
+        host(state, <ScannerButton>{
+          ScannerButton.flipVertical,
+          ScannerButton.torch,
+        }),
+      );
+
+      expect(find.bySemanticsLabel('Pause'), findsNothing);
+      expect(
+        tester.getCenter(find.bySemanticsLabel('Torch')).dx,
+        lessThan(tester.getCenter(find.bySemanticsLabel('Flip vertically')).dx),
+      );
+    });
+
+    testWidgets('sit where they are told, along a side when centred on it', (
+      WidgetTester tester,
+    ) async {
+      final ScannerButtons state = buttons(<String>[]);
+      const Set<ScannerButton> two = <ScannerButton>{
+        ScannerButton.torch,
+        ScannerButton.pause,
+      };
+
+      await tester.pumpWidget(host(state, two));
+      Rect torch() => tester.getRect(find.bySemanticsLabel('Torch'));
+      Rect pause() => tester.getRect(find.bySemanticsLabel('Pause'));
+      // Top right, 12 in, side by side.
+      expect(pause().topRight, const Offset(388, 12));
+      expect(torch().top, pause().top);
+
+      await tester.pumpWidget(
+        host(state, two, alignment: Alignment.centerRight),
+      );
+      expect(torch().left, pause().left);
+      expect(pause().right, 388);
+
+      await tester.pumpWidget(
+        host(state, two, alignment: Alignment.bottomCenter),
+      );
+      expect(torch().bottom, 288);
+      expect(torch().top, pause().top);
+    });
+
+    testWidgets('keep clear of the close button without a bar', (
+      WidgetTester tester,
+    ) async {
+      final ScannerButtons state = buttons(<String>[]);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ScannerChrome(
+            body: const SizedBox.expand(),
+            onClose: () {},
+            buttons: ScannerButtonGroup(
+              state: state,
+              buttons: const <ScannerButton>{ScannerButton.torch},
+            ),
+            buttonsAlignment: Alignment.topLeft,
+          ),
+        ),
+      );
+
+      final Rect close = tester.getRect(find.bySemanticsLabel('Close'));
+      final Rect torch = tester.getRect(find.bySemanticsLabel('Torch'));
+      expect(torch.left, greaterThan(close.right));
+    });
+
+    testWidgets('are drawn over an embedded view', (WidgetTester tester) async {
+      await _on(TargetPlatform.fuchsia, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: UniversalBarcodeScanner(
+              onCreated: (ScannerController _) {},
+              buttons: const <ScannerButton>{ScannerButton.flipHorizontal},
+            ),
+          ),
+        );
+        expect(find.bySemanticsLabel('Flip horizontally'), findsOneWidget);
+        // Mirrored by default off a phone.
+        final Semantics flip = tester.widget<Semantics>(
+          find
+              .ancestor(
+                of: find.byType(GestureDetector).first,
+                matching: find.byType(Semantics),
+              )
+              .first,
+        );
+        expect(flip.properties.toggled, isTrue);
+      });
+    });
+  });
+
   group('ScannerChrome', () {
     testWidgets('offers a way out when there is no bar', (
       WidgetTester tester,
@@ -784,4 +983,24 @@ void main() {
       expect(codes, <String>['before']);
     });
   });
+}
+
+/// Answers the buttons as a scanner would, noting each call.
+final class _RecordingController extends ScannerController {
+  _RecordingController(this.calls, this.torchAnswer);
+
+  final List<String> calls;
+  final bool torchAnswer;
+
+  @override
+  Future<bool> toggleFlash() async {
+    calls.add('torch');
+    return torchAnswer;
+  }
+
+  @override
+  Future<void> pauseScanning() async => calls.add('pause');
+
+  @override
+  Future<void> resumeScanning() async => calls.add('resume');
 }
