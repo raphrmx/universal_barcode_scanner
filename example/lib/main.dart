@@ -217,10 +217,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     for (final (String label, Alignment at)
                         in const <(String, Alignment)>[
+                      ('Right side', Alignment.centerRight),
                       ('Top right', Alignment.topRight),
                       ('Top left', Alignment.topLeft),
                       ('Bottom', Alignment.bottomCenter),
-                      ('Right side', Alignment.centerRight),
                     ])
                       ChoiceChip(
                         label: Text(label),
