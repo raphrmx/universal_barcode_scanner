@@ -78,8 +78,13 @@ final class ChannelScannerController extends ScannerController {
 
   final MethodChannel _channel;
 
+  /// Called once the view's camera shows its first frame.
+  VoidCallback? onCameraStarted;
+
   Future<void> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
+      case 'onCameraStarted':
+        if (!isDisposed) onCameraStarted?.call();
       case 'onBarcodeDetected':
         final Object? code = call.arguments;
         if (code is String) deliverCode(code);

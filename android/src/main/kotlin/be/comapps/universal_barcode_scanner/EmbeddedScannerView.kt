@@ -123,6 +123,9 @@ internal class EmbeddedScannerView(
     private var displayRotation = -1
     private var disposed = false
 
+    /** Whether Flutter has been told the first frame is on screen. */
+    private var announcedStart = false
+
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
 
@@ -133,6 +136,14 @@ internal class EmbeddedScannerView(
             updateRotation()
         }
         methodChannel.setMethodCallHandler(::onMethodCall)
+        // Streaming is the preview showing frames, not merely the camera
+        // being bound: what Flutter waits for to fade the view in.
+        previewView.previewStreamState.observe(this) { state ->
+            if (state == PreviewView.StreamState.STREAMING && !announcedStart && !disposed) {
+                announcedStart = true
+                methodChannel.invokeMethod("onCameraStarted", null)
+            }
+        }
 
         host.requestCameraPermission { granted ->
             if (disposed) return@requestCameraPermission

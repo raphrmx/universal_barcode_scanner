@@ -15,9 +15,10 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 const Duration _flipDuration = Duration(milliseconds: 350);
 
 /// How long the camera of a native view takes to fade in, and how long after
-/// the view is created that starts: roughly when its camera is up.
+/// the view is created it does anyway when the view never reports its first
+/// frame.
 const Duration _fadeDuration = Duration(milliseconds: 400);
-const Duration _fadeDelay = Duration(milliseconds: 350);
+const Duration _fadeFallback = Duration(milliseconds: 1500);
 
 /// Platforms that reach a native scanner over the method channel.
 bool get _hasNativeScanner => switch (defaultTargetPlatform) {
@@ -311,9 +312,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
 
   ScannerController? _controller;
 
-  /// Lifts the black laid over a native view while its camera starts. The
-  /// view does not say when its first frame is there, so the fade starts a
-  /// moment after the view is created, when the camera usually is.
+  /// Lifts the black laid over a native view while its camera starts, once
+  /// the view says its first frame is there, or after [_fadeFallback] if it
+  /// never says so, a camera that failed for one.
   ///
   /// Made in [initState], never on first use: Windows and Linux show a
   /// webview instead and never touch it, and a first use in [dispose] would
@@ -361,17 +362,24 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
     if (!mounted) return;
     // The view of the camera switched from goes with its controller.
     _controller?.dispose();
-    final ScannerController controller = ChannelScannerController(id)
+    final ChannelScannerController controller = ChannelScannerController(id)
       ..onScanned = widget.onScanned
-      ..onError = widget.onError;
+      ..onError = widget.onError
+      ..onCameraStarted = _cameraStarted;
     _controller = controller;
     widget.onCreated(controller);
     if (widget.config.animate) {
-      _arrivalDelay = Timer(_fadeDelay, () {
-        if (mounted) _arrival.forward();
-      });
+      _arrivalDelay = Timer(_fadeFallback, _cameraStarted);
     } else {
       _arrival.value = 1;
+    }
+  }
+
+  void _cameraStarted() {
+    _arrivalDelay?.cancel();
+    _arrivalDelay = null;
+    if (mounted && !_arrival.isAnimating && _arrival.value == 0) {
+      _arrival.forward();
     }
   }
 

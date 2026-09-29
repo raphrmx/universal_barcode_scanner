@@ -50,6 +50,9 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   private let camera: ScannerCamera
   private let gate: ReadGate
   private let channel: FlutterMethodChannel
+
+  /// Whether Flutter has been told the camera shows frames.
+  private var announcedStart = false
   private let previewLayer: AVCaptureVideoPreviewLayer
   private let overlay = ScannerOverlayView()
 
@@ -99,7 +102,16 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
     }
 
     camera.onCodes = { [weak self] codes in self?.onCodes(codes) }
-    camera.onRunning = { [weak self] in self?.updateRectOfInterest() }
+    camera.onRunning = { [weak self] in
+      guard let self = self else { return }
+      self.updateRectOfInterest()
+      // Running, or the first frame's format known: the preview shows
+      // frames. Said once, for Flutter to fade the view in.
+      if !self.announcedStart {
+        self.announcedStart = true
+        self.channel.invokeMethod("onCameraStarted", arguments: nil)
+      }
+    }
 
     // A half turn keeps the same bounds and so triggers no layout pass, but
     // the capture orientation still has to follow.

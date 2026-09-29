@@ -73,6 +73,10 @@ final class EmbeddedScannerView: NSView {
       self.onMethodCall(call, result: result)
     }
     camera.onCodes = { [weak self] codes in self?.onCodes(codes) }
+    // For Flutter to fade the view in.
+    camera.onFirstFrame = { [weak self] in
+      self?.channel.invokeMethod("onCameraStarted", arguments: nil)
+    }
 
     // On the next turn of the main loop: a refused permission answers at
     // once, before Flutter has even received this view, and an error sent

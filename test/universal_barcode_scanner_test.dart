@@ -1080,9 +1080,14 @@ void main() {
     testWidgets('fades a native view in from black, unless told not to', (
       WidgetTester tester,
     ) async {
+      // The id Flutter gave the last view, which names its channel.
+      int view = -1;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform_views,
-        (MethodCall call) async => call.method == 'create' ? 0 : null,
+        (MethodCall call) async {
+          if (call.method != 'create') return null;
+          return view = (call.arguments as Map<Object?, Object?>)['id']! as int;
+        },
       );
       addTearDown(
         () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -1115,12 +1120,33 @@ void main() {
             .opacity
             .value;
 
+        /// The view saying its camera shows frames, as it does natively.
+        Future<void> cameraStarted() =>
+            tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+              'universal_barcode_scanner/view_$view',
+              const StandardMethodCodec().encodeMethodCall(
+                const MethodCall('onCameraStarted'),
+              ),
+              (ByteData? _) {},
+            );
+
         await pump();
         await tester.pump();
-        // The camera is not up yet: black.
+        // The camera is not up yet: black, for as long as it takes.
         expect(veil(), 1);
-        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 800));
         expect(veil(), 1);
+        // Its first frame: the fade.
+        await cameraStarted();
+        await tester.pumpAndSettle();
+        expect(veil(), 0);
+
+        // A view that never says so is shown anyway, a little later.
+        await tester.pumpWidget(const SizedBox());
+        await pump();
+        await tester.pump();
+        expect(veil(), 1);
+        await tester.pump(const Duration(milliseconds: 1500));
         await tester.pumpAndSettle();
         expect(veil(), 0);
 

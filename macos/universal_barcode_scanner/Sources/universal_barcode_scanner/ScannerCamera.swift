@@ -12,6 +12,9 @@ final class ScannerCamera: NSObject {
   /// Called on the main thread with the codes of each frame that has any.
   var onCodes: (([String]) -> Void)?
 
+  /// Called on the main thread once, when the first frame arrives.
+  var onFirstFrame: (() -> Void)?
+
   let session = AVCaptureSession()
   private let output = AVCaptureVideoDataOutput()
   private let frameQueue = DispatchQueue(
@@ -25,6 +28,7 @@ final class ScannerCamera: NSObject {
   /// Where Vision looks, in its normalised space, origin at the bottom left.
   private var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
   private var reading = true
+  private var sawFrame = false
   /// Built once: a request per frame was an allocation per frame.
   private let request: VNDetectBarcodesRequest
 
@@ -133,6 +137,10 @@ extension ScannerCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
     didOutput sampleBuffer: CMSampleBuffer,
     from connection: AVCaptureConnection
   ) {
+    if !sawFrame {
+      sawFrame = true
+      DispatchQueue.main.async { [weak self] in self?.onFirstFrame?() }
+    }
     guard reading, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
     request.regionOfInterest = regionOfInterest
