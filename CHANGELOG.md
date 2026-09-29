@@ -1,5 +1,19 @@
 # Universal Barcode Scanner Versions
 
+## 2.1.3
+
+### Fixed
+
+- The pause button of the web, Windows and Linux scanner stops the scan
+  line where it is, as the embedded and native views do, and resuming sets
+  it off again from there. Reading was paused, but the line kept sweeping.
+
+### Changed
+
+- The buttons over the camera no longer change colour under the mouse. In
+  Chrome the tint could stay on a button once the mouse had left it for the
+  camera. The hand and the tooltip still show over them.
+
 ## 2.1.2
 
 ### Fixed

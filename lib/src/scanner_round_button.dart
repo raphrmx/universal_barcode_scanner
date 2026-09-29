@@ -61,7 +61,8 @@ class _ScannerRoundButtonState extends State<ScannerRoundButton> {
   }
 
   void _onHover(bool hovered) {
-    setState(() => _hovered = hovered);
+    // Only the tooltip follows it: the look does not change on hover.
+    _hovered = hovered;
     if (hovered) {
       _tooltipTimer?.cancel();
       _tooltipTimer = Timer(_tooltipDelay, _showTooltip);
@@ -138,13 +139,7 @@ class _ScannerRoundButtonState extends State<ScannerRoundButton> {
               dimension: style.size,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  // The icon's colour laid lightly over the fill on hover.
-                  color: _hovered
-                      ? Color.alphaBlend(
-                          foreground.withValues(alpha: 0.14),
-                          background,
-                        )
-                      : background,
+                  color: background,
                   shape: shape,
                   borderRadius: radius,
                 ),

@@ -87,6 +87,10 @@
       100% { top: 0; }
     }
 
+    /* Stopped where it is while reading is paused, and set off again from
+       there. */
+    .ubs-paused #ubs-scan-line { animation-play-state: paused; }
+
     @media (prefers-reduced-motion: reduce) {
       #ubs-scan-line { animation: none; top: calc(50% - 1px); }
     }
@@ -866,7 +870,7 @@
 
     stopped = false;
     delivered = false;
-    paused = false;
+    setPaused(false);
     sightings = {};
     lastEmit = null;
     if (decoderBroken) {
@@ -924,14 +928,20 @@
     applyFlip();
   }
 
-  // What an embedded view's controller asks for.
+  // Reading paused or not, the scan line with it.
+  function setPaused(on) {
+    paused = on;
+    document.documentElement.classList.toggle('ubs-paused', on);
+  }
+
+  // What the host's controller and its pause button ask for.
   function pauseScanning() {
-    paused = true;
+    setPaused(true);
   }
 
   // Every code in sight counts as new again, as on the native views.
   function resumeScanning() {
-    paused = false;
+    setPaused(false);
     sightings = {};
     lastEmit = null;
   }
@@ -1023,7 +1033,7 @@
     if (!settings.continuous) {
       if (settings.embedded) {
         // The view stays on screen: it waits for resumeScanning.
-        paused = true;
+        setPaused(true);
       } else {
         delivered = true;
         enqueue(stopCamera);

@@ -153,3 +153,34 @@ test('reads pixels off a canvas without createImageBitmap', async ({ page }) => 
   }));
   await expectRead(page, EAN);
 });
+
+// What the host posts, as the web host does to its iframe.
+function call(page, name) {
+  return page.evaluate((call) => window.postMessage(
+    JSON.stringify({ call: call, args: [] }), window.location.origin), name);
+}
+
+function sweep(page) {
+  return page.evaluate(() => document.getElementById('ubs-scan-line')
+    .getAnimations()[0].playState);
+}
+
+test('stops the scan line while paused, and reads nothing', async ({ page }) => {
+  await open(page, { at: 'corner' });
+  await expect.poll(() => sweep(page)).toBe('running');
+
+  await call(page, 'pauseScanning');
+  await expect.poll(() => sweep(page)).toBe('paused');
+  // Where in its sweep: the box may still settle, moving the line in pixels.
+  const stoppedAt = await page.evaluate(() => document
+    .getElementById('ubs-scan-line').getAnimations()[0].currentTime);
+  await page.evaluate(() => window.__camera.draw('center'));
+  await expectNothingFor(page, 1500);
+  expect(await page.evaluate(() => document
+    .getElementById('ubs-scan-line').getAnimations()[0].currentTime)).toBe(stoppedAt);
+
+  await call(page, 'resumeScanning');
+  await expect.poll(() => sweep(page)).toBe('running');
+  await expectRead(page, EAN);
+});
+
