@@ -188,7 +188,7 @@ class _ScannerBar extends StatelessWidget {
                   onPressed: onClose,
                   label: bar.cancelLabel,
                   icon: bar.backIcon,
-                  focusColor: foreground,
+                  color: foreground,
                 )
               else
                 const SizedBox(width: 16),
@@ -210,7 +210,7 @@ class _BackButton extends StatefulWidget {
   const _BackButton({
     required this.onPressed,
     required this.label,
-    required this.focusColor,
+    required this.color,
     this.icon,
   });
 
@@ -218,8 +218,9 @@ class _BackButton extends StatefulWidget {
   final String label;
   final Widget? icon;
 
-  /// The ring around it when the keyboard is on it.
-  final Color focusColor;
+  /// Colour of the icon, and of the ring around it when the keyboard is on
+  /// it.
+  final Color color;
 
   @override
   State<_BackButton> createState() => _BackButtonState();
@@ -258,18 +259,23 @@ class _BackButtonState extends State<_BackButton> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: _focused
-                    ? Border.all(color: widget.focusColor, width: 2)
+                    ? Border.all(color: widget.color, width: 2)
                     : null,
               ),
               child: SizedBox.square(
                 dimension: 40,
                 child: Center(
-                  child:
-                      widget.icon ??
-                      const CustomPaint(
-                        size: Size.square(20),
-                        painter: _Chevron(),
-                      ),
+                  // An Icon given takes the bar's colour rather than the
+                  // app's, which may be dark on a dark bar.
+                  child: IconTheme.merge(
+                    data: IconThemeData(color: widget.color),
+                    child:
+                        widget.icon ??
+                        CustomPaint(
+                          size: const Size.square(20),
+                          painter: _Chevron(widget.color),
+                        ),
+                  ),
                 ),
               ),
             ),
@@ -282,12 +288,14 @@ class _BackButtonState extends State<_BackButton> {
 
 /// A back chevron, so a bar with no icon of its own still has one.
 class _Chevron extends CustomPainter {
-  const _Chevron();
+  const _Chevron(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = _barForeground
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
@@ -300,5 +308,5 @@ class _Chevron extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_Chevron oldDelegate) => false;
+  bool shouldRepaint(_Chevron oldDelegate) => oldDelegate.color != color;
 }

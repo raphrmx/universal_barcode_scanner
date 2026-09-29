@@ -1,5 +1,17 @@
 # Universal Barcode Scanner Versions
 
+## 2.1.2
+
+### Fixed
+
+- `ScannerBar.foregroundColor` colours the back icon, as documented: the
+  default chevron stayed white, and an `Icon` given as `backIcon` took the
+  app's icon colour, dark on the bar with a light theme.
+
+### Changed
+
+- The README lists the parameters of `ScannerBar` and `ScannerButtonStyle`.
+
 ## 2.1.1
 
 ### Fixed

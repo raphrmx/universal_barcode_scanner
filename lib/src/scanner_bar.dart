@@ -34,7 +34,8 @@ class ScannerBar {
   /// Colour behind the bar. Black when null, to sit over a camera.
   final Color? backgroundColor;
 
-  /// Colour of the title and of the default back icon. White when null.
+  /// Colour of the title and of the back icon, the chevron or the [Icon]
+  /// given as [backIcon]. White when null.
   final Color? foregroundColor;
 
   /// What leaving the scanner is called: the text of the cancel button on

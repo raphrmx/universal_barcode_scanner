@@ -171,6 +171,23 @@ UniversalBarcodeScanner.scan(
 );
 ```
 
+`ScannerButtonStyle` takes:
+
+| Parameter | Default | Effect |
+| --- | --- | --- |
+| `size` | `44` | Width and height of a button, in logical pixels. 44 is the least a finger reliably hits. |
+| `iconSize` | `20` | Size of the icon inside it. |
+| `spacing` | `8` | Space between two buttons of the group. |
+| `backgroundColor` | translucent black | Fill of a button whose setting is off. |
+| `foregroundColor` | white | Icon of a button whose setting is off. |
+| `activeBackgroundColor` | near-opaque white | Fill of a button whose setting is on: the torch lit, reading paused, a flip applied, a zoom. |
+| `activeForegroundColor` | black | Icon of a button whose setting is on. |
+| `focusColor` | white | Ring drawn around the button the keyboard is on, a little outside it. |
+| `borderRadius` | `null` | Corners of a button, or a circle when null. |
+| `showTooltips` | `true` | Whether a button says what it does when the mouse rests on it or the keyboard reaches it. |
+
+`copyWith` changes some of them and keeps the rest.
+
 Android, iOS and macOS open a native screen over the route, so the parameters that shape the
 Flutter page do nothing there. Escape closes the scanner on macOS, the web, Windows and Linux, and
 popping the route from your own code closes it on every platform.
@@ -289,9 +306,18 @@ UniversalBarcodeScanner.scan(
 );
 ```
 
-On Android, iOS and macOS the native screen draws its own controls and has no bar. It still takes
-the bar's `cancelLabel`, `'Cancel'` by default, as the text of its cancel button; on the bar itself
-it is what a screen reader says for the back button.
+| Parameter | Default | Effect |
+| --- | --- | --- |
+| `title` | `null` | Text of the bar, or none. |
+| `centerTitle` | `false` | Centres the title rather than starting it after the back button. |
+| `showBackButton` | `true` | Shows the back button, which closes the scanner. |
+| `backIcon` | a chevron | Icon of the back button. An `Icon` takes `foregroundColor`. |
+| `backgroundColor` | black | Colour of the bar. |
+| `foregroundColor` | white | Colour of the title and of the back icon, and of the ring around the back button when the keyboard is on it. |
+| `cancelLabel` | `'Cancel'` | The text of the cancel button of the native screens of Android, iOS and macOS, and what a screen reader says for the back button of the bar. |
+
+On Android, iOS and macOS the native screen draws its own controls and has no bar: only
+`cancelLabel` reaches it.
 
 ## Migrating from 1.x
 

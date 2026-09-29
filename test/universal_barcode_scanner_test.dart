@@ -1183,6 +1183,26 @@ void main() {
       expect(closed, isTrue);
     });
 
+    testWidgets('give the back icon of a bar its colour', (
+      WidgetTester tester,
+    ) async {
+      const Color red = Color(0xFFFF0000);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScannerChrome(
+            body: const SizedBox.expand(),
+            bar: const ScannerBar(
+              foregroundColor: red,
+              backIcon: Icon(IconData(0xe5e0)),
+            ),
+            onClose: () {},
+          ),
+        ),
+      );
+      // Not the app's, which is dark on a light theme.
+      expect(IconTheme.of(tester.element(find.byType(Icon))).color, red);
+    });
+
     testWidgets('leave the back button of a bar reachable too', (
       WidgetTester tester,
     ) async {
