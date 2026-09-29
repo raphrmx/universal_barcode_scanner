@@ -347,8 +347,8 @@ class _PausePlay extends _Icon {
   int get hashCode => paused.hashCode;
 }
 
-/// Two triangles either side of a dashed axis: the usual flip icon, turned a
-/// quarter for the vertical one.
+/// Two arrows going opposite ways, one above the other: ⇄ for the
+/// horizontal flip, and turned a quarter, ⇅, for the vertical one.
 class _Flip extends _Icon {
   const _Flip({required this.vertical});
 
@@ -365,30 +365,37 @@ class _Flip extends _Icon {
         ..rotate(math.pi / 2)
         ..translate(-w / 2, -h / 2);
     }
+    final Paint line = Paint()
+      ..color = stroke.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final double head = w * 0.22;
+
+    // The upper arrow points right.
+    final double top = h * 0.3;
     canvas
+      ..drawLine(Offset(w * 0.1, top), Offset(w * 0.9, top), line)
       ..drawPath(
         Path()
-          ..moveTo(w * 0.40, h * 0.12)
-          ..lineTo(w * 0.40, h * 0.88)
-          ..lineTo(w * 0.04, h * 0.88)
-          ..close(),
-        fill,
-      )
+          ..moveTo(w * 0.9 - head, top - head)
+          ..lineTo(w * 0.9, top)
+          ..lineTo(w * 0.9 - head, top + head),
+        line,
+      );
+
+    // The lower one points left.
+    final double bottom = h * 0.7;
+    canvas
+      ..drawLine(Offset(w * 0.9, bottom), Offset(w * 0.1, bottom), line)
       ..drawPath(
         Path()
-          ..moveTo(w * 0.60, h * 0.12)
-          ..lineTo(w * 0.60, h * 0.88)
-          ..lineTo(w * 0.96, h * 0.88)
-          ..close(),
-        stroke,
+          ..moveTo(w * 0.1 + head, bottom - head)
+          ..lineTo(w * 0.1, bottom)
+          ..lineTo(w * 0.1 + head, bottom + head),
+        line,
       );
-    for (double y = 0; y < h; y += h / 5) {
-      canvas.drawLine(
-        Offset(w / 2, y),
-        Offset(w / 2, math.min(h, y + h / 10)),
-        stroke,
-      );
-    }
     canvas.restore();
   }
 
