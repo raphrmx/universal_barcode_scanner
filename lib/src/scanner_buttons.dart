@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
+import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
 /// What the buttons over a scanner drive: pausing and the torch through its
 /// [controller], the flips through [onFlip]. The same for the full-screen
@@ -17,11 +18,28 @@ class ScannerButtons extends ChangeNotifier {
     required bool flipHorizontal,
     required bool flipVertical,
     required this.onFlip,
+    this.onSwitchCamera,
   }) : _flipHorizontal = flipHorizontal,
        _flipVertical = flipVertical;
 
   /// Shows the camera flipped as the buttons now say.
   final void Function(bool horizontal, bool vertical) onFlip;
+
+  /// Opens the other camera, or null where the scanner cannot.
+  final VoidCallback? onSwitchCamera;
+
+  /// Opens the other camera. Reading resumes on it: a pause does not
+  /// outlive the camera it was asked of.
+  void switchCamera() {
+    final VoidCallback? onSwitchCamera = this.onSwitchCamera;
+    if (onSwitchCamera == null) return;
+    onSwitchCamera();
+    if (_paused || _torch) {
+      _paused = false;
+      _torch = false;
+      notifyListeners();
+    }
+  }
 
   /// The scanner's controller, once there is one: until then the pause and
   /// torch buttons do nothing.
@@ -109,12 +127,14 @@ class ScannerButtonsOverlay extends StatelessWidget {
     required this.buttons,
     required this.alignment,
     this.inset = const EdgeInsets.all(12),
+    this.labels = ScannerLabels.english,
   });
 
   final ScannerButtons state;
   final Set<ScannerButton> buttons;
   final AlignmentGeometry alignment;
   final EdgeInsets inset;
+  final ScannerLabels labels;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +153,7 @@ class ScannerButtonsOverlay extends StatelessWidget {
           child: ScannerButtonGroup(
             state: state,
             buttons: buttons,
+            labels: labels,
             direction: alongSide ? Axis.vertical : Axis.horizontal,
           ),
         ),
@@ -149,11 +170,15 @@ class ScannerButtonGroup extends StatelessWidget {
     required this.state,
     required this.buttons,
     this.direction = Axis.horizontal,
+    this.labels = ScannerLabels.english,
   });
 
   final ScannerButtons state;
   final Set<ScannerButton> buttons;
   final Axis direction;
+
+  /// What a screen reader says for each button.
+  final ScannerLabels labels;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -167,29 +192,36 @@ class ScannerButtonGroup extends StatelessWidget {
         }
         children.add(switch (button) {
           ScannerButton.torch => _RoundButton(
-            label: 'Torch',
+            label: labels.torch,
             on: state.torch,
             onPressed: () => unawaited(state.toggleTorch()),
             icon: const _Bolt(),
           ),
           ScannerButton.pause => _RoundButton(
             // Says what a tap does: the icon shows it too.
-            label: state.paused ? 'Resume' : 'Pause',
+            label: state.paused ? labels.resume : labels.pause,
             on: state.paused,
             onPressed: () => unawaited(state.togglePause()),
             icon: _PausePlay(paused: state.paused),
           ),
           ScannerButton.flipHorizontal => _RoundButton(
-            label: 'Flip horizontally',
+            label: labels.flipHorizontal,
             on: state.flipHorizontal,
             onPressed: state.toggleFlipHorizontal,
             icon: const _Flip(vertical: false),
           ),
           ScannerButton.flipVertical => _RoundButton(
-            label: 'Flip vertically',
+            label: labels.flipVertical,
             on: state.flipVertical,
             onPressed: state.toggleFlipVertical,
             icon: const _Flip(vertical: true),
+          ),
+          // An action rather than a state: never shown on.
+          ScannerButton.switchCamera => _RoundButton(
+            label: labels.switchCamera,
+            on: false,
+            onPressed: state.switchCamera,
+            icon: const _SwitchCamera(),
           ),
         });
       }
@@ -405,4 +437,80 @@ class _Flip extends _Icon {
 
   @override
   int get hashCode => vertical.hashCode;
+}
+
+/// A camera with two arrows going round inside it.
+class _SwitchCamera extends _Icon {
+  const _SwitchCamera();
+
+  @override
+  void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
+    final double w = size.width;
+    final double h = size.height;
+    final Paint line = Paint()
+      ..color = stroke.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // The body, and the bump the lens housing makes on top.
+    canvas.drawPath(
+      Path()
+        ..moveTo(w * 0.34, h * 0.22)
+        ..lineTo(w * 0.42, h * 0.1)
+        ..lineTo(w * 0.58, h * 0.1)
+        ..lineTo(w * 0.66, h * 0.22)
+        ..lineTo(w * 0.88, h * 0.22)
+        ..arcToPoint(
+          Offset(w * 0.96, h * 0.3),
+          radius: Radius.circular(w * 0.08),
+        )
+        ..lineTo(w * 0.96, h * 0.82)
+        ..arcToPoint(
+          Offset(w * 0.88, h * 0.9),
+          radius: Radius.circular(w * 0.08),
+        )
+        ..lineTo(w * 0.12, h * 0.9)
+        ..arcToPoint(
+          Offset(w * 0.04, h * 0.82),
+          radius: Radius.circular(w * 0.08),
+        )
+        ..lineTo(w * 0.04, h * 0.3)
+        ..arcToPoint(
+          Offset(w * 0.12, h * 0.22),
+          radius: Radius.circular(w * 0.08),
+        )
+        ..close(),
+      line,
+    );
+
+    // Two arcs round the middle, each ending in a head.
+    final Offset centre = Offset(w * 0.5, h * 0.56);
+    final double r = w * 0.2;
+    final Rect ring = Rect.fromCircle(center: centre, radius: r);
+    final double head = w * 0.09;
+    for (final double start in <double>[math.pi * 1.15, math.pi * 0.15]) {
+      const double sweep = math.pi * 0.7;
+      canvas.drawArc(ring, start, sweep, false, line);
+      final double end = start + sweep;
+      final Offset tip = centre + Offset(math.cos(end), math.sin(end)) * r;
+      // Along the direction of travel, and across it.
+      final Offset along = Offset(-math.sin(end), math.cos(end));
+      final Offset across = Offset(math.cos(end), math.sin(end));
+      canvas.drawPath(
+        Path()
+          ..moveTo(
+            tip.dx - along.dx * head + across.dx * head * 0.7,
+            tip.dy - along.dy * head + across.dy * head * 0.7,
+          )
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(
+            tip.dx - along.dx * head - across.dx * head * 0.7,
+            tip.dy - along.dy * head - across.dy * head * 0.7,
+          ),
+        line,
+      );
+    }
+  }
 }

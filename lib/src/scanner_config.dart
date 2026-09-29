@@ -4,6 +4,7 @@ import 'dart:ui' show Color, Size;
 import 'package:flutter/foundation.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
 /// Everything the scanner itself needs to know, whichever platform runs it.
 ///
@@ -24,6 +25,7 @@ class ScannerConfig {
     this.flipHorizontal = false,
     this.flipVertical = false,
     this.animate = true,
+    this.labels = ScannerLabels.english,
   });
 
   /// Colour of the scan line.
@@ -61,21 +63,28 @@ class ScannerConfig {
   /// flipped, rather than appearing and flipping at once.
   final bool animate;
 
-  /// This configuration with the camera flipped as given.
-  ScannerConfig withFlip({required bool horizontal, required bool vertical}) =>
-      ScannerConfig(
-        lineColor: lineColor,
-        cancelLabel: cancelLabel,
-        showTorchButton: showTorchButton,
-        scanWindow: scanWindow,
-        cameraFace: cameraFace,
-        scanFormat: scanFormat,
-        scanDelay: scanDelay,
-        continuous: continuous,
-        flipHorizontal: horizontal,
-        flipVertical: vertical,
-        animate: animate,
-      );
+  /// The words the scanner shows or says.
+  final ScannerLabels labels;
+
+  /// This configuration with what the buttons change as given.
+  ScannerConfig copyWith({
+    bool? flipHorizontal,
+    bool? flipVertical,
+    CameraFace? cameraFace,
+  }) => ScannerConfig(
+    lineColor: lineColor,
+    cancelLabel: cancelLabel,
+    showTorchButton: showTorchButton,
+    scanWindow: scanWindow,
+    cameraFace: cameraFace ?? this.cameraFace,
+    scanFormat: scanFormat,
+    scanDelay: scanDelay,
+    continuous: continuous,
+    flipHorizontal: flipHorizontal ?? this.flipHorizontal,
+    flipVertical: flipVertical ?? this.flipVertical,
+    animate: animate,
+    labels: labels,
+  );
 
   /// Milliseconds of [scanDelay], zero when there is none.
   int get delayMillis => scanDelay?.inMilliseconds ?? 0;
@@ -106,10 +115,11 @@ class ScannerConfig {
         'background': colorToCssHex(background ?? const Color(0xFF000000)),
         'continuous': continuous ? '1' : '0',
         'delay': '$delayMillis',
-        'facing': cameraFace == CameraFace.front ? 'user' : 'environment',
+        'facing': facingToPage(cameraFace),
         'window': scanWindow.name,
         ...flipToPage(flipHorizontal, flipVertical),
         'animate': animate ? '1' : '0',
+        'labels': jsonEncode(labels.toPage(host: host)),
         'formats': switch (scanFormat) {
           ScanFormat.all => 'all',
           ScanFormat.onlyQrCode => 'qr',
@@ -128,6 +138,10 @@ class ScannerConfig {
     'embedded': '1',
     ...windowToPage(window),
   };
+
+  /// The camera the page opens, as `getUserMedia` names it.
+  static String facingToPage(CameraFace face) =>
+      face == CameraFace.front ? 'user' : 'environment';
 
   /// How the page flips the camera.
   static Map<String, String> flipToPage(bool horizontal, bool vertical) =>

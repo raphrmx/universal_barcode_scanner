@@ -22,6 +22,7 @@ class ScannerChrome extends StatelessWidget {
     this.backgroundColor,
     this.buttons,
     this.buttonsAlignment = Alignment.centerRight,
+    this.closeLabel = 'Close',
   });
 
   /// The camera and whatever is drawn over it.
@@ -42,6 +43,9 @@ class ScannerChrome extends StatelessWidget {
   /// Where [buttons] sit over the camera.
   final AlignmentGeometry buttonsAlignment;
 
+  /// What a screen reader says for the close button.
+  final String closeLabel;
+
   @override
   Widget build(BuildContext context) {
     final ScannerBar? bar = this.bar;
@@ -61,6 +65,7 @@ class ScannerChrome extends StatelessWidget {
           ScannerButtonsOverlay(
             state: buttons.state,
             buttons: buttons.buttons,
+            labels: buttons.labels,
             alignment: buttonsAlignment,
             inset: EdgeInsets.fromLTRB(
               padding.left + 12 + (besideClose ? 52 : 0),
@@ -94,7 +99,7 @@ class ScannerChrome extends StatelessWidget {
         Positioned(
           top: padding.top + 12,
           left: padding.left + 12,
-          child: _CloseButton(onPressed: onClose),
+          child: _CloseButton(onPressed: onClose, label: closeLabel),
         ),
       ],
     );
@@ -103,14 +108,15 @@ class ScannerChrome extends StatelessWidget {
 
 /// A round button with a cross, over the camera.
 class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onPressed});
+  const _CloseButton({required this.onPressed, required this.label});
 
   final VoidCallback? onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: 'Close',
+    label: label,
     child: GestureDetector(
       onTap: onPressed,
       behavior: HitTestBehavior.opaque,

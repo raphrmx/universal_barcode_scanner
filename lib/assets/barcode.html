@@ -176,6 +176,21 @@
       'itf', 'pdf417', 'upc_a', 'upc_e']
   };
 
+  // What the page writes when the camera does not start: each failure's title
+  // and what to do about it. English until the host hands others.
+  var LABELS = {
+    blocked: ['Camera blocked', 'The page needs permission to use the camera. '
+      + 'Allow it in the address bar, then reload.'],
+    missing: ['No camera found', 'This device has no camera the browser can '
+      + 'open. Try it on a phone.'],
+    busy: ['Camera busy', 'Another application is using it. Close that one '
+      + 'and reload.'],
+    insecure: ['Not a secure origin', 'A browser only opens the camera over '
+      + 'HTTPS or on localhost.'],
+    failed: ['The camera did not start', 'No reason was given.'],
+    decoder: ['The scanner did not load', 'The decoder could not be started.']
+  };
+
   // Nothing runs until configure: the desktop hosts call it once the page is
   // up, the web host passes the same settings in the query string.
   var settings = {
@@ -194,7 +209,8 @@
     flipX: false,
     flipY: false,
     // Whether the camera fades in and turns over when flipped.
-    animate: true
+    animate: true,
+    labels: LABELS
   };
   var stopped = true;
   var delivered = false;
@@ -250,41 +266,30 @@
     // The wire names of ScannerErrorCode, for an embedded view's onError.
     var code = 'camera_unavailable';
 
-    // A desktop webview has no address bar and nothing to reload: what the
-    // user can do there is change the system settings and reopen.
-    var desktop = settings.host === 'desktop';
+    // The host words each case for where it runs: a desktop webview has no
+    // address bar and nothing to reload.
+    var labels = settings.labels;
+    var words;
     if (name === 'DecoderError') {
       code = 'unknown';
-      title = 'The scanner did not load';
-      detail = text || 'The decoder could not be started.';
+      words = labels.decoder;
     } else if (name === 'NotAllowedError' || /permission|denied/i.test(text)) {
       code = 'camera_permission_denied';
-      title = 'Camera blocked';
-      detail = desktop
-        ? 'Allow this application to use the camera in the system settings, '
-          + 'then open the scanner again.'
-        : 'The page needs permission to use the camera. Allow it in the '
-          + 'address bar, then reload.';
+      words = labels.blocked;
     } else if (name === 'NotFoundError' || name === 'OverconstrainedError'
         || /no camera|not found/i.test(text)) {
-      title = 'No camera found';
-      detail = desktop
-        ? 'This computer has no camera the scanner can open.'
-        : 'This device has no camera the browser can open. Try it on a phone.';
+      words = labels.missing;
     } else if (name === 'NotReadableError' || /in use|busy/i.test(text)) {
-      title = 'Camera busy';
-      detail = desktop
-        ? 'Another application is using it. Close that one and open the '
-          + 'scanner again.'
-        : 'Another application is using it. Close that one and reload.';
-    } else if (!desktop && !window.isSecureContext) {
-      title = 'Not a secure origin';
-      detail = 'A browser only opens the camera over HTTPS or on localhost.';
+      words = labels.busy;
+    } else if (settings.host !== 'desktop' && !window.isSecureContext) {
+      words = labels.insecure;
     } else {
       code = 'unknown';
-      title = 'The camera did not start';
-      detail = text || 'No reason was given.';
+      // What the browser said, when it said something.
+      words = [labels.failed[0], text || labels.failed[1]];
     }
+    title = words[0];
+    detail = words[1];
     if (settings.embedded) {
       post({ error: { code: code, message: text || name || title } });
     }
@@ -771,6 +776,7 @@
     settings.windowHeight = Math.max(0, parseInt(options.windowHeight, 10) || 0);
     settings.flipX = options.flipX === true || options.flipX === '1';
     settings.flipY = options.flipY === true || options.flipY === '1';
+    settings.labels = readLabels(options.labels);
     // Anything but an explicit no animates, as the Dart side defaults to.
     settings.animate = !(options.animate === false || options.animate === '0');
     document.documentElement.classList.toggle('ubs-animate', settings.animate);
@@ -789,6 +795,37 @@
     hideMessage();
     fit();
     enqueue(startCamera);
+  }
+
+  // The host's words over the English ones, each failure it names.
+  function readLabels(given) {
+    if (typeof given === 'string') {
+      try {
+        given = JSON.parse(given);
+      } catch (error) {
+        given = null;
+      }
+    }
+    var labels = {};
+    for (var key in LABELS) {
+      var words = given && given[key];
+      labels[key] = Array.isArray(words) && words.length === 2
+        ? [String(words[0]), String(words[1])] : LABELS[key];
+    }
+    return labels;
+  }
+
+  // The other camera, asked for while the scanner runs: the one running is
+  // let go and the other opened in its place.
+  function setFacing(facing) {
+    var wanted = facing === 'user' ? 'user' : 'environment';
+    if (wanted === settings.facing) {
+      return;
+    }
+    settings.facing = wanted;
+    if (!stopped && !delivered) {
+      enqueue(startCamera);
+    }
   }
 
   // An embedded view's scan window, when its layout changes it. Read on the
@@ -920,7 +957,8 @@
     resumeScanning: function () { resumeScanning(); },
     toggleTorch: function () { toggleTorch(); },
     setWindow: function (data) { setWindow(data.width, data.height); },
-    setFlip: function (data) { setFlip(data.x, data.y); }
+    setFlip: function (data) { setFlip(data.x, data.y); },
+    setFacing: function (data) { setFacing(data.facing); }
   };
   window.addEventListener('message', function (event) {
     if (event.source !== window.parent || event.origin !== window.location.origin) {
@@ -953,7 +991,8 @@
       windowHeight: query.get('windowHeight'),
       flipX: query.get('flipX'),
       flipY: query.get('flipY'),
-      animate: query.get('animate')
+      animate: query.get('animate'),
+      labels: query.get('labels')
     });
     // The host holds its calls back until the page listens.
     post({ ready: true });
@@ -964,6 +1003,7 @@
   window.stopScanner = stopScanner;
   window.setWindow = setWindow;
   window.setFlip = setFlip;
+  window.setFacing = setFacing;
   window.pauseScanning = pauseScanning;
   window.resumeScanning = resumeScanning;
   window.toggleTorch = toggleTorch;

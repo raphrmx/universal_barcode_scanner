@@ -10,6 +10,7 @@ import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
+import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
 /// Barcode and QR code scanner.
 ///
@@ -48,9 +49,12 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.animate = true,
+    this.labels = ScannerLabels.english,
   });
 
-  /// Called once the view exists, with the controller that drives it.
+  /// Called once the view exists, with the controller that drives it. On
+  /// Android, iOS and macOS a camera switched by [ScannerButton.switchCamera]
+  /// is a new native view, so this is called again with its controller.
   final ScannerCreatedCallback onCreated;
 
   /// Called with every code read.
@@ -114,6 +118,12 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// when the platform asks for reduced motion.
   final bool animate;
 
+  /// The words of the buttons, for screen readers, and of the page the web,
+  /// Windows and Linux view writes when the camera will not start. English
+  /// by default; [ScannerLabels.french], [ScannerLabels.dutch] and
+  /// [ScannerLabels.german] are ready to use.
+  final ScannerLabels labels;
+
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
   static bool _animates(BuildContext context, bool animate) =>
@@ -142,6 +152,9 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// `animate`, on by default, has the camera fade in when it starts and turn
   /// over when flipped. Off anyway when the platform asks for reduced motion.
   ///
+  /// `labels` holds the words of the buttons and of the page, English by
+  /// default: see [ScannerLabels].
+  ///
   /// `buttons` puts a group of buttons over the camera: the torch, pausing,
   /// and each flip. `buttonsAlignment` places it, down the right side by
   /// default, [Alignment.centerRight]; it runs across when not centred on the
@@ -163,6 +176,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Set<ScannerButton> buttons = const <ScannerButton>{},
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
     bool animate = true,
+    ScannerLabels labels = ScannerLabels.english,
   }) async {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
@@ -181,6 +195,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
           flipHorizontal: flip ?? flipsByDefault,
           flipVertical: flipVertical,
           animate: _animates(context, animate),
+          labels: labels,
         ),
         backgroundColor: backgroundColor,
         bar: bar,
@@ -233,6 +248,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     Set<ScannerButton> buttons = const <ScannerButton>{},
     AlignmentGeometry buttonsAlignment = Alignment.centerRight,
     bool animate = true,
+    ScannerLabels labels = ScannerLabels.english,
   }) {
     final NavigatorState navigator = Navigator.of(context);
     late final Route<void> route;
@@ -257,6 +273,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
           flipHorizontal: flip ?? flipsByDefault,
           flipVertical: flipVertical,
           animate: _animates(context, animate),
+          labels: labels,
         ),
         backgroundColor: backgroundColor,
         bar: bar,
@@ -324,9 +341,15 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   late final ScannerButtons _buttons = ScannerButtons(
     flipHorizontal: widget.flip ?? UniversalBarcodeScanner.flipsByDefault,
     flipVertical: widget.flipVertical,
-    // The view follows its config's flip, so a rebuild is all it takes.
+    // The view follows its config, so a rebuild is all it takes.
     onFlip: (bool horizontal, bool vertical) => setState(() {}),
+    onSwitchCamera: () => setState(() {
+      _face = _face == CameraFace.front ? CameraFace.back : CameraFace.front;
+    }),
   );
+
+  /// The camera open, as asked for or as the button switched it.
+  late CameraFace _face = widget.cameraFace;
 
   @override
   void didUpdateWidget(UniversalBarcodeScanner oldWidget) {
@@ -339,6 +362,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         vertical: widget.flipVertical,
       );
     }
+    if (widget.cameraFace != oldWidget.cameraFace) _face = widget.cameraFace;
   }
 
   @override
@@ -365,13 +389,14 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
       config: ScannerConfig(
         lineColor: widget.lineColor,
         scanWindow: widget.scanWindow,
-        cameraFace: widget.cameraFace,
+        cameraFace: _face,
         scanFormat: widget.scanFormat,
         scanDelay: widget.scanDelay,
         continuous: widget.continuous,
         flipHorizontal: _buttons.flipHorizontal,
         flipVertical: _buttons.flipVertical,
         animate: UniversalBarcodeScanner._animates(context, widget.animate),
+        labels: widget.labels,
       ),
       scanWindowSize: widget.scanWindowSize,
       onScanned: _onScanned,
@@ -387,6 +412,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         ScannerButtonsOverlay(
           state: _buttons,
           buttons: widget.buttons,
+          labels: widget.labels,
           alignment: widget.buttonsAlignment,
           inset: const EdgeInsets.all(8),
         ),

@@ -17,3 +17,4 @@ export 'src/scanner_bar.dart';
 export 'src/scanner_controller.dart'
     show ScannerController, ScannerCreatedCallback;
 export 'src/scanner_exception.dart';
+export 'src/scanner_labels.dart';

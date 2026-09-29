@@ -78,10 +78,28 @@ class _ScannerPageState extends State<ScannerPage> {
     flipHorizontal: widget.config.flipHorizontal,
     flipVertical: widget.config.flipVertical,
     onFlip: _sendFlip,
+    onSwitchCamera: _switchCamera,
   )..controller = _controller;
 
   /// Whether the page listens: a call before then is lost.
   bool _pageReady = false;
+
+  /// The camera the buttons have switched to.
+  late CameraFace _face = widget.config.cameraFace;
+
+  void _switchCamera() {
+    _face = _face == CameraFace.front ? CameraFace.back : CameraFace.front;
+    _sendFace();
+  }
+
+  /// Sent once the page listens; until then the query string still says it.
+  void _sendFace() {
+    if (!_pageReady) return;
+    _post(<String, Object>{
+      'call': 'setFacing',
+      'facing': ScannerConfig.facingToPage(_face),
+    });
+  }
 
   @override
   void initState() {
@@ -164,6 +182,7 @@ class _ScannerPageState extends State<ScannerPage> {
             _buttons.flipVertical != widget.config.flipVertical) {
           _sendFlip(_buttons.flipHorizontal, _buttons.flipVertical);
         }
+        if (_face != widget.config.cameraFace) _sendFace();
         _controller.pageReady();
       // The page says itself why the camera did not start.
       case PageError():
@@ -184,8 +203,13 @@ class _ScannerPageState extends State<ScannerPage> {
       onClose: widget.onClose,
       buttons: widget.buttons.isEmpty
           ? null
-          : ScannerButtonGroup(state: _buttons, buttons: widget.buttons),
+          : ScannerButtonGroup(
+              state: _buttons,
+              buttons: widget.buttons,
+              labels: widget.config.labels,
+            ),
       buttonsAlignment: widget.buttonsAlignment,
+      closeLabel: widget.config.labels.close,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),
     );
@@ -250,6 +274,9 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
   /// The flip the page was last told about, horizontal then vertical.
   (bool, bool)? _pageFlip;
 
+  /// The camera the page was last told to open.
+  CameraFace? _pageFace;
+
   /// Whether the page listens: before, a message would be dropped.
   bool _pageReady = false;
 
@@ -277,6 +304,18 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
     _sendFlip();
+    _sendFace();
+  }
+
+  /// Tells the page about a camera it does not have open yet.
+  void _sendFace() {
+    final CameraFace face = widget.config.cameraFace;
+    if (!_pageReady || face == _pageFace) return;
+    _pageFace = face;
+    _post(<String, Object>{
+      'call': 'setFacing',
+      'facing': ScannerConfig.facingToPage(face),
+    });
   }
 
   /// Tells the page about a flip it does not have yet.
@@ -328,6 +367,7 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     final html.HTMLIFrameElement iframe = element as html.HTMLIFrameElement;
     final Size window = _pageWindow = _window ?? Size.zero;
     _pageFlip = (widget.config.flipHorizontal, widget.config.flipVertical);
+    _pageFace = widget.config.cameraFace;
     final Uri page = Uri(
       path: ScannerAsset.webPath,
       queryParameters: <String, String>{
@@ -354,9 +394,10 @@ class _EmbeddedScannerState extends State<EmbeddedScanner> {
     if (message is PageError && !_failed) setState(() => _failed = true);
     if (message is PageReady) {
       _pageReady = true;
-      // A layout or a flip that changed while the page was loading.
+      // A layout, a flip or a camera that changed while the page was loading.
       _sendWindow();
       _sendFlip();
+      _sendFace();
     }
     _controller.handle(message);
   }

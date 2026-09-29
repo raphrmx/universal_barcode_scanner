@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -137,28 +138,57 @@ void main() {
         scanDelay: Duration(seconds: 2),
         continuous: true,
       );
-      expect(
-        config.toPage(host: 'desktop', background: const Color(0xFFFFFFFF)),
-        <String, String>{
-          'host': 'desktop',
-          'line': '#112233',
-          'background': '#FFFFFF',
-          'continuous': '1',
-          'delay': '2000',
-          'facing': 'user',
-          'window': 'wide',
-          'flipX': '0',
-          'flipY': '0',
-          'animate': '1',
-          'formats': 'barcode',
-        },
+      final Map<String, String> page = config.toPage(
+        host: 'desktop',
+        background: const Color(0xFFFFFFFF),
       );
+      // The words, checked on their own below.
+      expect(page.remove('labels'), isNotNull);
+      expect(page, <String, String>{
+        'host': 'desktop',
+        'line': '#112233',
+        'background': '#FFFFFF',
+        'continuous': '1',
+        'delay': '2000',
+        'facing': 'user',
+        'window': 'wide',
+        'flipX': '0',
+        'flipY': '0',
+        'animate': '1',
+        'formats': 'barcode',
+      });
       expect(
         const ScannerConfig(
           scanWindow: ScanWindow.square,
         ).toPage(host: 'web')['window'],
         'square',
       );
+    });
+
+    test('hands the page its words, for where it runs', () {
+      Map<String, Object?> words(ScannerLabels labels, String host) =>
+          jsonDecode(
+                ScannerConfig(labels: labels).toPage(host: host)['labels']!,
+              )
+              as Map<String, Object?>;
+
+      expect(words(ScannerLabels.english, 'web')['blocked'], <String>[
+        'Camera blocked',
+        ScannerLabels.english.cameraBlockedWeb,
+      ]);
+      expect(words(ScannerLabels.french, 'desktop')['blocked'], <String>[
+        'Caméra bloquée',
+        ScannerLabels.french.cameraBlockedDesktop,
+      ]);
+      expect(words(ScannerLabels.dutch, 'web').keys, <String>[
+        'blocked',
+        'missing',
+        'busy',
+        'insecure',
+        'failed',
+        'decoder',
+      ]);
+      expect(ScannerLabels.german.copyWith(torch: 'Licht').torch, 'Licht');
     });
 
     test('no window reaches every side as none', () {
@@ -776,6 +806,39 @@ void main() {
       expect(find.bySemanticsLabel('Resume'), findsOneWidget);
     });
 
+    testWidgets('say what the labels say, and switch the camera', (
+      WidgetTester tester,
+    ) async {
+      final List<String> calls = <String>[];
+      final ScannerButtons state = ScannerButtons(
+        flipHorizontal: false,
+        flipVertical: false,
+        onFlip: (bool h, bool v) {},
+        onSwitchCamera: () => calls.add('switch'),
+      )..controller = _RecordingController(calls, true);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ScannerButtonGroup(
+            state: state,
+            buttons: ScannerButton.values.toSet(),
+            labels: ScannerLabels.french,
+          ),
+        ),
+      );
+
+      await tester.tap(find.bySemanticsLabel('Pause'));
+      await tester.pump();
+      expect(find.bySemanticsLabel('Reprendre'), findsOneWidget);
+      expect(find.bySemanticsLabel('Lampe'), findsOneWidget);
+
+      // The other camera starts reading again.
+      await tester.tap(find.bySemanticsLabel('Changer de caméra'));
+      await tester.pump();
+      expect(calls, <String>['pause', 'switch']);
+      expect(state.paused, isFalse);
+    });
+
     testWidgets('show only those asked for, in a fixed order', (
       WidgetTester tester,
     ) async {
@@ -973,6 +1036,44 @@ void main() {
         await pump(flip: false, animate: false);
         await tester.pump();
         expect(scaleX(), 1);
+      });
+    });
+
+    testWidgets('opens the other camera as a new native view', (
+      WidgetTester tester,
+    ) async {
+      int views = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (MethodCall call) async => call.method == 'create' ? views++ : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        ),
+      );
+      await _on(TargetPlatform.iOS, () async {
+        final List<ScannerController> created = <ScannerController>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: UniversalBarcodeScanner(
+              onCreated: created.add,
+              buttons: const <ScannerButton>{ScannerButton.switchCamera},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(created, hasLength(1));
+
+        await tester.tap(find.bySemanticsLabel('Switch camera'));
+        await tester.pumpAndSettle();
+        expect(created, hasLength(2));
+        expect(
+          (tester.widget<UiKitView>(find.byType(UiKitView)).creationParams!
+              as Map<String, Object?>)['cameraFace'],
+          'front',
+        );
       });
     });
 

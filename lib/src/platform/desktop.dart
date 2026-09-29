@@ -229,7 +229,18 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
     // Before the page is up this is lost, and configure carries the flip.
     onFlip: (bool horizontal, bool vertical) =>
         unawaited(_lease.webview.run('setFlip($horizontal, $vertical)')),
+    onSwitchCamera: _switchCamera,
   )..controller = _controller;
+
+  /// The camera the buttons have switched to.
+  late CameraFace _face = widget.config.cameraFace;
+
+  /// Before the page is up this is lost, and configure carries the camera.
+  void _switchCamera() {
+    _face = _face == CameraFace.front ? CameraFace.back : CameraFace.front;
+    final String facing = jsonEncode(ScannerConfig.facingToPage(_face));
+    unawaited(_lease.webview.run('setFacing($facing)'));
+  }
 
   @override
   void initState() {
@@ -246,13 +257,14 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
   }
 
   /// Hands the page its settings, which also starts the camera, with the
-  /// flips as the buttons now have them.
+  /// flips and the camera as the buttons now have them.
   @override
   void onPageLoaded() {
     final Map<String, String> settings = widget.config
-        .withFlip(
-          horizontal: _buttons.flipHorizontal,
-          vertical: _buttons.flipVertical,
+        .copyWith(
+          flipHorizontal: _buttons.flipHorizontal,
+          flipVertical: _buttons.flipVertical,
+          cameraFace: _face,
         )
         .toPage(host: 'desktop', background: widget.backgroundColor);
     unawaited(_lease.webview.run('configure(${jsonEncode(settings)})'));
@@ -297,8 +309,13 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
       onClose: _close,
       buttons: widget.buttons.isEmpty
           ? null
-          : ScannerButtonGroup(state: _buttons, buttons: widget.buttons),
+          : ScannerButtonGroup(
+              state: _buttons,
+              buttons: widget.buttons,
+              labels: widget.config.labels,
+            ),
       buttonsAlignment: widget.buttonsAlignment,
+      closeLabel: widget.config.labels.close,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),
     );
@@ -383,15 +400,22 @@ class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
       ..onError = widget.onError;
     final ScannerConfig config = widget.config;
     final ScannerConfig old = oldWidget.config;
-    // Before configure, the page gets the current flip with the rest.
-    if (_configured &&
-        (config.flipHorizontal != old.flipHorizontal ||
-            config.flipVertical != old.flipVertical)) {
+    // Before configure, the page gets the current flip and camera with the
+    // rest.
+    if (!_configured) return;
+    if (config.flipHorizontal != old.flipHorizontal ||
+        config.flipVertical != old.flipVertical) {
       unawaited(
         _lease.webview.run(
           'setFlip(${config.flipHorizontal}, ${config.flipVertical})',
         ),
       );
+    }
+    if (config.cameraFace != old.cameraFace) {
+      final String facing = jsonEncode(
+        ScannerConfig.facingToPage(config.cameraFace),
+      );
+      unawaited(_lease.webview.run('setFacing($facing)'));
     }
   }
 

@@ -333,6 +333,12 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
     _controller
       ?..onScanned = widget.onScanned
       ..onError = widget.onError;
+    // The other camera comes as a view of its own, faded in like the first.
+    if (widget.config.cameraFace != oldWidget.config.cameraFace &&
+        widget.config.animate) {
+      _arrivalDelay?.cancel();
+      _arrival.value = 0;
+    }
   }
 
   @override
@@ -353,6 +359,8 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
 
   void _onPlatformViewCreated(int id) {
     if (!mounted) return;
+    // The view of the camera switched from goes with its controller.
+    _controller?.dispose();
     final ScannerController controller = ChannelScannerController(id)
       ..onScanned = widget.onScanned
       ..onError = widget.onError;
@@ -422,7 +430,12 @@ class _EmbeddedScannerState extends State<EmbeddedScanner>
       ),
       duration: config.animate ? _flipDuration : Duration.zero,
       curve: Curves.easeInOut,
-      child: view,
+      // A native view opens its camera when it is created: the other camera
+      // takes a view of its own.
+      child: KeyedSubtree(
+        key: ValueKey<CameraFace>(config.cameraFace),
+        child: view,
+      ),
       builder: (BuildContext context, Offset scale, Widget? view) => Transform(
         alignment: Alignment.center,
         transform: Matrix4.diagonal3Values(scale.dx, scale.dy, 1),

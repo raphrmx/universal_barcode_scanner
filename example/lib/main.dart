@@ -71,12 +71,17 @@ class _HomePageState extends State<HomePage> {
     ScannerButton.pause,
     ScannerButton.flipHorizontal,
     ScannerButton.flipVertical,
+    ScannerButton.switchCamera,
   };
   static const Set<ScannerButton> _onceButtons = <ScannerButton>{
     ScannerButton.torch,
     ScannerButton.flipHorizontal,
     ScannerButton.flipVertical,
+    ScannerButton.switchCamera,
   };
+
+  /// The words of the buttons and of the page, in every mode.
+  ScannerLabels _labels = ScannerLabels.english;
 
   @override
   void dispose() {
@@ -117,6 +122,7 @@ class _HomePageState extends State<HomePage> {
         scanFormat: ScanFormat.all,
         buttons: _onceButtons,
         buttonsAlignment: _buttonsAt,
+        labels: _labels,
       );
       if (code != null) _found(code, 'one shot');
     } on ScannerException catch (error) {
@@ -135,6 +141,7 @@ class _HomePageState extends State<HomePage> {
       scanDelay: const Duration(seconds: 2),
       buttons: _allButtons,
       buttonsAlignment: _buttonsAt,
+      labels: _labels,
     ).listen(
       (String code) => _found(code, 'continuous'),
       onError: (Object error) {
@@ -190,6 +197,7 @@ class _HomePageState extends State<HomePage> {
                           continuous: true,
                           buttons: _allButtons,
                           buttonsAlignment: _buttonsAt,
+                          labels: _labels,
                           onScanned: (String code) => _found(code, 'embedded'),
                           onError: _failed,
                           onCreated: (ScannerController _) {},
@@ -226,6 +234,31 @@ class _HomePageState extends State<HomePage> {
                         label: Text(label),
                         selected: _buttonsAt == at,
                         onSelected: (bool _) => setState(() => _buttonsAt = at),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    const Text(
+                      'Words',
+                      style: TextStyle(fontSize: 13, color: _dim),
+                    ),
+                    for (final (String label, ScannerLabels labels)
+                        in const <(String, ScannerLabels)>[
+                      ('English', ScannerLabels.english),
+                      ('Français', ScannerLabels.french),
+                      ('Nederlands', ScannerLabels.dutch),
+                      ('Deutsch', ScannerLabels.german),
+                    ])
+                      ChoiceChip(
+                        label: Text(label),
+                        selected: identical(_labels, labels),
+                        onSelected: (bool _) =>
+                            setState(() => _labels = labels),
                       ),
                   ],
                 ),

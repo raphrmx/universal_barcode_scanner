@@ -44,6 +44,15 @@
   reduced motion.
 - The example is called Universal Barcode Scanner on every platform, rather
   than `example`.
+- `labels`, a `ScannerLabels`, on `scan`, `stream` and the embedded view: the
+  words of the buttons, for screen readers, and of the page when the camera
+  will not start, English by default. `ScannerLabels.french`, `.dutch` and
+  `.german` are ready to use; `copyWith` changes any of them.
+- `ScannerButton.switchCamera` goes from the camera facing away to the one
+  facing the user and back. On the web, Windows and Linux the page opens the
+  other camera in place; on Android, iOS and macOS the embedded view is made
+  again with it, and `onCreated` is called with its new controller.
+- The example has a camera switch and a choice of language.
 
 ## 2.0.1
 
