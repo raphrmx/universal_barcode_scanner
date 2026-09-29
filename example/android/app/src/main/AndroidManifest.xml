@@ -2,7 +2,7 @@
     package="com.kharagedition.example">
     <uses-permission android:name="android.permission.CAMERA" />
    <application
-        android:label="example"
+        android:label="Universal Barcode Scanner"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
