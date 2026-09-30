@@ -48,7 +48,7 @@ Future<List<ScanResult>> readImage(Uint8List bytes, ScanFormat format) async {
     }).toJS,
     html.window.location.origin.toJS,
   );
-  return answer.future.timeout(
+  return await answer.future.timeout(
     _imageTimeout,
     onTimeout: () {
       _imageRequests.remove(id);
