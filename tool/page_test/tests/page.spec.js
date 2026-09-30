@@ -191,3 +191,60 @@ test('stops the scan line while paused, and reads nothing', async ({ page }) => 
   await expectRead(page, EAN);
 });
 
+
+// The page with no camera started, as the hosts keep it to read images.
+async function openIdle(page, camera) {
+  await page.addInitScript(fakeCamera, camera || {});
+  await page.goto('/barcode.html');
+}
+
+// Hands the page [base64] to read, as the web host does, and waits for the
+// answer.
+async function readImage(page, id, base64, formats) {
+  await page.evaluate(([n, bytes, which]) => window.postMessage(JSON.stringify(
+    { call: 'readImage', args: [n, bytes, which] }), window.location.origin),
+  [id, base64, formats || 'all']);
+  let answer;
+  await expect.poll(async () => {
+    answer = await page.evaluate((n) => window.__posts.find((p) => p.image === n), id);
+    return answer !== undefined;
+  }, { timeout: 20000 }).toBe(true);
+  return answer;
+}
+
+const OTHER = '5412345678908';
+
+test('reads a code in an image, without the camera', async ({ page }) => {
+  await openIdle(page);
+  const png = await page.evaluate((code) => window.__camera.imageOf([code]), EAN);
+  const answer = await readImage(page, 1, png);
+  expect(answer.codes).toEqual([{ code: EAN, format: 'ean_13' }]);
+  expect(await page.evaluate(() => window.__posts.some((p) => p.code))).toBe(false);
+});
+
+test('reads every code in an image', async ({ page }) => {
+  await openIdle(page);
+  const png = await page.evaluate(([a, b]) => window.__camera.imageOf([a, b]), [EAN, OTHER]);
+  const answer = await readImage(page, 2, png);
+  expect(answer.codes.map((c) => c.code).sort()).toEqual([OTHER, EAN].sort());
+});
+
+test('reads only the formats asked for in an image', async ({ page }) => {
+  await openIdle(page);
+  const png = await page.evaluate((code) => window.__camera.imageOf([code]), EAN);
+  expect((await readImage(page, 3, png, 'qr')).codes).toEqual([]);
+  expect((await readImage(page, 4, png, 'barcode')).codes.length).toBe(1);
+});
+
+test('says so when the bytes are no image', async ({ page }) => {
+  await openIdle(page);
+  const answer = await readImage(page, 5, btoa('not an image at all'));
+  expect(answer.failed).toBe('invalid_image');
+  expect(answer.codes).toBeUndefined();
+});
+
+test('reads an image where no worker can run', async ({ page }) => {
+  await openIdle(page, { worker: false });
+  const png = await page.evaluate((code) => window.__camera.imageOf([code]), EAN);
+  expect((await readImage(page, 6, png)).codes).toEqual([{ code: EAN, format: 'ean_13' }]);
+});

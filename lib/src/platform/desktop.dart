@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -168,6 +169,76 @@ class _Lease {
   }
 }
 
+/// How long the page gets to read an image, loading included.
+const Duration _imageTimeout = Duration(seconds: 30);
+
+/// Every code in the encoded image [bytes], read by the scanner page in a
+/// webview nobody sees: the kept one when no scanner is showing it. [formats]
+/// is the page's name for the formats to read.
+Future<List<ScanResult>> readImageOnDesktop(Uint8List bytes, String formats) =>
+    _ImageRead(bytes, formats).answer.future;
+
+/// One image handed to the page, and its answer.
+class _ImageRead implements _PageOwner {
+  _ImageRead(this.bytes, this.formats) {
+    _lease = _Lease(this);
+    _timeout = Timer(
+      _imageTimeout,
+      () => _finish(
+        error: const ScannerException(
+          ScannerErrorCode.unknown,
+          'The scanner page did not read the image in time.',
+        ),
+      ),
+    );
+    if (_lease.webview.loaded) onPageLoaded();
+  }
+
+  static int _lastId = 0;
+
+  final Uint8List bytes;
+  final String formats;
+  final int id = ++_lastId;
+  final Completer<List<ScanResult>> answer = Completer<List<ScanResult>>();
+  late final _Lease _lease;
+  late final Timer _timeout;
+
+  @override
+  void onPageLoaded() => _lease.webview.call('readImage', <Object>[
+    id,
+    base64Encode(bytes),
+    formats,
+  ]);
+
+  @override
+  void onPageMessage(String data) {
+    final PageMessage? message = PageMessage.parse(data);
+    if (message is! PageImage || message.id != id) return;
+    final List<ScanResult>? results = message.results;
+    if (results != null) {
+      _finish(results: results);
+    } else {
+      _finish(
+        error: ScannerException(
+          ScannerErrorCode.fromWire(message.failed ?? ''),
+          message.message,
+        ),
+      );
+    }
+  }
+
+  void _finish({List<ScanResult>? results, ScannerException? error}) {
+    if (answer.isCompleted) return;
+    _timeout.cancel();
+    _lease.end();
+    if (error != null) {
+      answer.completeError(error);
+    } else {
+      answer.complete(results ?? const <ScanResult>[]);
+    }
+  }
+}
+
 /// Scanner for the desktop platforms that have no native scanner: Windows and
 /// Linux.
 ///
@@ -291,6 +362,7 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
       // The page says itself why the camera did not start.
       case PageError():
       case PageReady():
+      case PageImage():
       case null:
         break;
     }

@@ -11,6 +11,9 @@ enum ScannerErrorCode {
   /// Another scanner is already on screen.
   alreadyActive('already_active'),
 
+  /// The bytes handed to `scanImage` are not an image the platform opens.
+  invalidImage('invalid_image'),
+
   /// Anything the platform reported that has no code of its own here.
   unknown('unknown');
 

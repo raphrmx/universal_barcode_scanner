@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
@@ -121,6 +122,25 @@ abstract final class NativeScanner {
       },
     );
     return codes.stream;
+  }
+
+  /// Every code in the encoded image [bytes], read by the platform's own
+  /// decoder: ML Kit on Android, Vision on iOS and macOS.
+  static Future<List<ScanResult>> scanImage(
+    Uint8List bytes,
+    ScanFormat format,
+  ) async {
+    try {
+      final List<Object?>? found = await _channel.invokeListMethod<Object?>(
+        'scanImage',
+        <String, Object?>{'bytes': bytes, 'scanFormat': format.wireName},
+      );
+      return <ScanResult>[
+        for (final Object? code in found ?? const <Object?>[]) ?_result(code),
+      ];
+    } on Object catch (error) {
+      throw ScannerException.from(error);
+    }
   }
 
   /// A short beep, on the platforms whose plugin plays one.

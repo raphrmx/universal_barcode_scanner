@@ -104,6 +104,75 @@ void main() {
     return home;
   }
 
+  group('scanImage', () {
+    test('hands the bytes and the formats to the native decoder', () async {
+      answer = (MethodCall call) async => <Object?>[
+        <String, Object?>{'code': '5412345678908', 'format': 'ean_13'},
+        <String, Object?>{'code': 'WIFI:S:Home;;', 'format': 'qr_code'},
+        <String, Object?>{'code': '', 'format': 'qr_code'},
+      ];
+      final List<ScanResult> codes = await UniversalBarcodeScanner.scanImage(
+        <int>[1, 2, 3],
+        scanFormat: ScanFormat.onlyBarcode,
+      );
+      expect(calls.single.method, 'scanImage');
+      final Map<Object?, Object?> arguments =
+          calls.single.arguments as Map<Object?, Object?>;
+      expect(arguments['bytes'], Uint8List.fromList(<int>[1, 2, 3]));
+      expect(arguments['scanFormat'], 'ONLY_BARCODE');
+      // An empty code is no code.
+      expect(codes, const <ScanResult>[
+        ScanResult('5412345678908', format: BarcodeFormat.ean13),
+        ScanResult('WIFI:S:Home;;', format: BarcodeFormat.qrCode),
+      ]);
+      expect(codes.last.content, isA<WifiContent>());
+    });
+
+    test('answers an empty list for an image with no code', () async {
+      answer = (MethodCall call) async => <Object?>[];
+      expect(await UniversalBarcodeScanner.scanImage(Uint8List(4)), isEmpty);
+    });
+
+    test('says when the bytes are no image', () async {
+      answer = (MethodCall call) async => throw PlatformException(
+        code: 'invalid_image',
+        message: 'Not an image.',
+      );
+      await expectLater(
+        UniversalBarcodeScanner.scanImage(<int>[0]),
+        throwsA(
+          isA<ScannerException>().having(
+            (ScannerException e) => e.code,
+            'code',
+            ScannerErrorCode.invalidImage,
+          ),
+        ),
+      );
+    });
+
+    test('reads the page answer for an image', () {
+      final PageMessage? read = PageMessage.parse(
+        '{"image":3,"codes":[{"code":"abc","format":"qr_code"},'
+        '{"code":"","format":"qr_code"}]}',
+      );
+      expect(read, isA<PageImage>());
+      final PageImage image = read! as PageImage;
+      expect(image.id, 3);
+      expect(image.results, const <ScanResult>[
+        ScanResult('abc', format: BarcodeFormat.qrCode),
+      ]);
+
+      final PageImage failed =
+          PageMessage.parse(
+                '{"image":4,"failed":"invalid_image","message":"no"}',
+              )!
+              as PageImage;
+      expect(failed.results, isNull);
+      expect(failed.failed, 'invalid_image');
+      expect(failed.message, 'no');
+    });
+  });
+
   group('wire format', () {
     test('ScanFormat carries the names the native scanners expect', () {
       expect(ScanFormat.all.wireName, 'ALL_FORMATS');

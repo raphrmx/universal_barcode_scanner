@@ -134,11 +134,7 @@ class ScannerConfig {
         ...flipToPage(flipHorizontal, flipVertical),
         'animate': animate ? '1' : '0',
         'labels': jsonEncode(labels.toPage(host: host)),
-        'formats': switch (scanFormat) {
-          ScanFormat.all => 'all',
-          ScanFormat.onlyQrCode => 'qr',
-          ScanFormat.onlyBarcode => 'barcode',
-        },
+        'formats': formatsToPage(scanFormat),
       };
 
   /// Settings of the bundled page run as an embedded view. The camera fills
@@ -154,6 +150,14 @@ class ScannerConfig {
   };
 
   /// The camera the page opens, as `getUserMedia` names it.
+  /// What the page calls [format].
+  static String formatsToPage(ScanFormat format) => switch (format) {
+    ScanFormat.all => 'all',
+    ScanFormat.onlyQrCode => 'qr',
+    ScanFormat.onlyBarcode => 'barcode',
+  };
+
+  /// What the page calls [face].
   static String facingToPage(CameraFace face) =>
       face == CameraFace.front ? 'user' : 'environment';
 
@@ -189,6 +193,25 @@ sealed class PageMessage {
       return null;
     }
     if (decoded is! Map) return null;
+    final Object? image = decoded['image'];
+    if (image is int) {
+      final Object? codes = decoded['codes'];
+      return PageImage(
+        image,
+        codes is List
+            ? <ScanResult>[
+                for (final Object? found in codes)
+                  if (found case {
+                    'code': final String code,
+                    'format': final Object? format,
+                  } when code.isNotEmpty)
+                    ScanResult(code, format: BarcodeFormat.fromWire(format)),
+              ]
+            : null,
+        failed: decoded['failed'] as String?,
+        message: decoded['message'] as String?,
+      );
+    }
     final Object? code = decoded['code'];
     if (code is String && code.isNotEmpty) {
       return PageCode(code, format: BarcodeFormat.fromWire(decoded['format']));
@@ -242,6 +265,24 @@ final class PageError extends PageMessage {
 
   /// What went wrong.
   final String code;
+
+  /// The browser's own words, for a log.
+  final String? message;
+}
+
+/// The codes the page read in an image, or why it could not.
+final class PageImage extends PageMessage {
+  /// The answer to the image [id].
+  const PageImage(this.id, this.results, {this.failed, this.message});
+
+  /// The request it answers.
+  final int id;
+
+  /// Every code read, null when the page [failed].
+  final List<ScanResult>? results;
+
+  /// One of the wire names of `ScannerErrorCode`.
+  final String? failed;
 
   /// The browser's own words, for a log.
   final String? message;

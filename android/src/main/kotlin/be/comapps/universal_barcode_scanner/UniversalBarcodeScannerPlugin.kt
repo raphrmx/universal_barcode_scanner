@@ -2,6 +2,7 @@ package be.comapps.universal_barcode_scanner
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
@@ -37,6 +38,7 @@ class UniversalBarcodeScannerPlugin :
     PluginRegistry.RequestPermissionsResultListener {
 
     private var channel: MethodChannel? = null
+    private var appContext: Context? = null
     private var eventChannel: EventChannel? = null
 
     private var activityBinding: ActivityPluginBinding? = null
@@ -92,6 +94,7 @@ class UniversalBarcodeScannerPlugin :
     // region FlutterPlugin
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        appContext = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, CHANNEL).also {
             it.setMethodCallHandler(this)
         }
@@ -108,6 +111,7 @@ class UniversalBarcodeScannerPlugin :
         eventChannel?.setStreamHandler(null)
         channel = null
         eventChannel = null
+        appContext = null
         ScanEvents.attach(null)
     }
 
@@ -172,6 +176,20 @@ class UniversalBarcodeScannerPlugin :
             "beep" -> {
                 beep()
                 result.success(null)
+            }
+            "scanImage" -> {
+                val bytes = arguments?.get("bytes") as? ByteArray
+                val context = appContext
+                if (bytes == null || context == null) {
+                    result.error(ScanErrors.INVALID_IMAGE, "No image to read.", null)
+                } else {
+                    ImageReader.read(
+                        context,
+                        bytes,
+                        (arguments["scanFormat"] as? String) ?: "ALL_FORMATS",
+                        result,
+                    )
+                }
             }
             else -> result.notImplemented()
         }

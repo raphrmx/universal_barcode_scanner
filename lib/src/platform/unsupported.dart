@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
@@ -100,3 +102,10 @@ class EmbeddedScanner extends StatelessWidget {
 
 /// No sound to play here.
 void playBeep() {}
+
+/// Nothing to read an image with here.
+Future<List<ScanResult>> readImage(Uint8List bytes, ScanFormat format) async =>
+    throw const ScannerException(
+      ScannerErrorCode.unknown,
+      'No image reader on this platform.',
+    );

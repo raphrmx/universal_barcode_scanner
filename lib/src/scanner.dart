@@ -384,6 +384,30 @@ class UniversalBarcodeScanner extends StatefulWidget {
     ),
   );
 
+  /// Every code in an image: a photo picked from the gallery, a file, an
+  /// asset, a screenshot. [bytes] are the image as encoded, PNG, JPEG or any
+  /// format the platform opens, and [scanFormat] limits which symbologies
+  /// count.
+  ///
+  /// No camera and no permission are involved. The answer is empty when the
+  /// image holds no code; a [ScannerException] with
+  /// [ScannerErrorCode.invalidImage] means the bytes are no image. ML Kit reads
+  /// it on Android and Vision on iOS and macOS, and the scanner page does on
+  /// the web, Windows and Linux, off the app's thread where it can.
+  ///
+  /// ```dart
+  /// final List<ScanResult> codes = await UniversalBarcodeScanner.scanImage(
+  ///   await file.readAsBytes(),
+  /// );
+  /// ```
+  static Future<List<ScanResult>> scanImage(
+    List<int> bytes, {
+    ScanFormat scanFormat = ScanFormat.all,
+  }) => readImage(
+    bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+    scanFormat,
+  );
+
   /// One code, or null when the user backs out.
   static Future<ScanResult?> _scanOnce(
     BuildContext context,

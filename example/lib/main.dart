@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 void main() => runApp(const ExampleApp());
@@ -54,11 +56,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   StreamSubscription<ScanResult>? _stream;
-  String? _code;
-  String _mode = '';
 
-  /// The symbology of the last code, as the scanner reported it.
-  BarcodeFormat _format = BarcodeFormat.unknown;
+  /// What the last read gave: one code from the camera, every code of an
+  /// image.
+  List<ScanResult> _results = const <ScanResult>[];
+  String _mode = '';
   int _count = 0;
 
   /// Whether the camera sits in the result tile.
@@ -117,11 +119,59 @@ class _HomePageState extends State<HomePage> {
   void _found(ScanResult result, String mode) {
     if (!mounted) return;
     setState(() {
-      _code = result.text;
-      _format = result.format;
+      _results = <ScanResult>[result];
       _mode = mode;
       _count++;
     });
+  }
+
+  /// An image the user picks: a photo, a screenshot, a scan. The package
+  /// takes bytes; where they come from is the app's business, here
+  /// `file_picker`.
+  Future<void> _pickImage() async {
+    final PlatformFile? file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    await _readImage(await file.readAsBytes());
+  }
+
+  /// Pictures that ship with the app, one per kind of content, to try the
+  /// reader without an image of one's own.
+  static const List<(String, String)> _samples = <(String, String)>[
+    ('Wi-Fi', 'wifi'),
+    ('Link', 'link'),
+    ('Contact', 'contact'),
+    ('E-mail', 'email'),
+    ('Phone', 'phone'),
+    ('Text message', 'sms'),
+    ('Place', 'place'),
+    ('Event', 'event'),
+    ('Product', 'product'),
+    ('Two at once', 'two_codes'),
+  ];
+
+  /// The sample picture [name], from the app's assets.
+  Future<void> _readSample(String name) async {
+    final ByteData image = await rootBundle.load('assets/samples/$name.png');
+    await _readImage(
+      image.buffer.asUint8List(image.offsetInBytes, image.lengthInBytes),
+    );
+  }
+
+  /// Every code in [bytes], an encoded image.
+  Future<void> _readImage(Uint8List bytes) async {
+    try {
+      final List<ScanResult> results = await UniversalBarcodeScanner.scanImage(
+        bytes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _results = results;
+        _mode = 'image';
+        _count++;
+      });
+    } on ScannerException catch (error) {
+      _failed(error);
+    }
   }
 
   /// One camera at a time: the tile's goes before a scanner opens.
@@ -186,11 +236,12 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          error.code == ScannerErrorCode.permissionDenied
-              ? 'The camera permission was refused.'
-              : 'The camera could not be used.',
-        ),
+        content: Text(switch (error.code) {
+          ScannerErrorCode.permissionDenied =>
+            'The camera permission was refused.',
+          ScannerErrorCode.invalidImage => 'The image could not be opened.',
+          _ => 'The camera could not be used.',
+        }),
       ),
     );
   }
@@ -221,9 +272,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 22),
                 _Result(
-                  code: _code,
+                  results: _results,
                   mode: _mode,
-                  format: _format,
                   count: _count,
                   camera: _embedded
                       ? UniversalBarcodeScanner(
@@ -251,15 +301,9 @@ class _HomePageState extends State<HomePage> {
                       : const <Widget>[],
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                _Options(
+                  label: 'Buttons',
                   children: <Widget>[
-                    const Text(
-                      'Buttons',
-                      style: TextStyle(fontSize: 13, color: _dim),
-                    ),
                     for (final (String label, Alignment at)
                         in const <(String, Alignment)>[
                       ('Right side', Alignment.centerRight),
@@ -275,15 +319,9 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                _Options(
+                  label: 'Look',
                   children: <Widget>[
-                    const Text(
-                      'Look',
-                      style: TextStyle(fontSize: 13, color: _dim),
-                    ),
                     for (final (String label, ScannerButtonStyle style)
                         in _styles)
                       ChoiceChip(
@@ -294,15 +332,9 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                _Options(
+                  label: 'Words',
                   children: <Widget>[
-                    const Text(
-                      'Words',
-                      style: TextStyle(fontSize: 13, color: _dim),
-                    ),
                     for (final (String label, ScannerLabels labels)
                         in const <(String, ScannerLabels)>[
                       ('English', ScannerLabels.english),
@@ -344,6 +376,25 @@ class _HomePageState extends State<HomePage> {
                   action: 'Open',
                   onPressed: _scanStream,
                 ),
+                _Mode(
+                  title: 'Read an image',
+                  body: 'Reads every code in a picture and says what each one '
+                      'holds. Pick one of yours, or try one of these:',
+                  action: 'Pick',
+                  onPressed: _pickImage,
+                  footer: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: <Widget>[
+                      for (final (String label, String name) in _samples)
+                        ActionChip(
+                          label: Text(label),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _readSample(name),
+                        ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 8),
                 const _Note(),
               ],
@@ -358,19 +409,17 @@ class _HomePageState extends State<HomePage> {
 /// What the last scan returned, or what to do to get one.
 class _Result extends StatelessWidget {
   const _Result({
-    required this.code,
+    required this.results,
     required this.mode,
-    this.format = BarcodeFormat.unknown,
     required this.count,
     this.camera,
     this.controls = const <Widget>[],
   });
 
-  final String? code;
+  /// The codes of the last read: one from the camera, any number from an
+  /// image.
+  final List<ScanResult> results;
   final String mode;
-
-  /// The symbology of [code].
-  final BarcodeFormat format;
   final int count;
 
   /// The embedded scanner, when it is open in this tile.
@@ -381,15 +430,25 @@ class _Result extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? value = code;
+    final bool found = results.isNotEmpty;
+    final bool emptyImage = !found && mode == 'image' && count > 0;
     final Widget? camera = this.camera;
+    final String heading = !found
+        ? emptyImage
+            ? 'NO CODE IN THE IMAGE'
+            : 'NOTHING SCANNED YET'
+        : results.length > 1
+            ? 'SCANNED, $mode, ${results.length} CODES'
+            : results.single.format == BarcodeFormat.unknown
+                ? 'SCANNED, $mode'
+                : 'SCANNED, $mode, ${_formatLabel(results.single.format)}';
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
-        color: value == null ? _panel : const Color(0xFF13251C),
-        border: Border.all(color: value == null ? _line : _accent),
+        color: found ? const Color(0xFF13251C) : _panel,
+        border: Border.all(color: found ? _accent : _line),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -398,22 +457,18 @@ class _Result extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                value == null ? Icons.qr_code_scanner : Icons.check_circle,
+                found ? Icons.check_circle : Icons.qr_code_scanner,
                 size: 17,
-                color: value == null ? _dim : _accent,
+                color: found ? _accent : _dim,
               ),
               const SizedBox(width: 8),
               Text(
-                value == null
-                    ? 'NOTHING SCANNED YET'
-                    : format == BarcodeFormat.unknown
-                        ? 'SCANNED, $mode'
-                        : 'SCANNED, $mode, ${_formatLabel(format)}',
+                heading,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
-                  color: value == null ? _dim : _accent,
+                  color: found ? _accent : _dim,
                 ),
               ),
               const Spacer(),
@@ -435,27 +490,19 @@ class _Result extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          SelectableText(
-            value ??
-                (camera == null
-                    ? 'Pick a mode below and point the camera at a barcode.'
-                    : 'Point the camera at a barcode.'),
-            style: TextStyle(
-              fontSize: value == null ? 14.5 : 19,
-              height: 1.4,
-              fontFamily: value == null ? null : 'monospace',
-              fontWeight: value == null ? FontWeight.w400 : FontWeight.w600,
-              color: value == null ? _dim : Colors.white,
-            ),
-          ),
-          if (value != null) ...<Widget>[
-            const SizedBox(height: 6),
+          if (!found) ...<Widget>[
+            const SizedBox(height: 12),
             Text(
-              '${value.length} characters',
-              style: const TextStyle(fontSize: 12.5, color: _dim),
+              emptyImage
+                  ? 'The image holds no code this platform reads.'
+                  : camera == null
+                      ? 'Pick a mode below and point the camera at a barcode.'
+                      : 'Point the camera at a barcode.',
+              style: const TextStyle(fontSize: 14.5, height: 1.4, color: _dim),
             ),
           ],
+          for (final ScanResult result in results)
+            _Code(result, withFormat: results.length > 1),
           if (controls.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
             // Compact, so the three fit on one line of a phone.
@@ -475,19 +522,131 @@ class _Result extends StatelessWidget {
   }
 }
 
-/// One of the three ways in, with what it gives back.
+/// One code read: its text, and what it holds where the text follows a
+/// format a phone knows.
+class _Code extends StatelessWidget {
+  const _Code(this.result, {required this.withFormat});
+
+  final ScanResult result;
+
+  /// Whether to name the symbology, when several codes share the tile.
+  final bool withFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? meaning = _describe(result.content);
+    final String format = _formatLabel(result.format);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SelectableText(
+            result.text,
+            style: const TextStyle(
+              fontSize: 17,
+              height: 1.4,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            <String>[
+              if (withFormat && format.isNotEmpty) format,
+              '${result.text.length} characters',
+            ].join(' · '),
+            style: const TextStyle(fontSize: 12.5, color: _dim),
+          ),
+          if (meaning != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Row(
+              children: <Widget>[
+                const Icon(Icons.auto_awesome, size: 15, color: _accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    meaning,
+                    style: const TextStyle(fontSize: 13.5, color: _accent),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What a code holds, in words, or null for plain text.
+String? _describe(ScanContent? content) => switch (content) {
+      UrlContent(:final Uri url) => 'A link to ${url.host}',
+      WifiContent(:final String ssid, :final WifiSecurity security) =>
+        'A Wi-Fi network, $ssid, '
+            '${security == WifiSecurity.open ? 'open' : security.name.toUpperCase()}',
+      ContactContent(:final String? name, :final String? organization) =>
+        'A contact, ${name ?? organization ?? 'with no name'}',
+      EmailContent(:final String address) => 'An e-mail to $address',
+      PhoneContent(:final String number) => 'A phone number, $number',
+      SmsContent(:final String number) => 'A text message to $number',
+      GeoContent(:final double latitude, :final double longitude) =>
+        'A place, $latitude, $longitude',
+      EventContent(:final String? summary) =>
+        'An event, ${summary ?? 'untitled'}',
+      null => null,
+    };
+
+/// A row of choices after its label. The labels share one width, so every
+/// row of choices starts at the same place.
+class _Options extends StatelessWidget {
+  const _Options({required this.label, required this.children});
+
+  final String label;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        SizedBox(
+          width: 70,
+          // Level with the text of the first line of chips.
+          child: Padding(
+            padding: const EdgeInsets.only(top: 9),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: _dim),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Wrap(spacing: 8, runSpacing: 8, children: children),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of the ways in, with what it gives back.
 class _Mode extends StatelessWidget {
   const _Mode({
     required this.title,
     required this.body,
     required this.action,
     required this.onPressed,
+    this.footer,
   });
 
   final String title;
   final String body;
   final String action;
   final VoidCallback? onPressed;
+
+  /// Under the text, across the card.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -501,45 +660,54 @@ class _Mode extends StatelessWidget {
         border: Border.all(color: _line),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: off ? _dim : Colors.white,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: off ? _dim : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      body,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: _dim,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    color: _dim,
-                    height: 1.45,
-                  ),
+              ),
+              const SizedBox(width: 14),
+              FilledButton(
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _accent,
+                  foregroundColor: const Color(0xFF07130D),
+                  disabledBackgroundColor: _line,
+                  disabledForegroundColor: _dim,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
-              ],
-            ),
+                child: Text(action),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          FilledButton(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: const Color(0xFF07130D),
-              disabledBackgroundColor: _line,
-              disabledForegroundColor: _dim,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            child: Text(action),
-          ),
+          if (footer case final Widget footer) ...<Widget>[
+            const SizedBox(height: 12),
+            footer,
+          ],
         ],
       ),
     );

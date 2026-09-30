@@ -33,6 +33,21 @@ void playBeep() {
   }
 }
 
+/// Every code in the encoded image [bytes]: the platform's own decoder on
+/// Android, iOS and macOS, the scanner page on Windows and Linux.
+Future<List<ScanResult>> readImage(Uint8List bytes, ScanFormat format) {
+  if (_hasNativeScanner) return NativeScanner.scanImage(bytes, format);
+  if (_hasWebviewScanner) {
+    return readImageOnDesktop(bytes, ScannerConfig.formatsToPage(format));
+  }
+  return Future<List<ScanResult>>.error(
+    ScannerException(
+      ScannerErrorCode.unknown,
+      'No image reader on $defaultTargetPlatform.',
+    ),
+  );
+}
+
 /// Platforms that reach a native scanner over the method channel.
 bool get _hasNativeScanner => switch (defaultTargetPlatform) {
   TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,

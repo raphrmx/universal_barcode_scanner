@@ -291,6 +291,57 @@ give the widget a new key to change it. The flip is the exception: it follows th
 camera keeps running. The callbacks are always the current widget's, and none is
 called once the widget is gone.
 
+## Read an image
+
+`scanImage` reads every code in a picture, with no camera and no permission. It takes the image as
+bytes, PNG, JPEG or any format the platform opens, so they can come from anywhere: a photo the user
+picks, a file, an asset, a download.
+
+```dart
+final List<ScanResult> codes = await UniversalBarcodeScanner.scanImage(
+  await file.readAsBytes(),
+  scanFormat: ScanFormat.onlyQrCode, // every symbology by default
+);
+```
+
+The list is empty when the picture holds no code, and a `ScannerException` with
+`ScannerErrorCode.invalidImage` means the bytes are no image. ML Kit reads it on Android and Vision
+on iOS and macOS, turning a photo the way its EXIF says. The web, Windows and Linux read it with the
+scanner page, the same decoder as the camera, off the app's thread where it can.
+
+The package picks no file itself, so it adds no dependency: the example lets the user pick one with
+`file_picker`, and ships a picture per kind of content to try without one.
+
+## What a code holds
+
+A QR code only holds text, but that text often follows a format phones know. `ScanResult.content`
+reads it, the same way on every platform, and is null for any other text, such as the number of a
+product:
+
+```dart
+switch (result.content) {
+  case WifiContent(:final String ssid, :final String? password):
+    join(ssid, password);
+  case UrlContent(:final Uri url):
+    open(url);
+  case ContactContent(:final String? name, :final List<String> phones):
+    save(name, phones);
+  case _:
+    show(result.text);
+}
+```
+
+| Class | Read from | Gives |
+| --- | --- | --- |
+| `UrlContent` | `http://`, `https://`, `MEBKM:` | `url`, `title` |
+| `WifiContent` | `WIFI:` | `ssid`, `security`, `password`, `hidden` |
+| `ContactContent` | vCard 2.1, 3.0 and 4.0, `MECARD:` | `name`, `organization`, `title`, `phones`, `emails`, `urls`, `address`, `note` |
+| `EmailContent` | `mailto:`, `MATMSG:`, `SMTP:` | `address`, `subject`, `body` |
+| `PhoneContent` | `tel:` | `number` |
+| `SmsContent` | `SMSTO:`, `sms:`, `MMSTO:`, `mms:` | `number`, `message` |
+| `GeoContent` | `geo:` | `latitude`, `longitude`, `altitude`, `query` |
+| `EventContent` | iCalendar `VEVENT` | `summary`, `start`, `end`, `allDay`, `location`, `description` |
+
 ## Scanner bar
 
 Passing a `ScannerBar` puts a bar above the web, Windows and Linux scanner. Its back button is on
@@ -346,6 +397,14 @@ cd tool/page_test
 npm ci
 npx playwright install chromium
 npx playwright test
+```
+
+The example has an integration test for `scanImage`, run on a device against the platform's own
+decoder:
+
+```sh
+cd example
+flutter test integration_test -d windows
 ```
 
 ## Dependencies

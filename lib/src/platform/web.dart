@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
@@ -15,6 +16,91 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:web/web.dart' as html;
+
+/// How long the page gets to read an image, loading included.
+const Duration _imageTimeout = Duration(seconds: 30);
+
+/// The scanner page in a hidden frame, loaded the first time an image is
+/// read and kept for the next ones: the decoder it compiled stays warm.
+Future<html.HTMLIFrameElement>? _imagePage;
+
+/// The images handed to [_imagePage] and not answered yet.
+final Map<int, Completer<List<ScanResult>>> _imageRequests =
+    <int, Completer<List<ScanResult>>>{};
+
+int _lastImage = 0;
+
+/// Every code in the encoded image [bytes], read by the scanner page in a
+/// hidden frame, off the app's thread where a worker can run.
+Future<List<ScanResult>> readImage(Uint8List bytes, ScanFormat format) async {
+  final html.HTMLIFrameElement frame = await (_imagePage ??= _loadImagePage());
+  final int id = ++_lastImage;
+  final Completer<List<ScanResult>> answer = Completer<List<ScanResult>>();
+  _imageRequests[id] = answer;
+  frame.contentWindow?.postMessage(
+    jsonEncode(<String, Object>{
+      'call': 'readImage',
+      'args': <Object>[
+        id,
+        base64Encode(bytes),
+        ScannerConfig.formatsToPage(format),
+      ],
+    }).toJS,
+    html.window.location.origin.toJS,
+  );
+  return answer.future.timeout(
+    _imageTimeout,
+    onTimeout: () {
+      _imageRequests.remove(id);
+      throw const ScannerException(
+        ScannerErrorCode.unknown,
+        'The scanner page did not read the image in time.',
+      );
+    },
+  );
+}
+
+Future<html.HTMLIFrameElement> _loadImagePage() {
+  final Completer<html.HTMLIFrameElement> loaded =
+      Completer<html.HTMLIFrameElement>();
+  final html.HTMLIFrameElement frame = html.HTMLIFrameElement()
+    ..src = ScannerAsset.webPath
+    ..setAttribute('aria-hidden', 'true')
+    ..tabIndex = -1
+    ..style.display = 'none';
+  frame.addEventListener(
+    'load',
+    ((html.Event _) {
+      if (!loaded.isCompleted) loaded.complete(frame);
+    }).toJS,
+  );
+  html.window.addEventListener(
+    'message',
+    ((html.MessageEvent event) {
+      if (event.origin != html.window.location.origin) return;
+      if (!event.source.strictEquals(frame.contentWindow).toDart) return;
+      final PageMessage? message = PageMessage.parse(event.data.dartify());
+      if (message is! PageImage) return;
+      final Completer<List<ScanResult>>? request = _imageRequests.remove(
+        message.id,
+      );
+      final List<ScanResult>? results = message.results;
+      if (request == null) return;
+      if (results != null) {
+        request.complete(results);
+      } else {
+        request.completeError(
+          ScannerException(
+            ScannerErrorCode.fromWire(message.failed ?? ''),
+            message.message,
+          ),
+        );
+      }
+    }).toJS,
+  );
+  html.document.body?.append(frame);
+  return loaded.future;
+}
 
 /// One audio context for every beep: a browser caps how many a page opens.
 html.AudioContext? _audio;
@@ -195,6 +281,7 @@ class _ScannerPageState extends State<ScannerPage> {
         _link.ready(_openedWith ?? widget.config);
       // The page says itself why the camera did not start.
       case PageError():
+      case PageImage():
       case null:
         break;
     }

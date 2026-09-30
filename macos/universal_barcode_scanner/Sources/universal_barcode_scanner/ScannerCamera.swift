@@ -112,9 +112,9 @@ final class ScannerCamera: NSObject {
   }
 
   /// Symbologies Vision should look for, from the `scanFormat` the Dart side
-  /// sent. Only the ones available since the deployment target are named, so
-  /// the list needs no availability guard.
-  private static func symbologies(for scanFormat: String) -> [VNBarcodeSymbology] {
+  /// sent; empty for every one. Only the ones available since the deployment
+  /// target are named, so the list needs no availability guard.
+  static func symbologies(for scanFormat: String) -> [VNBarcodeSymbology] {
     switch scanFormat {
     case "ONLY_QR_CODE":
       return [.qr]

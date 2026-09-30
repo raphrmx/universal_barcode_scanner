@@ -1,6 +1,22 @@
 # Universal Barcode Scanner Versions
 
-## 2.1.4
+## 2.2.0
+
+### Added
+
+- `UniversalBarcodeScanner.scanImage` reads every code in an image, given as
+  bytes: a photo, a file, an asset. No camera and no permission. ML Kit reads
+  it on Android and Vision on iOS and macOS, turning a photo the way its EXIF
+  says; the web, Windows and Linux read it with the scanner page's decoder.
+  `ScannerErrorCode.invalidImage` says the bytes are no image. The package
+  picks no file itself and adds no dependency.
+- `ScanResult.content` says what a code holds where its text follows a format
+  phones know: a link, a Wi-Fi network, a vCard or MECARD contact, an e-mail,
+  a phone number, a text message, a place or a calendar event, as a sealed
+  `ScanContent`. Read from the text alone, the same on every platform.
+- The example reads an image the user picks with `file_picker`, or one of the
+  pictures it ships, one per kind of content, and says what each code holds.
+  An integration test runs `scanImage` on a device.
 
 ### Changed
 

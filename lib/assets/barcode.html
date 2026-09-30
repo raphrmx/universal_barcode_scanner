@@ -677,6 +677,81 @@
   }
 
   // ---------------------------------------------------------------------
+  // Images.
+
+  // The bytes of an image, handed over as base64.
+  function bytesOf(base64) {
+    if (typeof Uint8Array.fromBase64 === 'function') {
+      return Uint8Array.fromBase64(base64);
+    }
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  // The pixels of an encoded image: an ImageBitmap where the browser makes
+  // one, pixels read off a canvas otherwise. Rejects when the bytes are no
+  // image the browser can open.
+  function frameOf(bytes) {
+    var blob = new Blob([bytes]);
+    var viaCanvas = function () {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(blob);
+        var image = new Image();
+        image.onload = function () {
+          URL.revokeObjectURL(url);
+          var surface = document.createElement('canvas');
+          surface.width = image.naturalWidth;
+          surface.height = image.naturalHeight;
+          var context = surface.getContext('2d');
+          context.drawImage(image, 0, 0);
+          resolve(context.getImageData(0, 0, surface.width, surface.height));
+        };
+        image.onerror = function () {
+          URL.revokeObjectURL(url);
+          reject(new Error('The bytes are not an image the browser opens.'));
+        };
+        image.src = url;
+      });
+    };
+    if (typeof createImageBitmap !== 'function') {
+      return viaCanvas();
+    }
+    return createImageBitmap(blob).catch(viaCanvas);
+  }
+
+  // Reads every code in an image the host hands over, as base64, with the
+  // decoder the camera uses and without the camera. Answers
+  // {image: id, codes: [{code, format}]}, or {image: id, failed, message}.
+  function readImage(id, base64, formats) {
+    var key = FORMATS.hasOwnProperty(formats) ? formats : 'all';
+    var frame;
+    try {
+      frame = frameOf(bytesOf(base64));
+    } catch (error) {
+      frame = Promise.reject(error);
+    }
+    frame.then(function (pixels) {
+      return decoderFor(key).then(function (reader) {
+        return reader.read(pixels);
+      }).then(function (codes) {
+        var found = [];
+        for (var i = 0; i < codes.length; i++) {
+          found.push({ code: codes[i].text, format: codes[i].format || 'unknown' });
+        }
+        post({ image: id, codes: found });
+      }, function (error) {
+        post({ image: id, failed: 'unknown', message: String((error && error.message) || error) });
+      });
+    }, function (error) {
+      post({ image: id, failed: 'invalid_image', message: String((error && error.message) || error) });
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // The camera.
 
   // Runs one camera operation after the previous one has settled.
@@ -1072,7 +1147,8 @@
     setWindow: setWindow,
     setFlip: setFlip,
     setFacing: setFacing,
-    setZoom: setZoom
+    setZoom: setZoom,
+    readImage: readImage
   };
   window.addEventListener('message', function (event) {
     if (event.source !== window.parent || event.origin !== window.location.origin) {
@@ -1114,6 +1190,7 @@
 
   // What the hosts call from outside.
   window.configure = configure;
+  window.readImage = readImage;
   window.stopScanner = stopScanner;
   window.setWindow = setWindow;
   window.setFlip = setFlip;

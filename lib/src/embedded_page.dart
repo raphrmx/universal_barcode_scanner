@@ -187,6 +187,7 @@ final class PageScannerController extends ScannerController {
       // Escape key is the page's, not the app's.
       case PageReady():
       case PageClose():
+      case PageImage():
       case null:
         break;
     }

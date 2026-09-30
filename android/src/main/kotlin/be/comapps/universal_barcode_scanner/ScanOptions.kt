@@ -51,26 +51,7 @@ internal data class ScanOptions(
      * The symbologies ML Kit looks for. Fewer formats is less work on every
      * frame, so a restricted list is also the faster one.
      */
-    fun mlKitOptions(): BarcodeScannerOptions {
-        val builder = BarcodeScannerOptions.Builder()
-        when (scanFormat) {
-            "ONLY_QR_CODE" -> builder.setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-            "ONLY_BARCODE" -> builder.setBarcodeFormats(
-                Barcode.FORMAT_CODABAR,
-                Barcode.FORMAT_CODE_128,
-                Barcode.FORMAT_CODE_39,
-                Barcode.FORMAT_CODE_93,
-                Barcode.FORMAT_EAN_13,
-                Barcode.FORMAT_EAN_8,
-                Barcode.FORMAT_ITF,
-                Barcode.FORMAT_PDF417,
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_UPC_E,
-            )
-            else -> builder.setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-        }
-        return builder.build()
-    }
+    fun mlKitOptions(): BarcodeScannerOptions = mlKitOptionsFor(scanFormat)
 
     fun writeTo(intent: Intent): Intent = intent
         .putExtra(EXTRA_PREFIX + "session", session)
@@ -86,6 +67,28 @@ internal data class ScanOptions(
         .putExtra(EXTRA_PREFIX + "scanWindowHeight", scanWindowHeight)
 
     companion object {
+        /** The symbologies ML Kit looks for, for a `scanFormat` wire name. */
+        fun mlKitOptionsFor(scanFormat: String): BarcodeScannerOptions {
+            val builder = BarcodeScannerOptions.Builder()
+            when (scanFormat) {
+                "ONLY_QR_CODE" -> builder.setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                "ONLY_BARCODE" -> builder.setBarcodeFormats(
+                    Barcode.FORMAT_CODABAR,
+                    Barcode.FORMAT_CODE_128,
+                    Barcode.FORMAT_CODE_39,
+                    Barcode.FORMAT_CODE_93,
+                    Barcode.FORMAT_EAN_13,
+                    Barcode.FORMAT_EAN_8,
+                    Barcode.FORMAT_ITF,
+                    Barcode.FORMAT_PDF417,
+                    Barcode.FORMAT_UPC_A,
+                    Barcode.FORMAT_UPC_E,
+                )
+                else -> builder.setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
+            }
+            return builder.build()
+        }
+
         private const val EXTRA_PREFIX = "be.comapps.universal_barcode_scanner."
 
         /** Fallback when the colour cannot be read: the Dart default. */

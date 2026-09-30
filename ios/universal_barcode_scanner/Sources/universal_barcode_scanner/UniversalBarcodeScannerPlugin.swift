@@ -90,6 +90,14 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     switch call.method {
     case "scanBarcode":
       requestScan(ScanOptions(arguments: arguments), result: result)
+    case "scanImage":
+      guard let bytes = arguments["bytes"] as? FlutterStandardTypedData else {
+        result(FlutterError(code: "invalid_image", message: "No image to read.", details: nil))
+        return
+      }
+      ImageReader.read(
+        bytes.data, scanFormat: arguments["scanFormat"] as? String ?? "ALL_FORMATS",
+        result: result)
     case "beep":
       // The short system tone, at the ringer's volume.
       AudioServicesPlaySystemSound(1057)

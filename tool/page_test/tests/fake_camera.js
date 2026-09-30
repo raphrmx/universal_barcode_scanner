@@ -69,7 +69,27 @@ function fakeCamera(options) {
     { kind: 'videoinput', deviceId: 'fake', label: 'Fake camera', groupId: 'fake' }
   ]);
 
-  window.__camera = { draw: draw, ean: EAN };
+  // A PNG, as base64, with each of [codes] drawn one under the other.
+  function imageOf(codes) {
+    const image = document.createElement('canvas');
+    image.width = width + 120;
+    image.height = codes.length * (height + 80) + 80;
+    const draws = image.getContext('2d');
+    draws.fillStyle = '#fff';
+    draws.fillRect(0, 0, image.width, image.height);
+    draws.fillStyle = '#000';
+    codes.forEach((code, row) => {
+      const pattern = modules(code);
+      for (let i = 0; i < pattern.length; i++) {
+        if (pattern[i] === '1') {
+          draws.fillRect(60 + i * module, 80 + row * (height + 80), module, height);
+        }
+      }
+    });
+    return image.toDataURL('image/png').split(',')[1];
+  }
+
+  window.__camera = { draw: draw, ean: EAN, imageOf: imageOf };
   window.__posts = [];
   window.addEventListener('message', (event) => {
     try {
