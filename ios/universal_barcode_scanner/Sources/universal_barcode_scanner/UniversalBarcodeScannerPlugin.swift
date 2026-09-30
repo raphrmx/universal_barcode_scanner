@@ -108,6 +108,10 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
       // The short system tone, at the ringer's volume.
       AudioServicesPlaySystemSound(1057)
       result(nil)
+    case "rejectedBeep":
+      // The system's "not acknowledged" tone, lower than the one above.
+      AudioServicesPlaySystemSound(1053)
+      result(nil)
     case "close":
       let session = ScanOptions.session(in: arguments)
       if let current = scan,

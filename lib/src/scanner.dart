@@ -14,7 +14,7 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:universal_barcode_scanner/src/scanner_labels.dart';
-import 'package:universal_barcode_scanner/src/scanner_rejection.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 
 /// Barcode and QR code scanner.
 ///
@@ -106,6 +106,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
 
   /// Whether reading continues after the first code. When false, the view
   /// pauses on the first code until `ScannerController.resumeScanning`.
+  /// Changing it applies at once, without restarting the camera.
   final bool continuous;
 
   /// Whether the camera is shown mirrored left to right. Null mirrors it
@@ -155,8 +156,8 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// first code accepted. A code held in front of the camera is refused once,
   /// not on every frame. Null takes every code.
   ///
-  /// Another validator applies at once; adding one or removing it applies when
-  /// the view starts, like what to scan: give the widget a new key.
+  /// Changing it, null included, applies at once, without restarting the
+  /// camera.
   final ScanValidator? validator;
 
   /// Whether a scanner animates: when asked to, and the platform does not
@@ -444,15 +445,15 @@ class UniversalBarcodeScanner extends StatefulWidget {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
     late final Route<ScanResult> route;
-    final ValueNotifier<int> rejections = ValueNotifier<int>(0);
+    final ScanVerdicts verdicts = ScanVerdicts();
 
     route = _route<ScanResult>(
       options.page(
         context,
         continuous: false,
-        rejections: rejections,
+        verdicts: verdicts,
         onScanned: (ScanResult result) {
-          if (!options.accepts(result, rejections)) return;
+          if (!options.accepts(result, verdicts)) return;
           ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
           _leave(navigator, route, result);
         },
@@ -479,16 +480,16 @@ class UniversalBarcodeScanner extends StatefulWidget {
       // The caller stopped listening: nobody is left to read the scanner.
       onCancel: () => _leave<void>(navigator, route, null),
     );
-    final ValueNotifier<int> rejections = ValueNotifier<int>(0);
+    final ScanVerdicts verdicts = ScanVerdicts();
 
     route = _route<void>(
       options.page(
         context,
         continuous: true,
-        rejections: rejections,
+        verdicts: verdicts,
         onScanned: (ScanResult result) {
           if (results.isClosed) return;
-          if (!options.accepts(result, rejections)) return;
+          if (!options.accepts(result, verdicts)) return;
           ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
           results.add(result);
         },
@@ -560,11 +561,12 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   /// The camera open, as asked for or as the button switched it.
   late CameraFace _face = widget.cameraFace;
 
-  /// The view's controller, to pause it on the first code accepted.
+  /// The view's controller, to pause it on the first code accepted when not
+  /// continuous.
   ScannerController? _controller;
 
-  /// Counts the codes the validator refused, for the view to say.
-  final ValueNotifier<int> _rejections = ValueNotifier<int>(0);
+  /// The verdict on each code read, for the view to show.
+  final ScanVerdicts _verdicts = ScanVerdicts();
 
   /// Whether a code was accepted by a view that is not continuous: it holds
   /// until resumed.
@@ -588,7 +590,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   void dispose() {
     _controller?.isPaused.removeListener(_onPaused);
     _buttons.dispose();
-    _rejections.dispose();
+    _verdicts.dispose();
     super.dispose();
   }
 
@@ -610,21 +612,22 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   /// Every code the view reads comes here, `onScanned` included, so the
   /// validator sees each one first.
   void _onResult(ScanResult result) {
+    // A code read in the moment before the pause lands.
+    if (_holding) return;
     final ScanValidator? validator = widget.validator;
-    if (validator != null) {
-      if (_holding) return;
-      if (!validator(result)) {
-        _rejections.value++;
-        ScanFeedback.rejected(vibrate: widget.vibrate);
-        return;
-      }
-      // The view reads on for the validator: it pauses here instead, on
-      // the first code accepted, as it does by itself without one.
-      if (!widget.continuous) {
-        _holding = true;
-        unawaited(_controller?.pauseScanning());
-      }
+    if (validator != null && !validator(result)) {
+      _verdicts.rejected();
+      ScanFeedback.rejected(vibrate: widget.vibrate, beep: widget.beep);
+      return;
     }
+    // The view always reads on, so that continuous and the validator can
+    // change without restarting the camera: it pauses here instead, on the
+    // first code accepted.
+    if (!widget.continuous) {
+      _holding = true;
+      unawaited(_controller?.pauseScanning());
+    }
+    _verdicts.accepted();
     ScanFeedback.play(vibrate: widget.vibrate, beep: widget.beep);
     widget.onScanned?.call(result.text);
     widget.onResult?.call(result);
@@ -640,7 +643,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         cameraFace: _face,
         scanFormat: widget.scanFormat,
         scanDelay: widget.scanDelay,
-        continuous: widget.continuous || widget.validator != null,
+        continuous: true,
         flipHorizontal: _buttons.flipHorizontal,
         flipVertical: _buttons.flipVertical,
         animate: UniversalBarcodeScanner._animates(context, widget.animate),
@@ -651,16 +654,16 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
       onCreated: _onCreated,
       child: widget.child,
     );
-    if (widget.buttons.isEmpty && widget.validator == null) return scanner;
+    // Always a Stack, and the same children first, so that a validator or
+    // buttons coming and going keep the camera's view where it is.
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         scanner,
-        if (widget.validator != null)
-          ScannerRejection(
-            rejections: _rejections,
-            label: widget.labels.rejected,
-          ),
+        ScannerVerdict(
+          verdicts: _verdicts,
+          rejectedLabel: widget.labels.rejected,
+        ),
         if (widget.buttons.isNotEmpty)
           ScannerButtonsOverlay(
             state: _buttons,
@@ -732,7 +735,7 @@ class _Options {
     required ValueChanged<ScanResult> onScanned,
     required VoidCallback onClose,
     required ValueChanged<ScannerException> onError,
-    ValueListenable<int>? rejections,
+    ScanVerdicts? verdicts,
   }) => ScannerPage(
     config: ScannerConfig(
       lineColor: lineColor,
@@ -755,20 +758,23 @@ class _Options {
     buttons: buttons,
     buttonsAlignment: buttonsAlignment,
     buttonStyle: buttonStyle,
-    rejections: rejections,
+    verdicts: verdicts,
     onScanned: onScanned,
     onClose: onClose,
     onError: onError,
     child: child,
   );
 
-  /// Whether [result] counts. A refusal is counted in [rejections], for the
-  /// page to say, and felt when [vibrate].
-  bool accepts(ScanResult result, ValueNotifier<int> rejections) {
+  /// Whether [result] counts. The verdict goes to [verdicts], for the page
+  /// to show, and a refusal is felt when [vibrate] and heard when [beep].
+  bool accepts(ScanResult result, ScanVerdicts verdicts) {
     final ScanValidator? validator = this.validator;
-    if (validator == null || validator(result)) return true;
-    rejections.value++;
-    ScanFeedback.rejected(vibrate: vibrate);
+    if (validator == null || validator(result)) {
+      verdicts.accepted();
+      return true;
+    }
+    verdicts.rejected();
+    ScanFeedback.rejected(vibrate: vibrate, beep: beep);
     return false;
   }
 }

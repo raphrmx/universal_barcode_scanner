@@ -69,6 +69,10 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     switch call.method {
     case "scanBarcode":
       scan(ScannerOptions(arguments: arguments), result: result)
+    case "rejectedBeep":
+      // The system's sound for something refused.
+      NSSound(named: "Basso")?.play()
+      result(nil)
     case "rejected":
       let session = (arguments["session"] as? NSNumber)?.intValue ?? Self.noSession
       if let current = options, session == current.session,

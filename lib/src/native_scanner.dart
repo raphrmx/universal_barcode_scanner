@@ -156,6 +156,15 @@ abstract final class NativeScanner {
     }
   }
 
+  /// The sound of a code refused, on the platforms whose plugin plays one.
+  static Future<void> rejectedBeep() async {
+    try {
+      await _channel.invokeMethod<void>('rejectedBeep');
+    } on Object {
+      // An older plugin, or no sound to play.
+    }
+  }
+
   /// A short beep, on the platforms whose plugin plays one.
   static Future<void> beep() async {
     try {

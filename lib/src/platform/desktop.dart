@@ -14,6 +14,7 @@ import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 import 'package:webview_all/webview_all.dart';
 
 /// Name of the JavaScript channel the bundled page posts scans on. It has to
@@ -258,7 +259,7 @@ class DesktopScannerPage extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
-    this.rejections,
+    this.verdicts,
   });
 
   /// What to scan and how.
@@ -288,8 +289,8 @@ class DesktopScannerPage extends StatefulWidget {
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
 
-  /// Counts the codes a validator refused, each one said over the camera.
-  final ValueListenable<int>? rejections;
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts;
 
   @override
   State<DesktopScannerPage> createState() => _DesktopScannerPageState();
@@ -394,7 +395,7 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
       buttonsAlignment: widget.buttonsAlignment,
       closeLabel: widget.config.labels.close,
       buttonStyle: widget.buttonStyle,
-      rejections: widget.rejections,
+      verdicts: widget.verdicts,
       rejectedLabel: widget.config.labels.rejected,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),

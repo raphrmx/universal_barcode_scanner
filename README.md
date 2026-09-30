@@ -151,7 +151,7 @@ if (result?.format == BarcodeFormat.ean13) {
 | `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
 | `buttonStyle` | round and dark | A `ScannerButtonStyle`: the size, spacing, colours off and on, focus ring, corners and tooltips of the buttons and of the close button. Web, Windows and Linux. |
 | `vibrate` | `false` | A short vibration for each code read, where the device has one. On every platform. |
-| `beep` | `false` | A short beep for each code read: a tone on Android, iOS and the web, the system's alert sound on a desktop. On every platform. |
+| `beep` | `false` | A short beep for each code read: a tone on Android, iOS and the web, the system's alert sound on a desktop. A code the `validator` refuses gets a lower one, the system's error sound on macOS. On every platform. |
 | `validator` | `null` | Decides which codes count; see [Accept only some codes](#accept-only-some-codes). On every platform. |
 
 The buttons work with the mouse and the keyboard as well as by touch: the hand shows over them, a
@@ -283,13 +283,13 @@ applied, `1` where it cannot zoom, which is the case of the same cameras.
 | `onScanned` | `null` | Called with every code read. |
 | `onResult` | `null` | Called with every code read, as a `ScanResult` with its symbology. |
 | `onError` | `null` | Called when the camera cannot be used. On the web, Windows and Linux the view also says why. |
-| `continuous` | `false` | When false, the view pauses on the first code until `resumeScanning`. |
+| `continuous` | `false` | When false, the view pauses on the first code accepted until `resumeScanning`. |
 | `scanWindowSize` | `null` | Size of the scan window in logical pixels, or one picked from `scanWindow`. |
 | `lineColor`, `scanWindow`, `cameraFace`, `scanFormat`, `scanDelay`, `flip`, `flipVertical`, `buttons`, `buttonsAlignment`, `buttonStyle`, `animate`, `labels`, `vibrate`, `beep`, `validator`, `child` | see above | As in `scan` and `stream`, on every platform: the view is drawn by Flutter everywhere, so its buttons are too. On Android, iOS and macOS the native view says when its first frame is on screen, and the camera fades in then. |
 
 The view fills the constraints it is given. What to scan is read once, when the view is created:
-give the widget a new key to change it. The flip is the exception: it follows the widget, and the
-camera keeps running. The callbacks are always the current widget's, and none is
+give the widget a new key to change it. The flip, `continuous` and `validator` are the exceptions:
+they follow the widget, and the camera keeps running. The callbacks are always the current widget's, and none is
 called once the widget is gone.
 
 ## Accept only some codes
@@ -311,10 +311,14 @@ final ScanResult? link = await UniversalBarcodeScanner.scanResult(
 ```
 
 A code held in front of the camera is refused once, not on every frame. The web, Windows and Linux
-pages and the embedded view show the words over the camera, with a red edge that fades; the native
-screens of Android, iOS and macOS show them themselves. A screen reader reads them out, and
-`vibrate` adds a heavier vibration than for a code accepted. An embedded view that is not
+pages and the embedded view show the words over the camera, and flash its edge red twice; the native
+screens of Android, iOS and macOS show them themselves, in a toast on Android and on the system's
+dark material on iOS and macOS. A screen reader reads them out, `vibrate` adds two short pulses,
+with the two flashes, and `beep` a lower sound than for a code accepted. An embedded view that is not
 `continuous` pauses on the first code accepted, as it does without a validator.
+
+With or without a validator, the web, Windows and Linux pages and the embedded view flash the edge of
+the camera green once for each code accepted.
 
 ## Read an image
 

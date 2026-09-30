@@ -15,6 +15,7 @@ import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_round_button.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 const MethodChannel _channel = MethodChannel('universal_barcode_scanner');
@@ -1026,26 +1027,64 @@ void main() {
     testWidgets('a refusal shows over the camera, then goes', (
       WidgetTester tester,
     ) async {
-      final ValueNotifier<int> rejections = ValueNotifier<int>(0);
-      addTearDown(rejections.dispose);
+      final ScanVerdicts verdicts = ScanVerdicts();
+      addTearDown(verdicts.dispose);
       await tester.pumpWidget(
         MaterialApp(
           home: ScannerChrome(
             body: const SizedBox.expand(),
-            rejections: rejections,
+            verdicts: verdicts,
             rejectedLabel: 'Not this one',
           ),
         ),
       );
       expect(find.text('Not this one'), findsNothing);
 
-      rejections.value++;
+      verdicts.rejected();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Not this one'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 3));
       expect(find.text('Not this one'), findsNothing);
+    });
+
+    testWidgets('a code accepted flashes the edge green, without words', (
+      WidgetTester tester,
+    ) async {
+      final ScanVerdicts verdicts = ScanVerdicts();
+      addTearDown(verdicts.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScannerChrome(
+            body: const SizedBox.expand(),
+            verdicts: verdicts,
+            rejectedLabel: 'Not this one',
+          ),
+        ),
+      );
+      Color? edge() {
+        final Iterable<DecoratedBox> boxes = tester
+            .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+            .where((DecoratedBox box) {
+              final Decoration decoration = box.decoration;
+              return decoration is BoxDecoration && decoration.border != null;
+            });
+        if (boxes.isEmpty) return null;
+        final BoxDecoration decoration =
+            boxes.single.decoration as BoxDecoration;
+        return (decoration.border! as Border).top.color;
+      }
+
+      verdicts.accepted();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      final Color green = edge()!;
+      expect(green.g, greaterThan(green.r));
+      expect(find.text('Not this one'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(edge(), isNull);
     });
   });
 
@@ -1695,6 +1734,90 @@ void main() {
         await pump(animate: false);
         await tester.pump();
         expect(veil(), 0);
+      });
+    });
+
+    testWidgets('takes a validator and continuous without restarting', (
+      WidgetTester tester,
+    ) async {
+      int views = 0;
+      int view = -1;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (MethodCall call) async {
+          if (call.method != 'create') return null;
+          views++;
+          return view = (call.arguments as Map<Object?, Object?>)['id']! as int;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        ),
+      );
+      await _on(TargetPlatform.iOS, () async {
+        final List<String> asked = <String>[];
+        final List<String> codes = <String>[];
+        late ScannerController controller;
+        Future<void> pump({ScanValidator? validator}) => tester.pumpWidget(
+          MaterialApp(
+            home: UniversalBarcodeScanner(
+              onCreated: (ScannerController created) => controller = created,
+              onResult: (ScanResult result) => codes.add(result.text),
+              validator: validator,
+            ),
+          ),
+        );
+        Future<void> read(String code) =>
+            tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+              'universal_barcode_scanner/view_$view',
+              const StandardMethodCodec().encodeMethodCall(
+                MethodCall('onBarcodeDetected', <String, Object?>{
+                  'code': code,
+                  'format': 'qr_code',
+                }),
+              ),
+              (ByteData? _) {},
+            );
+
+        await pump();
+        await tester.pump();
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          MethodChannel('universal_barcode_scanner/view_$view'),
+          (MethodCall call) async {
+            asked.add(call.method);
+            return null;
+          },
+        );
+        // The view reads on; the widget pauses it on the first code.
+        expect(
+          (tester.widget<UiKitView>(find.byType(UiKitView)).creationParams!
+              as Map<String, Object?>)['continuous'],
+          true,
+        );
+        await read('A');
+        await read('B');
+        await tester.pump();
+        expect(codes, <String>['A']);
+        expect(asked, <String>['pauseScanning']);
+        expect(controller.isPaused.value, isTrue);
+
+        await controller.resumeScanning();
+        await pump(validator: (ScanResult code) => code.text != 'X');
+        await tester.pump();
+        expect(views, 1);
+        await read('X');
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(codes, <String>['A']);
+        expect(find.text('Code not accepted'), findsOneWidget);
+
+        await read('C');
+        await tester.pump();
+        expect(codes, <String>['A', 'C']);
+        await tester.pumpAndSettle();
+        expect(views, 1);
       });
     });
 

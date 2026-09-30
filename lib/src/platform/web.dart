@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_feedback.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
@@ -15,6 +16,7 @@ import 'package:universal_barcode_scanner/src/scanner_chrome.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 import 'package:web/web.dart' as html;
 
 /// How long the page gets to read an image, loading included.
@@ -106,23 +108,43 @@ Future<html.HTMLIFrameElement> _loadImagePage() {
 html.AudioContext? _audio;
 
 /// A short beep for a code read, a tone made here: no sound file to fetch.
-void playBeep() {
+void playBeep() => _tones(<double>[0], hertz: 1800, wave: 'sine', volume: 0.2);
+
+/// The sound of a code refused: two low tones, with the two pulses of the
+/// vibration.
+void playRejectedBeep() => _tones(
+  <double>[0, ScanFeedback.rejectedPulseGap.inMilliseconds / 1000],
+  hertz: 330,
+  wave: 'triangle',
+  volume: 0.3,
+);
+
+/// A short tone at each of [starts], in seconds from now.
+void _tones(
+  List<double> starts, {
+  required double hertz,
+  required String wave,
+  required double volume,
+}) {
   try {
     final html.AudioContext audio = _audio ??= html.AudioContext();
-    final html.OscillatorNode tone = audio.createOscillator()
-      ..type = 'sine'
-      ..frequency.value = 1800;
-    final html.GainNode volume = audio.createGain();
     final double now = audio.currentTime;
-    // Faded out rather than cut, which clicks.
-    volume.gain
-      ..setValueAtTime(0.2, now)
-      ..exponentialRampToValueAtTime(0.001, now + 0.12);
-    tone
-      ..connect(volume)
-      ..start(now)
-      ..stop(now + 0.12);
-    volume.connect(audio.destination);
+    for (final double start in starts) {
+      final html.OscillatorNode tone = audio.createOscillator()
+        ..type = wave
+        ..frequency.value = hertz;
+      final html.GainNode gain = audio.createGain();
+      final double at = now + start;
+      // Faded out rather than cut, which clicks.
+      gain.gain
+        ..setValueAtTime(volume, at)
+        ..exponentialRampToValueAtTime(0.001, at + 0.12);
+      tone
+        ..connect(gain)
+        ..start(at)
+        ..stop(at + 0.12);
+      gain.connect(audio.destination);
+    }
   } on Object {
     // No audio in this browser: silence.
   }
@@ -143,7 +165,7 @@ class ScannerPage extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
-    this.rejections,
+    this.verdicts,
   });
 
   /// What to scan and how.
@@ -176,8 +198,8 @@ class ScannerPage extends StatefulWidget {
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
 
-  /// Counts the codes a validator refused, each one said over the camera.
-  final ValueListenable<int>? rejections;
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts;
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
@@ -311,7 +333,7 @@ class _ScannerPageState extends State<ScannerPage> {
       buttonsAlignment: widget.buttonsAlignment,
       closeLabel: widget.config.labels.close,
       buttonStyle: widget.buttonStyle,
-      rejections: widget.rejections,
+      verdicts: widget.verdicts,
       rejectedLabel: widget.config.labels.rejected,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),

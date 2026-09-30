@@ -83,6 +83,21 @@ void main() {
     expect(find.text('REFUSED, image, 2 CODES'), findsOneWidget);
     expect(find.textContaining('Refused by the Accept row'), findsNWidgets(2));
   });
+  testWidgets('checks the codes again when the Accept row changes', (
+    WidgetTester tester,
+  ) async {
+    await _readTwoAtOnce(tester);
+    expect(find.text('SCANNED, image, 2 CODES'), findsOneWidget);
+
+    await _choose(tester, 'Links only');
+    await _backToTheTile(tester);
+    expect(find.text('REFUSED, image, 2 CODES'), findsOneWidget);
+
+    await _choose(tester, 'Any code');
+    await _backToTheTile(tester);
+    expect(find.text('SCANNED, image, 2 CODES'), findsOneWidget);
+    expect(find.textContaining('Refused by the Accept row'), findsNothing);
+  });
 }
 
 /// Chooses [accept] in the Accept row, reads the "Two at once" sample, a
@@ -109,13 +124,7 @@ Future<void> _readTwoAtOnce(WidgetTester tester, {String? accept}) async {
   );
   await tester.pumpWidget(const ExampleApp());
   final Finder list = find.byType(Scrollable).first;
-  if (accept != null) {
-    await tester.scrollUntilVisible(find.text(accept), 200, scrollable: list);
-    await tester.ensureVisible(find.text(accept));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(accept));
-    await tester.pumpAndSettle();
-  }
+  if (accept != null) await _choose(tester, accept);
   await tester.scrollUntilVisible(
     find.text('Two at once'),
     200,
@@ -125,7 +134,24 @@ Future<void> _readTwoAtOnce(WidgetTester tester, {String? accept}) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Two at once'));
   await tester.pumpAndSettle();
-  // Back up to the result tile.
-  await tester.drag(list, const Offset(0, 3000));
+  await _backToTheTile(tester);
+}
+
+/// Taps the chip [label], scrolled into view first.
+Future<void> _choose(WidgetTester tester, String label) async {
+  await tester.scrollUntilVisible(
+    find.text(label),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.ensureVisible(find.text(label));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+}
+
+/// Scrolls back up to the result tile.
+Future<void> _backToTheTile(WidgetTester tester) async {
+  await tester.drag(find.byType(Scrollable).first, const Offset(0, 3000));
   await tester.pumpAndSettle();
 }

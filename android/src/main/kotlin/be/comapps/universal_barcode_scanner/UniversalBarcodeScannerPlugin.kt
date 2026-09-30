@@ -174,7 +174,12 @@ class UniversalBarcodeScannerPlugin :
                 result.success(null)
             }
             "beep" -> {
-                beep()
+                beep(ToneGenerator.TONE_PROP_BEEP, 120)
+                result.success(null)
+            }
+            "rejectedBeep" -> {
+                // The system's "not acknowledged": two low tones.
+                beep(ToneGenerator.TONE_PROP_NACK, 300)
                 result.success(null)
             }
             "rejected" -> {
@@ -276,16 +281,16 @@ class UniversalBarcodeScannerPlugin :
 
     // endregion
 
-    /** A short beep for a code read, at the notification volume. */
-    private fun beep() {
-        val tone = try {
+    /** Plays [tone] for [millis], at the notification volume. */
+    private fun beep(tone: Int, millis: Int) {
+        val generator = try {
             ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
         } catch (e: RuntimeException) {
             // No tone to be had, a device with its audio busy for one.
             return
         }
-        tone.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
-        Handler(Looper.getMainLooper()).postDelayed({ tone.release() }, 250)
+        generator.startTone(tone, millis)
+        Handler(Looper.getMainLooper()).postDelayed({ generator.release() }, millis + 130L)
     }
 
     // region StreamHandler

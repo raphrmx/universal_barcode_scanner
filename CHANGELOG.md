@@ -17,14 +17,17 @@
 - `validator` on `scan`, `scanResult`, `stream`, `resultStream` and the
   embedded view decides which codes count. A code refused does not close the
   scanner and is not handed on: `ScannerLabels.rejected` is shown over the
-  camera, with a red edge, or on the native screens of Android, iOS and
-  macOS, read out by a screen reader, and reading goes on. A code held in
-  front of the camera is refused once.
+  camera, whose edge flashes red twice with two short vibrations, or on the
+  native screens of Android, iOS and macOS, read out by a screen reader,
+  with a lower sound than for a code read when `beep` is on, and reading
+  goes on. A code held in front of the camera is refused once.
+- The web, Windows and Linux pages and the embedded view flash the edge of
+  the camera green once for each code accepted, validator or not.
 - The example reads an image the user picks with `file_picker`, or one of the
   pictures it ships, one per kind of content, and says what each code holds.
   It can accept only links or only products, to show the validator, and
-  marks the codes of an image it refuses. An integration test runs
-  `scanImage` on a device.
+  marks the codes it refuses, checked again when the choice changes. An
+  integration test runs `scanImage` on a device.
 
 ### Changed
 
@@ -32,6 +35,9 @@
   where Flutter provides it, from 3.44, as Flutter now asks of plugins. An
   older Flutter with Swift Package Manager turned on has no such package,
   and builds as before.
+- The embedded view takes a new `continuous` or `validator` without
+  restarting the camera. The view always reads on, and the widget pauses it
+  on the first code accepted when it is not continuous.
 
 ## 2.1.3
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,9 @@ const Color _line = Color(0xFF272C36);
 const Color _dim = Color(0xFF8B929E);
 const Color _accent = Color(0xFF39B37A);
 const Color _red = Color(0xFFE5484D);
+
+/// Width of the page's column of content.
+const double _contentWidth = 520;
 
 const ScannerBar _appBar = ScannerBar(
   title: 'Point at a barcode',
@@ -61,11 +65,6 @@ class _HomePageState extends State<HomePage> {
   /// What the last read gave: one code from the camera, every code of an
   /// image.
   List<ScanResult> _results = const <ScanResult>[];
-
-  /// For each of [_results], whether the Accept row refused it. The camera
-  /// modes never hand a refused code on; an image gives every code, so the
-  /// example checks them itself.
-  List<bool> _refused = const <bool>[];
   String _mode = '';
   int _count = 0;
 
@@ -144,7 +143,6 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {
       _results = <ScanResult>[result];
-      _refused = const <bool>[false];
       _mode = mode;
       _count++;
     });
@@ -189,13 +187,8 @@ class _HomePageState extends State<HomePage> {
         bytes,
       );
       if (!mounted) return;
-      final ScanValidator? accept = _accept;
       setState(() {
         _results = results;
-        _refused = <bool>[
-          for (final ScanResult result in results)
-            accept != null && !accept(result),
-        ];
         _mode = 'image';
         _count++;
       });
@@ -282,11 +275,16 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+        // The whole page scrolls, its scrollbar at the window's edge; the
+        // content keeps to a column in the middle.
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double side = math.max(
+              20,
+              (constraints.maxWidth - _contentWidth) / 2,
+            );
+            return ListView(
+              padding: EdgeInsets.fromLTRB(side, 28, side, 32),
               children: <Widget>[
                 const Text(
                   'Universal Barcode Scanner',
@@ -305,14 +303,14 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 22),
                 _Result(
                   results: _results,
-                  refused: _refused,
+                  // The camera modes never hand a refused code on; an
+                  // image gives every code, and a code read before the
+                  // Accept row changed is checked again.
+                  accept: _accept,
                   mode: _mode,
                   count: _count,
                   camera: _embedded
                       ? UniversalBarcodeScanner(
-                          // A validator added or removed applies when the
-                          // view starts.
-                          key: ValueKey<ScanValidator?>(_accept),
                           continuous: true,
                           buttons: _allButtons,
                           buttonsAlignment: _buttonsAt,
@@ -450,8 +448,8 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 const _Note(),
               ],
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -462,7 +460,7 @@ class _HomePageState extends State<HomePage> {
 class _Result extends StatelessWidget {
   const _Result({
     required this.results,
-    required this.refused,
+    required this.accept,
     required this.mode,
     required this.count,
     this.camera,
@@ -473,8 +471,8 @@ class _Result extends StatelessWidget {
   /// image.
   final List<ScanResult> results;
 
-  /// For each of [results], whether the Accept row refused it.
-  final List<bool> refused;
+  /// The Accept row's choice, which [results] are checked against.
+  final ScanValidator? accept;
   final String mode;
   final int count;
 
@@ -487,6 +485,11 @@ class _Result extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool found = results.isNotEmpty;
+    final ScanValidator? accept = this.accept;
+    final List<bool> refused = <bool>[
+      for (final ScanResult result in results)
+        accept != null && !accept(result),
+    ];
     final bool emptyImage = !found && mode == 'image' && count > 0;
     final bool allRefused = found && refused.every((bool no) => no);
     final Color tone = allRefused ? _red : _accent;
@@ -575,7 +578,7 @@ class _Result extends StatelessWidget {
             _Code(
               result,
               withFormat: results.length > 1,
-              refused: i < refused.length && refused[i],
+              refused: refused[i],
             ),
           if (controls.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
@@ -585,6 +588,9 @@ class _Result extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
+                  // Neutral: closing is not the tile's green action.
+                  foregroundColor: const Color(0xFFD5D9E0),
+                  side: const BorderSide(color: Color(0xFF3A404C)),
                 ),
               ),
               child: Wrap(spacing: 6, runSpacing: 8, children: controls),

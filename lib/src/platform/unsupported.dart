@@ -7,6 +7,7 @@ import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 
 /// Fallback for a platform with neither `dart:io` nor `dart:js_interop`.
 ///
@@ -26,7 +27,7 @@ class ScannerPage extends StatelessWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
-    this.rejections,
+    this.verdicts,
   });
 
   /// What to scan and how.
@@ -56,8 +57,8 @@ class ScannerPage extends StatelessWidget {
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
 
-  /// Counts the codes a validator refused, each one said over the camera.
-  final ValueListenable<int>? rejections;
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts;
 
   /// Colour behind the camera.
   final Color? backgroundColor;
@@ -105,6 +106,9 @@ class EmbeddedScanner extends StatelessWidget {
 
 /// No sound to play here.
 void playBeep() {}
+
+/// No sound to play here.
+void playRejectedBeep() {}
 
 /// Nothing to read an image with here.
 Future<List<ScanResult>> readImage(Uint8List bytes, ScanFormat format) async =>

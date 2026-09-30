@@ -36,30 +36,34 @@ class ScannerViewController: NSViewController {
   private var rejection: NSView?
 
   /// Says a code was read but refused by the Dart side's validator:
-  /// [message] near the bottom for two seconds, read out by VoiceOver.
+  /// [message] near the bottom for two seconds, on the HUD material macOS
+  /// says short things on, read out by VoiceOver.
   func showRejected(_ message: String) {
     guard !message.isEmpty, isViewLoaded else { return }
     rejection?.removeFromSuperview()
 
     let label = NSTextField(labelWithString: message)
     label.textColor = .white
-    label.font = .systemFont(ofSize: 14, weight: .semibold)
+    label.font = .systemFont(ofSize: 13, weight: .medium)
     label.alignment = .center
     label.translatesAutoresizingMaskIntoConstraints = false
 
-    let pill = NSView()
+    let pill = NSVisualEffectView()
+    pill.material = .hudWindow
+    pill.appearance = NSAppearance(named: .vibrantDark)
+    pill.blendingMode = .withinWindow
+    pill.state = .active
     pill.wantsLayer = true
-    pill.layer?.backgroundColor =
-      NSColor(red: 0.706, green: 0.137, blue: 0.094, alpha: 0.9).cgColor
-    pill.layer?.cornerRadius = 16
+    pill.layer?.cornerRadius = 15
+    pill.layer?.masksToBounds = true
     pill.translatesAutoresizingMaskIntoConstraints = false
     pill.addSubview(label)
     view.addSubview(pill)
     NSLayoutConstraint.activate([
       label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 16),
       label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -16),
-      label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 8),
-      label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -8),
+      label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 7),
+      label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -7),
       pill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       pill.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -48),
     ])
@@ -70,8 +74,18 @@ class ScannerViewController: NSViewController {
         .announcement: message,
         .priority: NSAccessibilityPriorityLevel.high.rawValue,
       ])
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak pill] in
-      pill?.removeFromSuperview()
+    pill.alphaValue = 0
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.2
+      pill.animator().alphaValue = 1
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak pill] in
+      NSAnimationContext.runAnimationGroup(
+        { context in
+          context.duration = 0.3
+          pill?.animator().alphaValue = 0
+        },
+        completionHandler: { pill?.removeFromSuperview() })
     }
   }
 

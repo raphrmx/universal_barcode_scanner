@@ -12,6 +12,7 @@ import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
+import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 
 /// How long a flip takes to turn the camera over, as on the bundled page.
 const Duration _flipDuration = Duration(milliseconds: 350);
@@ -28,6 +29,18 @@ void playBeep() {
   switch (defaultTargetPlatform) {
     case TargetPlatform.android || TargetPlatform.iOS:
       unawaited(NativeScanner.beep());
+    default:
+      unawaited(SystemSound.play(SystemSoundType.alert));
+  }
+}
+
+/// The sound of a code refused: the plugin's on Android, iOS and macOS, a
+/// lower tone than for a code read, and the system's alert sound on Windows
+/// and Linux, the only one Flutter plays there.
+void playRejectedBeep() {
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS:
+      unawaited(NativeScanner.rejectedBeep());
     default:
       unawaited(SystemSound.play(SystemSoundType.alert));
   }
@@ -78,7 +91,7 @@ class ScannerPage extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
-    this.rejections,
+    this.verdicts,
   });
 
   /// What to scan and how.
@@ -109,8 +122,8 @@ class ScannerPage extends StatefulWidget {
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
 
-  /// Counts the codes a validator refused, each one said over the camera.
-  final ValueListenable<int>? rejections;
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts;
 
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
@@ -141,15 +154,16 @@ class _ScannerPageState extends State<ScannerPage> {
       // After the first frame, so the route is on screen before the native
       // scanner covers it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _start());
-      widget.rejections?.addListener(_rejected);
+      widget.verdicts?.addListener(_rejected);
     }
   }
 
   /// A code the validator refused: the native screen, over this page, says
   /// so.
-  void _rejected() => unawaited(
-    NativeScanner.rejected(_session, widget.config.labels.rejected),
-  );
+  void _rejected() {
+    if (widget.verdicts?.lastAccepted ?? true) return;
+    unawaited(NativeScanner.rejected(_session, widget.config.labels.rejected));
+  }
 
   @override
   void didChangeDependencies() {
@@ -166,7 +180,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   void dispose() {
-    widget.rejections?.removeListener(_rejected);
+    widget.verdicts?.removeListener(_rejected);
     _stop();
     super.dispose();
   }
@@ -241,7 +255,7 @@ class _ScannerPageState extends State<ScannerPage> {
         buttons: widget.buttons,
         buttonsAlignment: widget.buttonsAlignment,
         buttonStyle: widget.buttonStyle,
-        rejections: widget.rejections,
+        verdicts: widget.verdicts,
         child: widget.child,
       );
     }
