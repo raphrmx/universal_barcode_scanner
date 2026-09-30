@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:universal_barcode_scanner/src/scan_content.dart';
 
 /// The symbology of a code read.
 enum BarcodeFormat {
@@ -51,6 +52,11 @@ class ScanResult {
 
   /// How it was printed.
   final BarcodeFormat format;
+
+  /// What [text] means where it follows a format phones know: a link, a Wi-Fi
+  /// network, a contact, an e-mail, a phone number, a text message, a place or
+  /// an event. Null for any other text, such as the number of a product.
+  ScanContent? get content => ScanContent.parse(text);
 
   @override
   bool operator ==(Object other) =>
