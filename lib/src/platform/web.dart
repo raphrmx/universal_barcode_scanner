@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
-import 'package:universal_barcode_scanner/src/scan_feedback.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
@@ -17,6 +16,7 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
+import 'package:universal_barcode_scanner/src/tones.dart';
 import 'package:web/web.dart' as html;
 
 /// How long the page gets to read an image, loading included.
@@ -108,41 +108,33 @@ Future<html.HTMLIFrameElement> _loadImagePage() {
 html.AudioContext? _audio;
 
 /// A short beep for a code read, a tone made here: no sound file to fetch.
-void playBeep() => _tones(<double>[0], hertz: 1800, wave: 'sine', volume: 0.2);
+void playBeep() => _play(Tone.accepted);
 
-/// The sound of a code refused: two low tones, with the two pulses of the
+/// The sound of a code refused: two lower tones, with the two pulses of the
 /// vibration.
-void playRejectedBeep() => _tones(
-  <double>[0, ScanFeedback.rejectedPulseGap.inMilliseconds / 1000],
-  hertz: 330,
-  wave: 'triangle',
-  volume: 0.3,
-);
+void playRejectedBeep() => _play(Tone.rejected);
 
-/// A short tone at each of [starts], in seconds from now.
-void _tones(
-  List<double> starts, {
-  required double hertz,
-  required String wave,
-  required double volume,
-}) {
+/// Plays [tone] with the browser's oscillators.
+void _play(Tone tone) {
   try {
     final html.AudioContext audio = _audio ??= html.AudioContext();
+    // A context made before the page was touched starts suspended.
+    if (audio.state == 'suspended') unawaited(audio.resume().toDart);
     final double now = audio.currentTime;
-    for (final double start in starts) {
-      final html.OscillatorNode tone = audio.createOscillator()
-        ..type = wave
-        ..frequency.value = hertz;
+    for (final double start in tone.starts) {
+      final html.OscillatorNode oscillator = audio.createOscillator()
+        ..type = tone.wave.name
+        ..frequency.value = tone.hertz;
       final html.GainNode gain = audio.createGain();
       final double at = now + start;
       // Faded out rather than cut, which clicks.
       gain.gain
-        ..setValueAtTime(volume, at)
-        ..exponentialRampToValueAtTime(0.001, at + 0.12);
-      tone
+        ..setValueAtTime(tone.volume, at)
+        ..exponentialRampToValueAtTime(Tone.floor, at + Tone.length);
+      oscillator
         ..connect(gain)
         ..start(at)
-        ..stop(at + 0.12);
+        ..stop(at + Tone.length);
       gain.connect(audio.destination);
     }
   } on Object {

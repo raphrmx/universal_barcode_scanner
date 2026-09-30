@@ -1,5 +1,17 @@
 # Universal Barcode Scanner Versions
 
+## 2.2.1
+
+### Fixed
+
+- The sound of a code refused in a browser was too low for a phone's
+  speaker, and went unheard in Chrome on Android. It is now two beeps at
+  480 Hz, rich in overtones, rather than 330 Hz.
+- On Windows, a code refused sounded like a code read: both were the
+  system's alert sound, the only one Flutter plays there. `beep` now plays
+  the same tones as in a browser, made by the package and played through
+  the system's `PlaySound`.
+
 ## 2.2.0
 
 ### Added

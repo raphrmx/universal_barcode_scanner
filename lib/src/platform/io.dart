@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/native_scanner.dart';
 import 'package:universal_barcode_scanner/src/platform/desktop.dart';
+import 'package:universal_barcode_scanner/src/platform/windows_sound.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
@@ -13,6 +14,7 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
+import 'package:universal_barcode_scanner/src/tones.dart';
 
 /// How long a flip takes to turn the camera over, as on the bundled page.
 const Duration _flipDuration = Duration(milliseconds: 350);
@@ -23,24 +25,29 @@ const Duration _flipDuration = Duration(milliseconds: 350);
 const Duration _fadeDuration = Duration(milliseconds: 400);
 const Duration _fadeFallback = Duration(milliseconds: 1500);
 
-/// A short beep for a code read: the plugin's on Android and iOS, the
-/// system's alert sound on a desktop.
+/// A short beep for a code read: the plugin's on Android and iOS, the same
+/// tone as in a browser on Windows, and the system's alert sound on macOS
+/// and Linux.
 void playBeep() {
   switch (defaultTargetPlatform) {
     case TargetPlatform.android || TargetPlatform.iOS:
       unawaited(NativeScanner.beep());
+    case TargetPlatform.windows when WindowsSound.play(Tone.accepted):
+      break;
     default:
       unawaited(SystemSound.play(SystemSoundType.alert));
   }
 }
 
-/// The sound of a code refused: the plugin's on Android, iOS and macOS, a
-/// lower tone than for a code read, and the system's alert sound on Windows
-/// and Linux, the only one Flutter plays there.
+/// The sound of a code refused, lower than for a code read: the plugin's on
+/// Android, iOS and macOS, the same tones as in a browser on Windows, and the
+/// system's alert sound on Linux, the only one Flutter plays there.
 void playRejectedBeep() {
   switch (defaultTargetPlatform) {
     case TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS:
       unawaited(NativeScanner.rejectedBeep());
+    case TargetPlatform.windows when WindowsSound.play(Tone.rejected):
+      break;
     default:
       unawaited(SystemSound.play(SystemSoundType.alert));
   }

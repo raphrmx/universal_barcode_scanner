@@ -151,7 +151,7 @@ if (result?.format == BarcodeFormat.ean13) {
 | `buttonsAlignment` | `Alignment.centerRight` | Where the buttons sit. Centred on the left or the right, they run down the side; elsewhere, across. |
 | `buttonStyle` | round and dark | A `ScannerButtonStyle`: the size, spacing, colours off and on, focus ring, corners and tooltips of the buttons and of the close button. Web, Windows and Linux. |
 | `vibrate` | `false` | A short vibration for each code read, where the device has one. On every platform. |
-| `beep` | `false` | A short beep for each code read: a tone on Android, iOS and the web, the system's alert sound on a desktop. A code the `validator` refuses gets a lower one, the system's error sound on macOS. On every platform. |
+| `beep` | `false` | A short beep for each code read: a tone on Android, iOS, Windows and the web, the system's alert sound on macOS and Linux. A code the `validator` refuses gets two lower ones, the system's error sound on macOS; Linux has the alert sound for both. On every platform. |
 | `validator` | `null` | Decides which codes count; see [Accept only some codes](#accept-only-some-codes). On every platform. |
 
 The buttons work with the mouse and the keyboard as well as by touch: the hand shows over them, a

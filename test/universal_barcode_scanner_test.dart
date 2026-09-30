@@ -1505,13 +1505,24 @@ void main() {
         ScanFeedback.play(vibrate: true, beep: true);
         await tester.pump();
         expect(calls, <String>['HapticFeedback.vibrate', 'beep']);
+
+        // A refusal: its own sound, and two pulses.
+        calls.clear();
+        ScanFeedback.rejected(vibrate: true, beep: true);
+        await tester.pump(ScanFeedback.rejectedPulseGap);
+        expect(calls, <String>[
+          'rejectedBeep',
+          'HapticFeedback.vibrate',
+          'HapticFeedback.vibrate',
+        ]);
       });
-      await _on(TargetPlatform.windows, () async {
+      await _on(TargetPlatform.linux, () async {
         calls.clear();
         ScanFeedback.play(vibrate: false, beep: true);
+        ScanFeedback.rejected(vibrate: false, beep: true);
         await tester.pump();
-        // A desktop has the system's own alert sound.
-        expect(calls, <String>['SystemSound.play']);
+        // Linux has only the system's own alert sound, for both.
+        expect(calls, <String>['SystemSound.play', 'SystemSound.play']);
       });
     });
   });
