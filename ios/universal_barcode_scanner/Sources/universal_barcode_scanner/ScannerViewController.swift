@@ -19,6 +19,9 @@ final class ScannerViewController: UIViewController {
   private let gate: ReadGate
   private let previewLayer: AVCaptureVideoPreviewLayer
   private let overlay = ScannerOverlayView()
+
+  /// What says a code was refused, while it shows.
+  private var rejection: UIView?
   private let bar = UIView()
   private let cancelButton = UIButton(type: .system)
   private let flashButton = UIButton(type: .custom)
@@ -47,6 +50,45 @@ final class ScannerViewController: UIViewController {
 
   override var prefersStatusBarHidden: Bool {
     return true
+  }
+
+  /// Says a code was read but refused by the Dart side's validator:
+  /// [message] near the bottom for two seconds, read out by VoiceOver.
+  func showRejected(_ message: String) {
+    guard !message.isEmpty, isViewLoaded else { return }
+    rejection?.removeFromSuperview()
+
+    let label = UILabel()
+    label.text = message
+    label.textColor = .white
+    label.font = .systemFont(ofSize: 15, weight: .semibold)
+    label.numberOfLines = 0
+    label.textAlignment = .center
+    label.translatesAutoresizingMaskIntoConstraints = false
+
+    let pill = UIView()
+    pill.backgroundColor = UIColor(red: 0.706, green: 0.137, blue: 0.094, alpha: 0.9)
+    pill.layer.cornerRadius = 18
+    pill.isUserInteractionEnabled = false
+    pill.translatesAutoresizingMaskIntoConstraints = false
+    pill.addSubview(label)
+    view.addSubview(pill)
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 16),
+      label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -16),
+      label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 8),
+      label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -8),
+      pill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      pill.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+      pill.bottomAnchor.constraint(
+        equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -96),
+    ])
+    rejection = pill
+    UIAccessibility.post(notification: .announcement, argument: message)
+    UIView.animate(
+      withDuration: 0.3, delay: 1.8, options: [],
+      animations: { pill.alpha = 0 },
+      completion: { _ in pill.removeFromSuperview() })
   }
 
   override func viewDidLoad() {

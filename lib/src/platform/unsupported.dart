@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
@@ -27,6 +26,7 @@ class ScannerPage extends StatelessWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
+    this.rejections,
   });
 
   /// What to scan and how.
@@ -55,6 +55,9 @@ class ScannerPage extends StatelessWidget {
 
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
+
+  /// Counts the codes a validator refused, each one said over the camera.
+  final ValueListenable<int>? rejections;
 
   /// Colour behind the camera.
   final Color? backgroundColor;

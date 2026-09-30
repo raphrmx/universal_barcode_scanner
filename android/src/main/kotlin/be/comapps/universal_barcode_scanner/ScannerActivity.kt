@@ -16,6 +16,7 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -456,6 +457,16 @@ class ScannerActivity : AppCompatActivity(), View.OnClickListener {
             } else if (session != ScanOptions.NO_SESSION && launchingSession == session) {
                 closedEarly += session
             }
+        }
+
+        /**
+         * Tells [session]'s scanner a code it read was refused by the Dart
+         * side's validator: [message], briefly, over the camera.
+         */
+        fun rejected(session: Int, message: String) {
+            val open = current.get() ?: return
+            if (open.isFinishing || open.options.session != session || message.isEmpty()) return
+            open.runOnUiThread { Toast.makeText(open, message, Toast.LENGTH_SHORT).show() }
         }
 
         fun codeFrom(data: Intent?): String? = data?.getStringExtra(EXTRA_CODE)

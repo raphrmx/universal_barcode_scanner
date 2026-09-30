@@ -90,6 +90,12 @@ public class UniversalBarcodeScannerPlugin: NSObject, FlutterPlugin, FlutterStre
     switch call.method {
     case "scanBarcode":
       requestScan(ScanOptions(arguments: arguments), result: result)
+    case "rejected":
+      let session = ScanOptions.session(in: arguments)
+      if let current = scan, session == current.options.session {
+        current.controller?.showRejected(arguments["message"] as? String ?? "")
+      }
+      result(nil)
     case "scanImage":
       guard let bytes = arguments["bytes"] as? FlutterStandardTypedData else {
         result(FlutterError(code: "invalid_image", message: "No image to read.", details: nil))

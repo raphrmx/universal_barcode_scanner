@@ -14,9 +14,16 @@
   phones know: a link, a Wi-Fi network, a vCard or MECARD contact, an e-mail,
   a phone number, a text message, a place or a calendar event, as a sealed
   `ScanContent`. Read from the text alone, the same on every platform.
+- `validator` on `scan`, `scanResult`, `stream`, `resultStream` and the
+  embedded view decides which codes count. A code refused does not close the
+  scanner and is not handed on: `ScannerLabels.rejected` is shown over the
+  camera, with a red edge, or on the native screens of Android, iOS and
+  macOS, read out by a screen reader, and reading goes on. A code held in
+  front of the camera is refused once.
 - The example reads an image the user picks with `file_picker`, or one of the
   pictures it ships, one per kind of content, and says what each code holds.
-  An integration test runs `scanImage` on a device.
+  It can accept only links or only products, to show the validator. An
+  integration test runs `scanImage` on a device.
 
 ### Changed
 

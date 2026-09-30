@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/pointer_shield.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 import 'package:universal_barcode_scanner/src/scanner_buttons.dart';
+import 'package:universal_barcode_scanner/src/scanner_rejection.dart';
 import 'package:universal_barcode_scanner/src/scanner_round_button.dart';
 
 /// Default colours of the scanner bar, dark because it sits over a camera.
@@ -27,6 +29,8 @@ class ScannerChrome extends StatelessWidget {
     this.buttonsAlignment = Alignment.centerRight,
     this.closeLabel = 'Close',
     this.buttonStyle = const ScannerButtonStyle(),
+    this.rejections,
+    this.rejectedLabel = '',
   });
 
   /// The camera and whatever is drawn over it.
@@ -52,6 +56,13 @@ class ScannerChrome extends StatelessWidget {
 
   /// How [buttons] and the close button look.
   final ScannerButtonStyle buttonStyle;
+
+  /// Counts the codes a validator refused, each one shown over the camera,
+  /// or null where nothing is refused.
+  final ValueListenable<int>? rejections;
+
+  /// What is said of a code refused.
+  final String rejectedLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +93,16 @@ class ScannerChrome extends StatelessWidget {
               padding.bottom + 12,
             ),
           ),
+        ],
+      );
+    }
+    final ValueListenable<int>? rejections = this.rejections;
+    if (rejections != null) {
+      body = Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          body,
+          ScannerRejection(rejections: rejections, label: rejectedLabel),
         ],
       );
     }

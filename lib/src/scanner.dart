@@ -14,6 +14,7 @@ import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 import 'package:universal_barcode_scanner/src/scanner_labels.dart';
+import 'package:universal_barcode_scanner/src/scanner_rejection.dart';
 
 /// Barcode and QR code scanner.
 ///
@@ -32,6 +33,10 @@ import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 ///   onCreated: (ScannerController c) => controller = c,
 /// );
 /// ```
+/// Decides whether a code read is one the app takes. A code refused is not
+/// handed on: the scanner says so over the camera and reads on.
+typedef ScanValidator = bool Function(ScanResult result);
+
 class UniversalBarcodeScanner extends StatefulWidget {
   /// Creates an embedded scanner view.
   const UniversalBarcodeScanner({
@@ -57,6 +62,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.vibrate = false,
     this.beep = false,
     this.buttonStyle = const ScannerButtonStyle(),
+    this.validator,
   });
 
   /// Called once the view exists, with the controller that drives it. On
@@ -143,6 +149,16 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// How [buttons] look: their size, colours and shape.
   final ScannerButtonStyle buttonStyle;
 
+  /// Decides which codes count. A code it refuses reaches neither
+  /// [onScanned] nor [onResult]: the view shows `ScannerLabels.rejected` over
+  /// the camera and reads on, and when not [continuous] it pauses on the
+  /// first code accepted. A code held in front of the camera is refused once,
+  /// not on every frame. Null takes every code.
+  ///
+  /// Another validator applies at once; adding one or removing it applies when
+  /// the view starts, like what to scan: give the widget a new key.
+  final ScanValidator? validator;
+
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
   static bool _animates(BuildContext context, bool animate) =>
@@ -179,6 +195,10 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// `beep` signal each code read. `buttonStyle` sets the look of the buttons
   /// and of the close button. `scanWindowSize` sets the size of the scan
   /// window in logical pixels, on every platform.
+  ///
+  /// `validator` decides which codes count. A code it refuses does not close
+  /// the scanner: it says `ScannerLabels.rejected`, over the camera or on the
+  /// native screen, and reads on until a code is accepted.
   static Future<String?> scan(
     BuildContext context, {
     Color lineColor = kDefaultLineColor,
@@ -201,6 +221,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     bool vibrate = false,
     bool beep = false,
     ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+    ScanValidator? validator,
   }) async {
     final ScanResult? result = await _scanOnce(
       context,
@@ -224,6 +245,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
         vibrate: vibrate,
         beep: beep,
         buttonStyle: buttonStyle,
+        validator: validator,
       ),
     );
     return result?.text;
@@ -250,6 +272,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     bool vibrate = false,
     bool beep = false,
     ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+    ScanValidator? validator,
   }) => _scanOnce(
     context,
     _Options(
@@ -271,6 +294,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       vibrate: vibrate,
       beep: beep,
       buttonStyle: buttonStyle,
+      validator: validator,
     ),
   );
 
@@ -311,6 +335,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     bool vibrate = false,
     bool beep = false,
     ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+    ScanValidator? validator,
   }) => _scanMany(
     context,
     _Options(
@@ -334,6 +359,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       vibrate: vibrate,
       beep: beep,
       buttonStyle: buttonStyle,
+      validator: validator,
     ),
   ).map((ScanResult result) => result.text);
 
@@ -359,6 +385,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
     bool vibrate = false,
     bool beep = false,
     ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+    ScanValidator? validator,
   }) => _scanMany(
     context,
     _Options(
@@ -381,6 +408,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       vibrate: vibrate,
       beep: beep,
       buttonStyle: buttonStyle,
+      validator: validator,
     ),
   );
 
@@ -416,12 +444,15 @@ class UniversalBarcodeScanner extends StatefulWidget {
     final NavigatorState navigator = Navigator.of(context);
     ScannerException? failure;
     late final Route<ScanResult> route;
+    final ValueNotifier<int> rejections = ValueNotifier<int>(0);
 
     route = _route<ScanResult>(
       options.page(
         context,
         continuous: false,
+        rejections: rejections,
         onScanned: (ScanResult result) {
+          if (!options.accepts(result, rejections)) return;
           ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
           _leave(navigator, route, result);
         },
@@ -448,13 +479,16 @@ class UniversalBarcodeScanner extends StatefulWidget {
       // The caller stopped listening: nobody is left to read the scanner.
       onCancel: () => _leave<void>(navigator, route, null),
     );
+    final ValueNotifier<int> rejections = ValueNotifier<int>(0);
 
     route = _route<void>(
       options.page(
         context,
         continuous: true,
+        rejections: rejections,
         onScanned: (ScanResult result) {
           if (results.isClosed) return;
+          if (!options.accepts(result, rejections)) return;
           ScanFeedback.play(vibrate: options.vibrate, beep: options.beep);
           results.add(result);
         },
@@ -526,6 +560,16 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   /// The camera open, as asked for or as the button switched it.
   late CameraFace _face = widget.cameraFace;
 
+  /// The view's controller, to pause it on the first code accepted.
+  ScannerController? _controller;
+
+  /// Counts the codes the validator refused, for the view to say.
+  final ValueNotifier<int> _rejections = ValueNotifier<int>(0);
+
+  /// Whether a code was accepted by a view that is not continuous: it holds
+  /// until resumed.
+  bool _holding = false;
+
   @override
   void didUpdateWidget(UniversalBarcodeScanner oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -542,18 +586,47 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
 
   @override
   void dispose() {
+    _controller?.isPaused.removeListener(_onPaused);
     _buttons.dispose();
+    _rejections.dispose();
     super.dispose();
   }
 
   void _onCreated(ScannerController controller) {
+    _controller?.isPaused.removeListener(_onPaused);
+    _controller = controller;
+    controller.isPaused.addListener(_onPaused);
+    _holding = false;
     _buttons.controller = controller;
     controller.onResult = _onResult;
     widget.onCreated(controller);
   }
 
+  /// Resumed, by the app or by the pause button: codes count again.
+  void _onPaused() {
+    if (!(_controller?.isPaused.value ?? true)) _holding = false;
+  }
+
+  /// Every code the view reads comes here, `onScanned` included, so the
+  /// validator sees each one first.
   void _onResult(ScanResult result) {
+    final ScanValidator? validator = widget.validator;
+    if (validator != null) {
+      if (_holding) return;
+      if (!validator(result)) {
+        _rejections.value++;
+        ScanFeedback.rejected(vibrate: widget.vibrate);
+        return;
+      }
+      // The view reads on for the validator: it pauses here instead, on
+      // the first code accepted, as it does by itself without one.
+      if (!widget.continuous) {
+        _holding = true;
+        unawaited(_controller?.pauseScanning());
+      }
+    }
     ScanFeedback.play(vibrate: widget.vibrate, beep: widget.beep);
+    widget.onScanned?.call(result.text);
     widget.onResult?.call(result);
   }
 
@@ -567,31 +640,36 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         cameraFace: _face,
         scanFormat: widget.scanFormat,
         scanDelay: widget.scanDelay,
-        continuous: widget.continuous,
+        continuous: widget.continuous || widget.validator != null,
         flipHorizontal: _buttons.flipHorizontal,
         flipVertical: _buttons.flipVertical,
         animate: UniversalBarcodeScanner._animates(context, widget.animate),
         labels: widget.labels,
       ),
       scanWindowSize: widget.scanWindowSize,
-      onScanned: widget.onScanned,
       onError: widget.onError,
       onCreated: _onCreated,
       child: widget.child,
     );
-    if (widget.buttons.isEmpty) return scanner;
+    if (widget.buttons.isEmpty && widget.validator == null) return scanner;
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         scanner,
-        ScannerButtonsOverlay(
-          state: _buttons,
-          buttons: widget.buttons,
-          labels: widget.labels,
-          style: widget.buttonStyle,
-          alignment: widget.buttonsAlignment,
-          inset: const EdgeInsets.all(8),
-        ),
+        if (widget.validator != null)
+          ScannerRejection(
+            rejections: _rejections,
+            label: widget.labels.rejected,
+          ),
+        if (widget.buttons.isNotEmpty)
+          ScannerButtonsOverlay(
+            state: _buttons,
+            buttons: widget.buttons,
+            labels: widget.labels,
+            style: widget.buttonStyle,
+            alignment: widget.buttonsAlignment,
+            inset: const EdgeInsets.all(8),
+          ),
       ],
     );
   }
@@ -621,6 +699,7 @@ class _Options {
     required this.buttonStyle,
     this.cancelLabel,
     this.scanDelay,
+    this.validator,
   });
 
   final Color lineColor;
@@ -643,13 +722,17 @@ class _Options {
   final bool vibrate;
   final bool beep;
   final ScannerButtonStyle buttonStyle;
+  final ScanValidator? validator;
 
+  /// The page, reading on after each code when [continuous] or when a
+  /// [validator] has to see every code until one is accepted.
   ScannerPage page(
     BuildContext context, {
     required bool continuous,
     required ValueChanged<ScanResult> onScanned,
     required VoidCallback onClose,
     required ValueChanged<ScannerException> onError,
+    ValueListenable<int>? rejections,
   }) => ScannerPage(
     config: ScannerConfig(
       lineColor: lineColor,
@@ -661,7 +744,7 @@ class _Options {
       cameraFace: cameraFace,
       scanFormat: scanFormat,
       scanDelay: scanDelay,
-      continuous: continuous,
+      continuous: continuous || validator != null,
       flipHorizontal: flip ?? UniversalBarcodeScanner.flipsByDefault,
       flipVertical: flipVertical,
       animate: UniversalBarcodeScanner._animates(context, animate),
@@ -672,9 +755,20 @@ class _Options {
     buttons: buttons,
     buttonsAlignment: buttonsAlignment,
     buttonStyle: buttonStyle,
+    rejections: rejections,
     onScanned: onScanned,
     onClose: onClose,
     onError: onError,
     child: child,
   );
+
+  /// Whether [result] counts. A refusal is counted in [rejections], for the
+  /// page to say, and felt when [vibrate].
+  bool accepts(ScanResult result, ValueNotifier<int> rejections) {
+    final ScanValidator? validator = this.validator;
+    if (validator == null || validator(result)) return true;
+    rejections.value++;
+    ScanFeedback.rejected(vibrate: vibrate);
+    return false;
+  }
 }

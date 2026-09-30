@@ -177,6 +177,13 @@ class UniversalBarcodeScannerPlugin :
                 beep()
                 result.success(null)
             }
+            "rejected" -> {
+                ScannerActivity.rejected(
+                    ScanOptions.sessionOf(arguments),
+                    (arguments?.get("message") as? String).orEmpty(),
+                )
+                result.success(null)
+            }
             "scanImage" -> {
                 val bytes = arguments?.get("bytes") as? ByteArray
                 val context = appContext

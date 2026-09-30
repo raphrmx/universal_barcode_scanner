@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-/// The words the scanner shows or says: its buttons, for screen readers, and
-/// what the web, Windows and Linux page writes when the camera will not start.
+/// The words the scanner shows or says: its buttons, for screen readers, what
+/// the web, Windows and Linux page writes when the camera will not start, and
+/// what it says of a code the `validator` refuses.
 ///
 /// English by default. [ScannerLabels.french], [ScannerLabels.dutch] and
 /// [ScannerLabels.german] are ready to use, and any of them can be changed
@@ -19,6 +20,7 @@ class ScannerLabels {
     this.flipVertical = 'Flip vertically',
     this.switchCamera = 'Switch camera',
     this.zoom = 'Zoom',
+    this.rejected = 'Code not accepted',
     this.cameraBlocked = 'Camera blocked',
     this.cameraBlockedWeb =
         'The page needs permission to use the camera. Allow it in the '
@@ -82,6 +84,7 @@ class ScannerLabels {
     noReason: "Aucune raison n'a été donnée.",
     decoderFailed: "Le scanner ne s'est pas chargé",
     decoderFailedDetail: "Le décodeur n'a pas pu démarrer.",
+    rejected: 'Code refusé',
   );
 
   /// Dutch.
@@ -121,6 +124,7 @@ class ScannerLabels {
     noReason: 'Er is geen reden opgegeven.',
     decoderFailed: 'De scanner is niet geladen',
     decoderFailedDetail: 'De decoder kon niet starten.',
+    rejected: 'Code geweigerd',
   );
 
   /// German.
@@ -159,6 +163,7 @@ class ScannerLabels {
     noReason: 'Es wurde kein Grund angegeben.',
     decoderFailed: 'Der Scanner wurde nicht geladen',
     decoderFailedDetail: 'Der Decoder konnte nicht starten.',
+    rejected: 'Code abgelehnt',
   );
 
   /// The close button over the camera, when there is no bar.
@@ -172,6 +177,10 @@ class ScannerLabels {
   final String flipVertical;
   final String switchCamera;
   final String zoom;
+
+  /// Shown, and read out, when a code is read but the `validator` refuses
+  /// it. Empty for no words, the red edge alone.
+  final String rejected;
 
   /// The camera refused: the title, then what to do in a browser and in a
   /// desktop application.
@@ -211,6 +220,7 @@ class ScannerLabels {
     String? flipVertical,
     String? switchCamera,
     String? zoom,
+    String? rejected,
     String? cameraBlocked,
     String? cameraBlockedWeb,
     String? cameraBlockedDesktop,
@@ -235,6 +245,7 @@ class ScannerLabels {
     flipVertical: flipVertical ?? this.flipVertical,
     switchCamera: switchCamera ?? this.switchCamera,
     zoom: zoom ?? this.zoom,
+    rejected: rejected ?? this.rejected,
     cameraBlocked: cameraBlocked ?? this.cameraBlocked,
     cameraBlockedWeb: cameraBlockedWeb ?? this.cameraBlockedWeb,
     cameraBlockedDesktop: cameraBlockedDesktop ?? this.cameraBlockedDesktop,

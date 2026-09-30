@@ -933,6 +933,122 @@ void main() {
     });
   });
 
+  group('validator', () {
+    int openedSession() => _sessionOf(
+      calls.firstWhere((MethodCall call) => call.method == 'scanBarcode'),
+    );
+
+    testWidgets('scan reads on past a code refused, and says so', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        final BuildContext home = await pumpHome(tester);
+
+        ScanResult? result;
+        bool done = false;
+        unawaited(
+          UniversalBarcodeScanner.scanResult(
+            home,
+            labels: ScannerLabels.french,
+            validator: (ScanResult code) => code.text.startsWith('OK'),
+          ).then((ScanResult? value) {
+            result = value;
+            done = true;
+          }),
+        );
+        await _frames(tester);
+
+        final int session = openedSession();
+        // The native scanner reads on, for the validator to see every code.
+        expect(
+          (calls.first.arguments as Map<Object?, Object?>)['continuous'],
+          true,
+        );
+        sink!.success(<String, Object?>{'session': session, 'code': 'NO'});
+        await _deliver(tester);
+        expect(done, false);
+        expect(
+          calls
+              .singleWhere((MethodCall call) => call.method == 'rejected')
+              .arguments,
+          <String, Object?>{'session': session, 'message': 'Code refusé'},
+        );
+
+        sink!.success(<String, Object?>{
+          'session': session,
+          'code': 'OK-1',
+          'format': 'qr_code',
+        });
+        await _deliver(tester);
+        expect(done, true);
+        expect(result, const ScanResult('OK-1', format: BarcodeFormat.qrCode));
+        expect(calls.any((MethodCall call) => call.method == 'close'), true);
+      });
+    });
+
+    testWidgets('stream emits only the codes accepted', (
+      WidgetTester tester,
+    ) async {
+      await _on(TargetPlatform.android, () async {
+        final BuildContext home = await pumpHome(tester);
+
+        final List<ScanResult> codes = <ScanResult>[];
+        UniversalBarcodeScanner.resultStream(
+          home,
+          validator: (ScanResult code) => code.format == BarcodeFormat.ean13,
+        ).listen(codes.add);
+        await _frames(tester);
+
+        final int session = openedSession();
+        sink!
+          ..success(<String, Object?>{
+            'session': session,
+            'code': 'A',
+            'format': 'qr_code',
+          })
+          ..success(<String, Object?>{
+            'session': session,
+            'code': '5412345678908',
+            'format': 'ean_13',
+          });
+        await _deliver(tester);
+
+        expect(codes, const <ScanResult>[
+          ScanResult('5412345678908', format: BarcodeFormat.ean13),
+        ]);
+        expect(
+          calls.where((MethodCall call) => call.method == 'rejected'),
+          hasLength(1),
+        );
+      });
+    });
+
+    testWidgets('a refusal shows over the camera, then goes', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<int> rejections = ValueNotifier<int>(0);
+      addTearDown(rejections.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScannerChrome(
+            body: const SizedBox.expand(),
+            rejections: rejections,
+            rejectedLabel: 'Not this one',
+          ),
+        ),
+      );
+      expect(find.text('Not this one'), findsNothing);
+
+      rejections.value++;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Not this one'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('Not this one'), findsNothing);
+    });
+  });
+
   group('the buttons', () {
     /// A controller that records what the buttons ask of it.
     ScannerButtons buttons(List<String> calls, {bool torchAnswer = true}) =>

@@ -78,6 +78,7 @@ class ScannerPage extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
+    this.rejections,
   });
 
   /// What to scan and how.
@@ -108,6 +109,9 @@ class ScannerPage extends StatefulWidget {
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
 
+  /// Counts the codes a validator refused, each one said over the camera.
+  final ValueListenable<int>? rejections;
+
   /// Colour behind the camera. Black when null.
   final Color? backgroundColor;
 
@@ -137,8 +141,15 @@ class _ScannerPageState extends State<ScannerPage> {
       // After the first frame, so the route is on screen before the native
       // scanner covers it.
       WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+      widget.rejections?.addListener(_rejected);
     }
   }
+
+  /// A code the validator refused: the native screen, over this page, says
+  /// so.
+  void _rejected() => unawaited(
+    NativeScanner.rejected(_session, widget.config.labels.rejected),
+  );
 
   @override
   void didChangeDependencies() {
@@ -155,6 +166,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   void dispose() {
+    widget.rejections?.removeListener(_rejected);
     _stop();
     super.dispose();
   }
@@ -229,6 +241,7 @@ class _ScannerPageState extends State<ScannerPage> {
         buttons: widget.buttons,
         buttonsAlignment: widget.buttonsAlignment,
         buttonStyle: widget.buttonStyle,
+        rejections: widget.rejections,
         child: widget.child,
       );
     }

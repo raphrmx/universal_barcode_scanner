@@ -32,6 +32,49 @@ class ScannerViewController: NSViewController {
     fatalError("init(coder:) is not used")
   }
 
+  /// What says a code was refused, while it shows.
+  private var rejection: NSView?
+
+  /// Says a code was read but refused by the Dart side's validator:
+  /// [message] near the bottom for two seconds, read out by VoiceOver.
+  func showRejected(_ message: String) {
+    guard !message.isEmpty, isViewLoaded else { return }
+    rejection?.removeFromSuperview()
+
+    let label = NSTextField(labelWithString: message)
+    label.textColor = .white
+    label.font = .systemFont(ofSize: 14, weight: .semibold)
+    label.alignment = .center
+    label.translatesAutoresizingMaskIntoConstraints = false
+
+    let pill = NSView()
+    pill.wantsLayer = true
+    pill.layer?.backgroundColor =
+      NSColor(red: 0.706, green: 0.137, blue: 0.094, alpha: 0.9).cgColor
+    pill.layer?.cornerRadius = 16
+    pill.translatesAutoresizingMaskIntoConstraints = false
+    pill.addSubview(label)
+    view.addSubview(pill)
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 16),
+      label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -16),
+      label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 8),
+      label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -8),
+      pill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      pill.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -48),
+    ])
+    rejection = pill
+    NSAccessibility.post(
+      element: pill, notification: .announcementRequested,
+      userInfo: [
+        .announcement: message,
+        .priority: NSAccessibilityPriorityLevel.high.rawValue,
+      ])
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak pill] in
+      pill?.removeFromSuperview()
+    }
+  }
+
   override func loadView() {
     view = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
     view.wantsLayer = true

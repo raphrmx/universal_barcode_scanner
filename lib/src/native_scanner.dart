@@ -143,6 +143,19 @@ abstract final class NativeScanner {
     }
   }
 
+  /// Tells the scanner of [session] a code it read was refused, for its
+  /// screen to say [message].
+  static Future<void> rejected(int session, String message) async {
+    try {
+      await _channel.invokeMethod<void>('rejected', <String, Object?>{
+        'session': session,
+        'message': message,
+      });
+    } on Object {
+      // An older plugin, or the scanner already gone.
+    }
+  }
+
   /// A short beep, on the platforms whose plugin plays one.
   static Future<void> beep() async {
     try {

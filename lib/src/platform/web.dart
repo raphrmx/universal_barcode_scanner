@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
@@ -143,6 +143,7 @@ class ScannerPage extends StatefulWidget {
     this.buttons = const <ScannerButton>{},
     this.buttonsAlignment = Alignment.centerRight,
     this.buttonStyle = const ScannerButtonStyle(),
+    this.rejections,
   });
 
   /// What to scan and how.
@@ -174,6 +175,9 @@ class ScannerPage extends StatefulWidget {
 
   /// How the buttons look.
   final ScannerButtonStyle buttonStyle;
+
+  /// Counts the codes a validator refused, each one said over the camera.
+  final ValueListenable<int>? rejections;
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
@@ -307,6 +311,8 @@ class _ScannerPageState extends State<ScannerPage> {
       buttonsAlignment: widget.buttonsAlignment,
       closeLabel: widget.config.labels.close,
       buttonStyle: widget.buttonStyle,
+      rejections: widget.rejections,
+      rejectedLabel: widget.config.labels.rejected,
       // The page flips the camera itself, leaving its words readable.
       body: Stack(children: <Widget>[view, ?widget.child]),
     );

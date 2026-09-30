@@ -12,4 +12,9 @@ abstract final class ScanFeedback {
     if (vibrate) unawaited(HapticFeedback.mediumImpact());
     if (beep) playBeep();
   }
+
+  /// Signals a code the validator refused: a heavier vibration, and no beep.
+  static void rejected({required bool vibrate}) {
+    if (vibrate) unawaited(HapticFeedback.heavyImpact());
+  }
 }

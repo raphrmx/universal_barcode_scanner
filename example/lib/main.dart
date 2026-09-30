@@ -93,6 +93,24 @@ class _HomePageState extends State<HomePage> {
   /// How the buttons look, in every mode.
   ScannerButtonStyle _style = const ScannerButtonStyle();
 
+  /// Which codes the camera modes take; the others are refused over the
+  /// camera and reading goes on.
+  ScanValidator? _accept;
+
+  static final List<(String, ScanValidator?)> _accepts =
+      <(String, ScanValidator?)>[
+    ('Any code', null),
+    ('Links only', (ScanResult code) => code.content is UrlContent),
+    (
+      'Products only',
+      (ScanResult code) =>
+          code.format == BarcodeFormat.ean13 ||
+          code.format == BarcodeFormat.ean8 ||
+          code.format == BarcodeFormat.upcA ||
+          code.format == BarcodeFormat.upcE,
+    ),
+  ];
+
   static const List<(String, ScannerButtonStyle)> _styles =
       <(String, ScannerButtonStyle)>[
     ('Round', ScannerButtonStyle()),
@@ -202,6 +220,7 @@ class _HomePageState extends State<HomePage> {
         buttonStyle: _style,
         vibrate: true,
         beep: true,
+        validator: _accept,
       );
       if (result != null) _found(result, 'one shot');
     } on ScannerException catch (error) {
@@ -224,6 +243,7 @@ class _HomePageState extends State<HomePage> {
       buttonStyle: _style,
       vibrate: true,
       beep: true,
+      validator: _accept,
     ).listen(
       (ScanResult result) => _found(result, 'continuous'),
       onError: (Object error) {
@@ -277,6 +297,9 @@ class _HomePageState extends State<HomePage> {
                   count: _count,
                   camera: _embedded
                       ? UniversalBarcodeScanner(
+                          // A validator added or removed applies when the
+                          // view starts.
+                          key: ValueKey<ScanValidator?>(_accept),
                           continuous: true,
                           buttons: _allButtons,
                           buttonsAlignment: _buttonsAt,
@@ -284,6 +307,7 @@ class _HomePageState extends State<HomePage> {
                           buttonStyle: _style,
                           vibrate: true,
                           beep: true,
+                          validator: _accept,
                           onResult: (ScanResult result) =>
                               _found(result, 'embedded'),
                           onError: _failed,
@@ -347,6 +371,20 @@ class _HomePageState extends State<HomePage> {
                         selected: identical(_labels, labels),
                         onSelected: (bool _) =>
                             setState(() => _labels = labels),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _Options(
+                  label: 'Accept',
+                  children: <Widget>[
+                    for (final (String label, ScanValidator? accept)
+                        in _accepts)
+                      ChoiceChip(
+                        label: Text(label),
+                        selected: identical(_accept, accept),
+                        onSelected: (bool _) =>
+                            setState(() => _accept = accept),
                       ),
                   ],
                 ),
