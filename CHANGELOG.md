@@ -22,8 +22,9 @@
   front of the camera is refused once.
 - The example reads an image the user picks with `file_picker`, or one of the
   pictures it ships, one per kind of content, and says what each code holds.
-  It can accept only links or only products, to show the validator. An
-  integration test runs `scanImage` on a device.
+  It can accept only links or only products, to show the validator, and
+  marks the codes of an image it refuses. An integration test runs
+  `scanImage` on a device.
 
 ### Changed
 

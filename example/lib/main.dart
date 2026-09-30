@@ -13,6 +13,7 @@ const Color _panel = Color(0xFF171A20);
 const Color _line = Color(0xFF272C36);
 const Color _dim = Color(0xFF8B929E);
 const Color _accent = Color(0xFF39B37A);
+const Color _red = Color(0xFFE5484D);
 
 const ScannerBar _appBar = ScannerBar(
   title: 'Point at a barcode',
@@ -60,6 +61,11 @@ class _HomePageState extends State<HomePage> {
   /// What the last read gave: one code from the camera, every code of an
   /// image.
   List<ScanResult> _results = const <ScanResult>[];
+
+  /// For each of [_results], whether the Accept row refused it. The camera
+  /// modes never hand a refused code on; an image gives every code, so the
+  /// example checks them itself.
+  List<bool> _refused = const <bool>[];
   String _mode = '';
   int _count = 0;
 
@@ -138,6 +144,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {
       _results = <ScanResult>[result];
+      _refused = const <bool>[false];
       _mode = mode;
       _count++;
     });
@@ -182,8 +189,13 @@ class _HomePageState extends State<HomePage> {
         bytes,
       );
       if (!mounted) return;
+      final ScanValidator? accept = _accept;
       setState(() {
         _results = results;
+        _refused = <bool>[
+          for (final ScanResult result in results)
+            accept != null && !accept(result),
+        ];
         _mode = 'image';
         _count++;
       });
@@ -293,6 +305,7 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 22),
                 _Result(
                   results: _results,
+                  refused: _refused,
                   mode: _mode,
                   count: _count,
                   camera: _embedded
@@ -416,8 +429,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _Mode(
                   title: 'Read an image',
-                  body: 'Reads every code in a picture and says what each one '
-                      'holds. Pick one of yours, or try one of these:',
+                  body: 'Reads every code in a picture, says what each one '
+                      'holds and which ones the Accept row refuses. Pick one '
+                      'of yours, or try one of these:',
                   action: 'Pick',
                   onPressed: _pickImage,
                   footer: Wrap(
@@ -448,6 +462,7 @@ class _HomePageState extends State<HomePage> {
 class _Result extends StatelessWidget {
   const _Result({
     required this.results,
+    required this.refused,
     required this.mode,
     required this.count,
     this.camera,
@@ -457,6 +472,9 @@ class _Result extends StatelessWidget {
   /// The codes of the last read: one from the camera, any number from an
   /// image.
   final List<ScanResult> results;
+
+  /// For each of [results], whether the Accept row refused it.
+  final List<bool> refused;
   final String mode;
   final int count;
 
@@ -470,23 +488,33 @@ class _Result extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool found = results.isNotEmpty;
     final bool emptyImage = !found && mode == 'image' && count > 0;
+    final bool allRefused = found && refused.every((bool no) => no);
+    final Color tone = allRefused ? _red : _accent;
     final Widget? camera = this.camera;
     final String heading = !found
         ? emptyImage
             ? 'NO CODE IN THE IMAGE'
             : 'NOTHING SCANNED YET'
-        : results.length > 1
-            ? 'SCANNED, $mode, ${results.length} CODES'
-            : results.single.format == BarcodeFormat.unknown
-                ? 'SCANNED, $mode'
-                : 'SCANNED, $mode, ${_formatLabel(results.single.format)}';
+        : allRefused
+            ? results.length > 1
+                ? 'REFUSED, $mode, ${results.length} CODES'
+                : 'REFUSED, $mode'
+            : results.length > 1
+                ? 'SCANNED, $mode, ${results.length} CODES'
+                : results.single.format == BarcodeFormat.unknown
+                    ? 'SCANNED, $mode'
+                    : 'SCANNED, $mode, ${_formatLabel(results.single.format)}';
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
-        color: found ? const Color(0xFF13251C) : _panel,
-        border: Border.all(color: found ? _accent : _line),
+        color: !found
+            ? _panel
+            : allRefused
+                ? const Color(0xFF2A1618)
+                : const Color(0xFF13251C),
+        border: Border.all(color: found ? tone : _line),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -495,9 +523,13 @@ class _Result extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                found ? Icons.check_circle : Icons.qr_code_scanner,
+                !found
+                    ? Icons.qr_code_scanner
+                    : allRefused
+                        ? Icons.block
+                        : Icons.check_circle,
                 size: 17,
-                color: found ? _accent : _dim,
+                color: found ? tone : _dim,
               ),
               const SizedBox(width: 8),
               Text(
@@ -506,7 +538,7 @@ class _Result extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
-                  color: found ? _accent : _dim,
+                  color: found ? tone : _dim,
                 ),
               ),
               const Spacer(),
@@ -539,8 +571,12 @@ class _Result extends StatelessWidget {
               style: const TextStyle(fontSize: 14.5, height: 1.4, color: _dim),
             ),
           ],
-          for (final ScanResult result in results)
-            _Code(result, withFormat: results.length > 1),
+          for (final (int i, ScanResult result) in results.indexed)
+            _Code(
+              result,
+              withFormat: results.length > 1,
+              refused: i < refused.length && refused[i],
+            ),
           if (controls.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
             // Compact, so the three fit on one line of a phone.
@@ -563,9 +599,16 @@ class _Result extends StatelessWidget {
 /// One code read: its text, and what it holds where the text follows a
 /// format a phone knows.
 class _Code extends StatelessWidget {
-  const _Code(this.result, {required this.withFormat});
+  const _Code(
+    this.result, {
+    required this.withFormat,
+    required this.refused,
+  });
 
   final ScanResult result;
+
+  /// Whether the Accept row refused it.
+  final bool refused;
 
   /// Whether to name the symbology, when several codes share the tile.
   final bool withFormat;
@@ -607,6 +650,22 @@ class _Code extends StatelessWidget {
                   child: Text(
                     meaning,
                     style: const TextStyle(fontSize: 13.5, color: _accent),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (refused) ...<Widget>[
+            const SizedBox(height: 6),
+            const Row(
+              children: <Widget>[
+                Icon(Icons.block, size: 15, color: _red),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Refused by the Accept row: a scanner would say so and '
+                    'read on.',
+                    style: TextStyle(fontSize: 13.5, color: _red),
                   ),
                 ),
               ],
