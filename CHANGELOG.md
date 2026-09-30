@@ -1,5 +1,14 @@
 # Universal Barcode Scanner Versions
 
+## 2.2.2
+
+### Changed
+
+- The README and the `ScanContent` docs match a code's content with a typed
+  variable, `case WifiContent wifi:`, rather than the shorter
+  `case WifiContent(:final ssid):` pattern fewer readers know.
+- The README links to a guided tour of the package on YouTube.
+
 ## 2.2.1
 
 ### Fixed

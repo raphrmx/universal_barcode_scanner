@@ -11,11 +11,11 @@ import 'package:flutter/foundation.dart';
 ///
 /// ```dart
 /// switch (result.content) {
-///   case WifiContent(:final String ssid, :final String? password):
-///     connect(ssid, password);
-///   case UrlContent(:final Uri url):
-///     launchUrl(url);
-///   case _:
+///   case WifiContent wifi:
+///     connect(wifi.ssid, wifi.password);
+///   case UrlContent link:
+///     launchUrl(link.url);
+///   default:
 ///     show(result.text);
 /// }
 /// ```
