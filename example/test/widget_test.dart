@@ -16,6 +16,7 @@ void main() {
       'Scan once',
       'Scan continuously',
       'Read an image',
+      'Event check-in',
     ]) {
       await tester.scrollUntilVisible(
         find.text(mode),

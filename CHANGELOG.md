@@ -1,5 +1,24 @@
 # Universal Barcode Scanner Versions
 
+## 2.2.3
+
+### Changed
+
+- The scanner page and the embedded view on the web, Windows and Linux
+  draw a lighter scan window, the same in both: cut out of the dimmed
+  surround with rounded corners and marked by four thin corner lines, and
+  its line sweeps from edge to edge with a faint trail behind it, in three
+  seconds, rather than glowing. In the embedded view a wide window is
+  narrower, 72 % of the view rather than 85 %, so it stays clear of a column
+  of buttons, and takes at most 60 % of the view's height rather than 80 %,
+  so a low view no longer fills with it.
+- The example is drawn light, and ends on an event check-in: the embedded
+  view reads tickets at a gate, counts the guests in, and turns away a
+  ticket already used or bought for another evening, with the validator.
+  It ships tickets to try: tapping one hands it to the gate through
+  `scanImage`, and another device can scan them with its camera.
+- The pub.dev screenshots open on a cover.
+
 ## 2.2.2
 
 ### Changed

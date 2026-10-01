@@ -343,6 +343,15 @@ void main() {
         scanWindowRect(const Size(1000, 800), ScanWindow.wide, null)?.size,
         const Size(416, 208),
       );
+      // Clear of the buttons at the sides, and low in a short view, so the
+      // dimmed surround still frames it.
+      final Size low = scanWindowRect(
+        const Size(480, 210),
+        ScanWindow.wide,
+        null,
+      )!.size;
+      expect(low.width, moreOrLessEquals(345.6));
+      expect(low.height, 126);
       // A requested size, clamped to the view.
       expect(
         scanWindowRect(
@@ -532,7 +541,7 @@ void main() {
         ),
       );
 
-      expect(window, const Size(340, 170));
+      expect(window, const Size(288, 144));
       expect(find.byType(ScanWindowOverlay), findsOneWidget);
 
       await tester.pumpWidget(

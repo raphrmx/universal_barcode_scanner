@@ -50,35 +50,61 @@
     @media (prefers-reduced-motion: reduce) {
       .ubs-animate #stage video { transition: none; }
     }
+    /* The box is cut out of the shade with rounded corners, as the embedded
+       view draws it, and clips the line to them. */
     #box {
       display: none;
       position: absolute;
+      border-radius: 14px;
+      overflow: hidden;
       box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.48);
     }
     #box.shown { display: block; }
-    /* Four white corners, drawn as borders on four small squares. */
+    /* Four thin white corners following the curve, over the line. */
     #box i {
       position: absolute;
-      width: 24px;
-      height: 24px;
-      border: 0 solid #fff;
+      z-index: 1;
+      width: 28px;
+      height: 28px;
+      border: 0 solid rgba(255, 255, 255, 0.95);
     }
-    #box i:nth-child(1) { left: -2px; top: -2px; border-width: 4px 0 0 4px; }
-    #box i:nth-child(2) { right: -2px; top: -2px; border-width: 4px 4px 0 0; }
-    #box i:nth-child(3) { left: -2px; bottom: -2px; border-width: 0 0 4px 4px; }
-    #box i:nth-child(4) { right: -2px; bottom: -2px; border-width: 0 4px 4px 0; }
+    #box i:nth-child(1) {
+      left: 0; top: 0; border-width: 3px 0 0 3px; border-top-left-radius: 14px;
+    }
+    #box i:nth-child(2) {
+      right: 0; top: 0; border-width: 3px 3px 0 0; border-top-right-radius: 14px;
+    }
+    #box i:nth-child(3) {
+      left: 0; bottom: 0; border-width: 0 0 3px 3px; border-bottom-left-radius: 14px;
+    }
+    #box i:nth-child(4) {
+      right: 0; bottom: 0; border-width: 0 3px 3px 0; border-bottom-right-radius: 14px;
+    }
 
-    /* The sweeping line, inside the box. */
+    /* The sweeping line, from side to side of the box. */
     #ubs-scan-line {
       position: absolute;
       left: 0;
       width: 100%;
       height: 2px;
       background: var(--ubs-line-color, #ff6666);
-      box-shadow: 0 0 8px 1px var(--ubs-line-color, #ff6666);
-      opacity: 0.9;
-      animation: ubs-sweep 2s ease-in-out infinite;
+      animation: ubs-sweep 3s linear infinite;
       pointer-events: none;
+    }
+    /* A faint trail behind it, growing from the side it left and fading as it
+       nears the other: turned over below the line on the way back up. */
+    #ubs-scan-line::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 40px;
+      max-height: 30vh;
+      background: linear-gradient(to top, var(--ubs-line-color, #ff6666), transparent);
+      opacity: 0.3;
+      transform-origin: bottom;
+      animation: ubs-trail 3s linear infinite;
     }
 
     @keyframes ubs-sweep {
@@ -86,13 +112,24 @@
       50%  { top: calc(100% - 2px); }
       100% { top: 0; }
     }
+    @keyframes ubs-trail {
+      0%   { transform: scaleY(0); }
+      12%  { transform: scaleY(1); }
+      38%  { transform: scaleY(1); }
+      50%  { transform: scaleY(0); }
+      62%  { transform: translateY(2px) scaleY(-1); }
+      88%  { transform: translateY(2px) scaleY(-1); }
+      100% { transform: scaleY(0); }
+    }
 
     /* Stopped where it is while reading is paused, and set off again from
        there. */
-    .ubs-paused #ubs-scan-line { animation-play-state: paused; }
+    .ubs-paused #ubs-scan-line,
+    .ubs-paused #ubs-scan-line::before { animation-play-state: paused; }
 
     @media (prefers-reduced-motion: reduce) {
       #ubs-scan-line { animation: none; top: calc(50% - 1px); }
+      #ubs-scan-line::before { display: none; }
     }
 
     /* Shown when the camera never starts. Without it the page is a black

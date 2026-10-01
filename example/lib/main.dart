@@ -7,14 +7,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
+import 'check_in.dart';
+
 void main() => runApp(const ExampleApp());
 
-const Color _ink = Color(0xFF0E1014);
-const Color _panel = Color(0xFF171A20);
-const Color _line = Color(0xFF272C36);
-const Color _dim = Color(0xFF8B929E);
-const Color _accent = Color(0xFF39B37A);
-const Color _red = Color(0xFFE5484D);
+const Color _paper = Color(0xFFF6F1EA);
+const Color _white = Color(0xFFFFFDFB);
+const Color _ink = Color(0xFF1D1712);
+const Color _line = Color(0xFFE6DDD1);
+const Color _dim = Color(0xFF6F665E);
+const Color _accent = Color(0xFF3D9970);
+const Color _accentInk = Color(0xFF2B7A55);
+const Color _red = Color(0xFFD43F45);
+
+/// The soft shadow under every card.
+const List<BoxShadow> _shadow = <BoxShadow>[
+  BoxShadow(color: Color(0x1F3B2A1A), blurRadius: 24, offset: Offset(0, 10)),
+];
 
 /// Width of the page's column of content.
 const double _contentWidth = 520;
@@ -38,11 +47,12 @@ class ExampleApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: _ink,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _accent,
-          brightness: Brightness.dark,
+        scaffoldBackgroundColor: _paper,
+        colorScheme: ColorScheme.fromSeed(seedColor: _accent),
+        chipTheme: const ChipThemeData(
+          backgroundColor: _white,
+          selectedColor: Color(0xFFDDEFE5),
+          side: BorderSide(color: _line),
         ),
       ),
       home: const HomePage(),
@@ -287,18 +297,29 @@ class _HomePageState extends State<HomePage> {
               padding: EdgeInsets.fromLTRB(side, 28, side, 32),
               children: <Widget>[
                 const Text(
+                  'FLUTTER · SIX PLATFORMS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.6,
+                    color: _accentInk,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
                   'Universal Barcode Scanner',
                   style: TextStyle(
-                    fontSize: 27,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.7,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.9,
+                    color: _ink,
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
                   'Barcodes and QR codes from one call, on Android, iOS, '
                   'Linux, macOS, web and Windows.',
-                  style: TextStyle(fontSize: 14.5, color: _dim, height: 1.45),
+                  style: TextStyle(fontSize: 15, color: _dim, height: 1.45),
                 ),
                 const SizedBox(height: 22),
                 _Result(
@@ -445,11 +466,79 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                const _ShowcaseEntry(),
+                const SizedBox(height: 16),
                 const _Note(),
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// The way into [CheckInDemo]: the package at work in an app of its own.
+class _ShowcaseEntry extends StatelessWidget {
+  const _ShowcaseEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[Color(0xFF2B7A55), Color(0xFF3D9970)],
+          ),
+        ),
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (BuildContext context) => const CheckInDemo(),
+            ),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(20, 18, 16, 18),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.confirmation_number_outlined,
+                    size: 34, color: Colors.white),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Event check-in',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'A gate app on the embedded view: tickets read, guests '
+                        'counted, the wrong ones refused.',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: Color(0xE6FFFFFF),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 10),
+                Icon(Icons.arrow_forward, color: Colors.white),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -513,12 +602,13 @@ class _Result extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: !found
-            ? _panel
+            ? _white
             : allRefused
-                ? const Color(0xFF2A1618)
-                : const Color(0xFF13251C),
+                ? const Color(0xFFFCEDEC)
+                : const Color(0xFFEAF5EF),
         border: Border.all(color: found ? tone : _line),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: _shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,7 +631,7 @@ class _Result extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
-                  color: found ? tone : _dim,
+                  color: found ? (allRefused ? _red : _accentInk) : _dim,
                 ),
               ),
               const Spacer(),
@@ -589,8 +679,8 @@ class _Result extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   // Neutral: closing is not the tile's green action.
-                  foregroundColor: const Color(0xFFD5D9E0),
-                  side: const BorderSide(color: Color(0xFF3A404C)),
+                  foregroundColor: _ink,
+                  side: const BorderSide(color: _line),
                 ),
               ),
               child: Wrap(spacing: 6, runSpacing: 8, children: controls),
@@ -635,7 +725,7 @@ class _Code extends StatelessWidget {
               height: 1.4,
               fontFamily: 'monospace',
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: _ink,
             ),
           ),
           const SizedBox(height: 4),
@@ -650,12 +740,12 @@ class _Code extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: <Widget>[
-                const Icon(Icons.auto_awesome, size: 15, color: _accent),
+                const Icon(Icons.auto_awesome, size: 15, color: _accentInk),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     meaning,
-                    style: const TextStyle(fontSize: 13.5, color: _accent),
+                    style: const TextStyle(fontSize: 13.5, color: _accentInk),
                   ),
                 ),
               ],
@@ -759,9 +849,9 @@ class _Mode extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       decoration: BoxDecoration(
-        color: _panel,
-        border: Border.all(color: _line),
-        borderRadius: BorderRadius.circular(14),
+        color: _white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: _shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -778,7 +868,7 @@ class _Mode extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: off ? _dim : Colors.white,
+                        color: off ? _dim : _ink,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -798,7 +888,7 @@ class _Mode extends StatelessWidget {
                 onPressed: onPressed,
                 style: FilledButton.styleFrom(
                   backgroundColor: _accent,
-                  foregroundColor: const Color(0xFF07130D),
+                  foregroundColor: Colors.white,
                   disabledBackgroundColor: _line,
                   disabledForegroundColor: _dim,
                   padding: const EdgeInsets.symmetric(horizontal: 20),

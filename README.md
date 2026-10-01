@@ -14,7 +14,7 @@ one entry point.
 
 <sub>A barcode on Android, the camera inside the app's own layout, and a QR code in a browser.</sub>
 
-[![Video tour](https://img.shields.io/badge/Video-Guided_tour-c4302b?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=THRWeJEq1wk)
+[![Video tour](https://img.shields.io/badge/Video-Guided_tour-c4302b?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=c_QgTQbduNk)
 [![Live demo](https://img.shields.io/badge/Live_demo-packages.comapps.be-3c9a70)](https://packages.comapps.be/universal_barcode_scanner/)
 [![Pub Version](https://img.shields.io/pub/v/universal_barcode_scanner?color=0175C2)](https://pub.dev/packages/universal_barcode_scanner)
 [![Build](https://img.shields.io/github/actions/workflow/status/raphrmx/universal_barcode_scanner/ci.yml?branch=main&label=build)](https://github.com/raphrmx/universal_barcode_scanner/actions/workflows/ci.yml)

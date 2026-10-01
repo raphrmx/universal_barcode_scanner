@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -270,8 +271,10 @@ Rect? scanWindowRect(Size size, ScanWindow shape, Size? requested) {
     width = math.min(size.shortestSide * 0.75, 320);
     height = width;
   } else {
-    width = math.min(size.width * 0.85, 416);
-    height = math.min(width * 0.5, size.height * 0.8);
+    // Clear of a column of buttons at either side, and low enough in a
+    // short view that the dimmed surround still frames it.
+    width = math.min(size.width * 0.72, 416);
+    height = math.min(width * 0.5, size.height * 0.6);
   }
   return Rect.fromCenter(
     center: size.center(Offset.zero),
@@ -356,8 +359,9 @@ class EmbeddedPageFrame extends StatelessWidget {
   );
 }
 
-/// The scan window over the camera, as the Android and iOS views draw it: the
-/// surround dimmed, the window outlined, and a line sweeping across it.
+/// The scan window over the camera: the surround dimmed, the window cut out
+/// of it with rounded corners, marked by four thin corner lines, and a line
+/// sweeping across it.
 class ScanWindowOverlay extends StatefulWidget {
   /// Draws [window] with a line of [lineColor].
   const ScanWindowOverlay({
@@ -456,35 +460,113 @@ class _WindowPainter extends CustomPainter {
   final Color lineColor;
   final Animation<double> sweep;
 
-  static final Paint _dim = Paint()..color = const Color(0x80000000);
-  static final Paint _frame = Paint()
-    ..color = const Color(0xCCFFFFFF)
+  static final Paint _dim = Paint()..color = const Color(0x73000000);
+  static final Paint _corner = Paint()
+    ..color = const Color(0xF2FFFFFF)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2;
+    ..strokeWidth = 3
+    ..strokeCap = StrokeCap.round;
+
+  /// How round the window's corners are.
+  static const double _radius = 14;
+
+  /// How far each corner runs along the window's sides, past its curve.
+  static const double _arm = 14;
+
+  /// How far the trail behind the sweeping line reaches, at most.
+  static const double _trail = 40;
 
   @override
   void paint(Canvas canvas, Size size) {
     final Rect box = window;
-    canvas
-      ..drawRect(Rect.fromLTRB(0, 0, size.width, box.top), _dim)
-      ..drawRect(Rect.fromLTRB(0, box.top, box.left, box.bottom), _dim)
-      ..drawRect(
-        Rect.fromLTRB(box.right, box.top, size.width, box.bottom),
-        _dim,
-      )
-      ..drawRect(Rect.fromLTRB(0, box.bottom, size.width, size.height), _dim)
-      ..drawRect(box, _frame);
-
-    final double phase = sweep.value;
-    final double progress = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-    final double y = box.top + progress * box.height;
-    canvas.drawLine(
-      Offset(box.left, y),
-      Offset(box.right, y),
-      Paint()
-        ..color = lineColor
-        ..strokeWidth = 2,
+    final double radius = math.min(_radius, box.shortestSide / 6);
+    final double arm = math.min(_arm, box.shortestSide / 6);
+    final Radius curve = Radius.circular(radius);
+    // The surround dimmed, the window cut out of it with rounded corners.
+    canvas.drawDRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.zero),
+      RRect.fromRectAndRadius(box, curve),
+      _dim,
     );
+
+    // The line, sweeping from side to side of the window, cut by its rounded
+    // corners near the top and bottom.
+    final double phase = sweep.value;
+    final bool down = phase < 0.5;
+    final double progress = down ? phase * 2 : (1 - phase) * 2;
+    const double inset = 2;
+    final double y = box.top + inset + progress * (box.height - inset * 2);
+    // A faint trail behind it, growing from the side it left and fading as it
+    // nears the other, so that it never jumps when the line turns.
+    final double reach = math.min(_trail, box.height * 0.3);
+    final double left = down ? y - box.top : box.bottom - y;
+    final double ahead = down ? box.bottom - y : y - box.top;
+    final double length = math.min(reach, left);
+    final double fade = reach <= 0 ? 0 : math.min(1, ahead / reach);
+    final double tail = down ? y - length : y + length;
+    canvas
+      ..save()
+      ..clipRRect(RRect.fromRectAndRadius(box, curve));
+    if (length > 0 && fade > 0) {
+      canvas.drawRect(
+        Rect.fromLTRB(
+          box.left,
+          math.min(y, tail),
+          box.right,
+          math.max(y, tail),
+        ),
+        Paint()
+          ..shader = ui.Gradient.linear(Offset(0, y), Offset(0, tail), [
+            lineColor.withValues(alpha: lineColor.a * 0.3 * fade),
+            lineColor.withValues(alpha: 0),
+          ]),
+      );
+    }
+    canvas
+      ..drawLine(
+        Offset(box.left, y),
+        Offset(box.right, y),
+        Paint()
+          ..color = lineColor
+          ..strokeWidth = 2,
+      )
+      ..restore();
+
+    // Each corner as a thin line following the curve, a little way along
+    // both sides, over the line.
+    canvas
+      ..drawPath(
+        Path()
+          ..moveTo(box.left, box.top + radius + arm)
+          ..lineTo(box.left, box.top + radius)
+          ..arcToPoint(Offset(box.left + radius, box.top), radius: curve)
+          ..lineTo(box.left + radius + arm, box.top),
+        _corner,
+      )
+      ..drawPath(
+        Path()
+          ..moveTo(box.right - radius - arm, box.top)
+          ..lineTo(box.right - radius, box.top)
+          ..arcToPoint(Offset(box.right, box.top + radius), radius: curve)
+          ..lineTo(box.right, box.top + radius + arm),
+        _corner,
+      )
+      ..drawPath(
+        Path()
+          ..moveTo(box.right, box.bottom - radius - arm)
+          ..lineTo(box.right, box.bottom - radius)
+          ..arcToPoint(Offset(box.right - radius, box.bottom), radius: curve)
+          ..lineTo(box.right - radius - arm, box.bottom),
+        _corner,
+      )
+      ..drawPath(
+        Path()
+          ..moveTo(box.left + radius + arm, box.bottom)
+          ..lineTo(box.left + radius, box.bottom)
+          ..arcToPoint(Offset(box.left, box.bottom - radius), radius: curve)
+          ..lineTo(box.left, box.bottom - radius - arm),
+        _corner,
+      );
   }
 
   @override
