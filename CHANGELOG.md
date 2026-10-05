@@ -1,5 +1,13 @@
 # Universal Barcode Scanner Versions
 
+## 2.2.4
+
+### Changed
+
+- The badge row carries a PayPal donation badge, `funding` points pub.dev
+  at the same donation page, and the README ends on the other packages
+  COMAPPS publishes. Nothing about the library changed.
+
 ## 2.2.3
 
 ### Changed
