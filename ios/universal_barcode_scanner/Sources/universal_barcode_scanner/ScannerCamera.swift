@@ -20,6 +20,9 @@ final class ScannerCamera {
   /// Called on the main thread when the session was interrupted, which turns
   /// the torch off behind the app's back.
   var onInterrupted: (() -> Void)?
+  /// Called on the main thread with the luminance under the scan window, at
+  /// most every `frameInterval`, when frames were asked for.
+  var onFrame: ((LumaFrame) -> Void)?
 
   /// The camera in use. Main thread only.
   private(set) var device: AVCaptureDevice?
@@ -27,13 +30,29 @@ final class ScannerCamera {
   private let output = AVCaptureMetadataOutput()
   private let queue = DispatchQueue(label: "be.comapps.universal_barcode_scanner.session")
   private let types: [AVMetadataObject.ObjectType]
+  /// The frames for Dart, when asked for.
+  private let frames: AVCaptureVideoDataOutput?
+  private let frameQueue = DispatchQueue(label: "be.comapps.universal_barcode_scanner.frames")
+  private var frameDelegate: FrameDelegate?
+  // Frame queue only.
+  private let frameInterval: CFTimeInterval
+  private var lastFrame: CFTimeInterval = 0
+  /// The scan window and the preview it sits in, in points; an empty window
+  /// for the whole frame.
+  private var frameWindow = CGRect.zero
+  private var previewSize = CGSize.zero
+  private var frameMirrored = false
+  /// Whether frames go to Dart, off while reading is paused.
+  private var framing = true
   /// Session queue only.
   private var input: AVCaptureDeviceInput?
   private var delegate: MetadataDelegate?
   private var observers: [NSObjectProtocol] = []
 
-  init(types: [AVMetadataObject.ObjectType]) {
+  init(types: [AVMetadataObject.ObjectType], frameInterval: TimeInterval = 0) {
     self.types = types
+    self.frameInterval = frameInterval
+    frames = frameInterval > 0 ? AVCaptureVideoDataOutput() : nil
     observe()
   }
 
@@ -99,6 +118,18 @@ final class ScannerCamera {
     }
     session.addInput(input)
     session.addOutput(output)
+    if let frames = frames, session.canAddOutput(frames) {
+      // The luminance plane as it is, no conversion.
+      frames.videoSettings = [
+        kCVPixelBufferPixelFormatTypeKey as String:
+          kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+      ]
+      frames.alwaysDiscardsLateVideoFrames = true
+      let delegate = FrameDelegate(camera: self)
+      frameDelegate = delegate
+      frames.setSampleBufferDelegate(delegate, queue: frameQueue)
+      session.addOutput(frames)
+    }
     if #available(iOS 16.0, *), session.isMultitaskingCameraAccessSupported {
       // Keeps scanning in Split View, Slide Over and Stage Manager, where
       // the session would otherwise be interrupted.
@@ -138,6 +169,55 @@ final class ScannerCamera {
     guard rect.width > 0, rect.height > 0 else { return }
     let metadata = output
     queue.async { metadata.rectOfInterest = rect }
+  }
+
+  /// Where the frames for Dart are cut, and how they stand: the scan window
+  /// in a preview of `preview` points, shown at `orientation`, mirrored when
+  /// `mirrored`. The frames come upright and unmirrored, as the scene is, so
+  /// Dart turns nothing.
+  func setFrameGeometry(
+    window: CGRect,
+    preview: CGSize,
+    orientation: AVCaptureVideoOrientation,
+    mirrored: Bool
+  ) {
+    guard let frames = frames else { return }
+    queue.async {
+      guard let connection = frames.connection(with: .video) else { return }
+      if connection.isVideoOrientationSupported {
+        connection.videoOrientation = orientation
+      }
+      if connection.isVideoMirroringSupported {
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = false
+      }
+    }
+    frameQueue.async { [weak self] in
+      self?.frameWindow = window
+      self?.previewSize = preview
+      self?.frameMirrored = mirrored
+    }
+  }
+
+  /// Whether frames go to Dart: off while reading is paused.
+  func setFraming(_ on: Bool) {
+    frameQueue.async { [weak self] in self?.framing = on }
+  }
+
+  /// Frame queue only.
+  fileprivate func handle(_ sampleBuffer: CMSampleBuffer) {
+    let now = CACurrentMediaTime()
+    guard framing, now - lastFrame >= frameInterval,
+      let buffer = CMSampleBufferGetImageBuffer(sampleBuffer),
+      let frame = LumaFrame(
+        buffer,
+        window: frameWindow,
+        preview: previewSize,
+        mirrored: frameMirrored
+      )
+    else { return }
+    lastFrame = now
+    DispatchQueue.main.async { [weak self] in self?.onFrame?(frame) }
   }
 
   var hasTorch: Bool {
@@ -248,6 +328,23 @@ final class ScannerCamera {
     default:
       return .portrait
     }
+  }
+}
+
+/// Forwards frames to the camera without retaining it.
+private final class FrameDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+  private weak var camera: ScannerCamera?
+
+  init(camera: ScannerCamera) {
+    self.camera = camera
+  }
+
+  func captureOutput(
+    _ output: AVCaptureOutput,
+    didOutput sampleBuffer: CMSampleBuffer,
+    from connection: AVCaptureConnection
+  ) {
+    camera?.handle(sampleBuffer)
   }
 }
 

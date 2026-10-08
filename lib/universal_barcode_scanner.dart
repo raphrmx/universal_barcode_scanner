@@ -13,6 +13,7 @@ library;
 
 export 'src/enums.dart';
 export 'src/scan_content.dart';
+export 'src/scan_frame.dart';
 export 'src/scan_result.dart';
 export 'src/scanner.dart';
 export 'src/scanner_bar.dart';

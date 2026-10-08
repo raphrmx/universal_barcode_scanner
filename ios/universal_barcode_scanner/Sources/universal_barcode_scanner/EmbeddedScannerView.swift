@@ -68,7 +68,10 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   ) {
     // Locals, not properties: nothing on self can be read before super.init.
     let options = ScanOptions(arguments: arguments)
-    let camera = ScannerCamera(types: options.metadataTypes)
+    let camera = ScannerCamera(
+      types: options.metadataTypes,
+      frameInterval: options.frameInterval
+    )
     self.options = options
     self.camera = camera
     gate = ReadGate(delay: options.delay)
@@ -102,6 +105,7 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
     }
 
     camera.onCodes = { [weak self] codes in self?.onCodes(codes) }
+    camera.onFrame = { [weak self] frame in self?.onFrame(frame) }
     camera.onRunning = { [weak self] in
       guard let self = self else { return }
       self.updateRectOfInterest()
@@ -177,10 +181,28 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   }
 
   private func updateRectOfInterest() {
+    updateFrameGeometry()
     // Without a window the output keeps its default: the whole frame.
     let window = overlay.scanWindow
     guard ready, options.hasWindow, window.width > 0, window.height > 0 else { return }
     camera.setRectOfInterest(previewLayer.metadataOutputRectConverted(fromLayerRect: window))
+  }
+
+  /// Where the frames for Dart are cut: under the scan window, or all the
+  /// preview shows.
+  private func updateFrameGeometry() {
+    guard ready, options.frameInterval > 0 else { return }
+    camera.setFrameGeometry(
+      window: options.hasWindow ? overlay.scanWindow : .zero,
+      preview: container.bounds.size,
+      orientation: ScannerCamera.videoOrientation(for: container),
+      mirrored: previewLayer.connection?.isVideoMirrored ?? false
+    )
+  }
+
+  private func onFrame(_ frame: LumaFrame) {
+    guard detecting else { return }
+    channel.invokeMethod("onFrame", arguments: frame.payload)
   }
 
   private func onCodes(_ codes: [ScannedCode]) {
@@ -198,6 +220,7 @@ final class EmbeddedScannerView: NSObject, FlutterPlatformView {
   private func setDetecting(_ on: Bool) {
     detecting = on
     overlay.paused = !on
+    camera.setFraming(on)
   }
 
   private func reportError(_ code: String, _ message: String) {

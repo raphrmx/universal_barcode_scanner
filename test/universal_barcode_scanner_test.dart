@@ -204,6 +204,57 @@ void main() {
       });
     });
 
+    test('asks for frames only when the app wants them', () {
+      const ScannerConfig config = ScannerConfig(
+        scanFormat: ScanFormat.none,
+        frameInterval: Duration(milliseconds: 250),
+      );
+      expect(config.toNative()['frameMillis'], 250);
+      expect(config.toNative()['scanFormat'], 'NONE');
+      expect(config.toPage(host: 'web')['frames'], '250');
+      expect(config.toPage(host: 'web')['formats'], 'none');
+      expect(
+        const ScannerConfig().toNative().containsKey('frameMillis'),
+        isFalse,
+      );
+      expect(
+        const ScannerConfig().toPage(host: 'web').containsKey('frames'),
+        isFalse,
+      );
+    });
+
+    test('reads a frame from a platform and from the page', () {
+      final Uint8List bytes = Uint8List.fromList(<int>[1, 2, 3, 4, 5, 6]);
+      final ScanFrame? frame = ScanFrame.fromWire(<String, Object?>{
+        'width': 3,
+        'height': 2,
+        'bytes': bytes,
+        'quarterTurns': 5,
+      });
+      expect(frame?.width, 3);
+      expect(frame?.height, 2);
+      expect(frame?.quarterTurns, 1);
+      expect(
+        ScanFrame.fromWire(<String, Object?>{
+          'width': 4,
+          'height': 2,
+          'bytes': bytes,
+        }),
+        isNull,
+      );
+      final PageMessage? message = PageMessage.parse(
+        jsonEncode(<String, Object?>{
+          'frame': <String, Object?>{
+            'width': 3,
+            'height': 2,
+            'data': base64Encode(bytes),
+          },
+        }),
+      );
+      expect(message, isA<PageFrame>());
+      expect((message! as PageFrame).frame.bytes, bytes);
+    });
+
     test('the page settings are what barcode.html reads', () {
       const ScannerConfig config = ScannerConfig(
         lineColor: Color(0xFF112233),

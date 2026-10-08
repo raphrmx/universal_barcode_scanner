@@ -22,7 +22,12 @@ enum ScanFormat {
   onlyQrCode('ONLY_QR_CODE'),
 
   /// Linear barcodes only.
-  onlyBarcode('ONLY_BARCODE');
+  onlyBarcode('ONLY_BARCODE'),
+
+  /// No code at all: the camera only hands its frames to
+  /// `UniversalBarcodeScanner.onFrame`, for an app that reads them itself,
+  /// such as the text of a document.
+  none('NONE');
 
   const ScanFormat(this.wireName);
 

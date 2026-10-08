@@ -1,5 +1,26 @@
 # Universal Barcode Scanner Versions
 
+## 2.3.0
+
+### Added
+
+- The embedded view hands the app its camera frames, in grey, for it to
+  read what is not a code, such as the machine readable zone of a passport
+  or an identity card: `onFrame` receives a `ScanFrame` with the luminance
+  under the scan window, at most every `frameInterval` (200 ms by default)
+  and none while reading is paused. On every platform: the camera's own
+  frames on Android, iOS and macOS, the page's on the web, Windows and
+  Linux.
+- `ScanFormat.none` reads no code at all, for a view that only hands its
+  frames on.
+
+### Compatibility
+
+- A view without `onFrame` asks the platform for nothing more and behaves
+  as before.
+- `ScanFormat` has a new value: a `switch` over it that names every value
+  without a default branch must now handle `ScanFormat.none`.
+
 ## 2.2.4
 
 ### Changed

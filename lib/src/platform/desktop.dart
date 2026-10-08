@@ -367,6 +367,8 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
       // The page says itself why the camera did not start.
       case PageError():
       case PageReady():
+      // The full page reads codes only.
+      case PageFrame():
       case PageImage():
       case null:
         break;

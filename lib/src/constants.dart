@@ -14,6 +14,10 @@ abstract final class ScannerAsset {
       'assets/packages/universal_barcode_scanner/assets/barcode.html';
 }
 
+/// Least time between two frames handed to `UniversalBarcodeScanner.onFrame`
+/// unless the app asks otherwise: five a second.
+const Duration kDefaultFrameInterval = Duration(milliseconds: 200);
+
 /// Default colour of the scan line.
 const Color kDefaultLineColor = Color(0xFFFF6666);
 

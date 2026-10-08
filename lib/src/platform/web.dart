@@ -299,6 +299,8 @@ class _ScannerPageState extends State<ScannerPage> {
         _link.ready(_openedWith ?? widget.config);
       // The page says itself why the camera did not start.
       case PageError():
+      // The full page reads codes only.
+      case PageFrame():
       case PageImage():
       case null:
         break;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:universal_barcode_scanner/src/scan_frame.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 
@@ -23,6 +24,10 @@ abstract class ScannerController {
   /// Called with every code the view reads, with the symbology it was
   /// printed in.
   ValueChanged<ScanResult>? onResult;
+
+  /// Called with the frames of the camera, when the view was asked for them
+  /// with `UniversalBarcodeScanner.onFrame`.
+  ValueChanged<ScanFrame>? onFrame;
 
   // Never disposed: the buttons listening to them may outlive the view.
   final ValueNotifier<bool> _paused = ValueNotifier<bool>(false);
@@ -84,6 +89,7 @@ abstract class ScannerController {
     _disposed = true;
     onScanned = null;
     onResult = null;
+    onFrame = null;
     onError = null;
   }
 
@@ -100,6 +106,13 @@ abstract class ScannerController {
     if (_disposed || code.isEmpty) return;
     onScanned?.call(code);
     onResult?.call(ScanResult(code, format: format));
+  }
+
+  /// Hands a frame of the camera to [onFrame], unless reading is paused.
+  @protected
+  void deliverFrame(ScanFrame frame) {
+    if (_disposed || _paused.value) return;
+    onFrame?.call(frame);
   }
 
   /// Hands an error to [onError], or logs it when nobody listens.
@@ -150,6 +163,9 @@ final class ChannelScannerController extends ScannerController {
         if (code == null) return;
         if (!_continuous) markPaused(true);
         deliverCode(code, format: format);
+      case 'onFrame':
+        final ScanFrame? frame = ScanFrame.fromWire(call.arguments);
+        if (frame != null) deliverFrame(frame);
       case 'onError':
         final Object? arguments = call.arguments;
         deliverError(

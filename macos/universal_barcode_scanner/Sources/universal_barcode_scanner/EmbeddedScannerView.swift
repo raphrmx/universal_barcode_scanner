@@ -44,7 +44,10 @@ final class EmbeddedScannerView: NSView {
   init(viewId: Int64, arguments: [String: Any], messenger: FlutterBinaryMessenger) {
     // Locals, not properties: nothing on self can be read before super.init.
     let options = ScannerOptions(arguments: arguments)
-    let camera = ScannerCamera(scanFormat: options.scanFormat)
+    let camera = ScannerCamera(
+      scanFormat: options.scanFormat,
+      frameInterval: options.frameInterval
+    )
     self.options = options
     self.camera = camera
     gate = ReadGate(delay: options.delay)
@@ -73,6 +76,7 @@ final class EmbeddedScannerView: NSView {
       self.onMethodCall(call, result: result)
     }
     camera.onCodes = { [weak self] codes in self?.onCodes(codes) }
+    camera.onFrame = { [weak self] frame in self?.onFrame(frame) }
     // For Flutter to fade the view in.
     camera.onFirstFrame = { [weak self] in
       self?.channel.invokeMethod("onCameraStarted", arguments: nil)
@@ -146,6 +150,11 @@ final class EmbeddedScannerView: NSView {
   private func updateRegionOfInterest() {
     guard ready else { return }
     camera.readInside(options.hasWindow ? overlay.window : nil, of: previewLayer)
+  }
+
+  private func onFrame(_ frame: LumaFrame) {
+    guard detecting else { return }
+    channel.invokeMethod("onFrame", arguments: frame.payload)
   }
 
   private func onCodes(_ codes: [ScannedCode]) {

@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_frame.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_config.dart';
 import 'package:universal_barcode_scanner/src/scanner_controller.dart';
@@ -186,6 +187,8 @@ final class PageScannerController extends ScannerController {
         if (pending != null && !pending.isCompleted) pending.complete(zoom);
       // The host says when the page is up, and a view has no close: the
       // Escape key is the page's, not the app's.
+      case PageFrame(:final ScanFrame frame):
+        deliverFrame(frame);
       case PageReady():
       case PageClose():
       case PageImage():

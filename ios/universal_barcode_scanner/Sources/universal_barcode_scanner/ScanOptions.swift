@@ -53,6 +53,8 @@ struct ScanOptions {
   let delay: TimeInterval
   /// Scan window asked for, in points.
   let windowSize: CGSize?
+  /// Least time between two frames for Dart; zero for none.
+  let frameInterval: TimeInterval
 
   init(arguments: [String: Any]) {
     session = ScanOptions.session(in: arguments)
@@ -70,6 +72,8 @@ struct ScanOptions {
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
     let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
     delay = max(0, millis) / 1000.0
+    let frameMillis = (arguments["frameMillis"] as? NSNumber)?.doubleValue ?? 0
+    frameInterval = max(0, frameMillis) / 1000.0
 
     if let width = (arguments["scanWindowWidth"] as? NSNumber)?.doubleValue,
       let height = (arguments["scanWindowHeight"] as? NSNumber)?.doubleValue,
@@ -96,6 +100,9 @@ struct ScanOptions {
       .interleaved2of5, .itf14, .pdf417, .upce,
     ]
     switch scanFormat {
+    case "NONE":
+      // Frames only.
+      return []
     case "ONLY_QR_CODE":
       return [.qr]
     case "ONLY_BARCODE":

@@ -210,11 +210,16 @@
   // Frames in a row a worker may fail to read before the page stops
   // trusting it and reads by itself.
   var WORKER_FAILURES = 5;
+  // Widest a frame handed to the app is, in pixels: enough for the text of
+  // a document, light enough to post several times a second.
+  var FRAME_WIDTH = 1280;
 
   // Same lists as the native scanners, in BarcodeDetector's names. Null is
   // every format the decoder knows.
   var FORMATS = {
     all: null,
+    // No code: the page only hands frames to the app.
+    none: [],
     qr: ['qr_code'],
     barcode: ['codabar', 'code_39', 'code_93', 'code_128', 'ean_13', 'ean_8',
       'itf', 'pdf417', 'upc_a', 'upc_e']
@@ -254,6 +259,8 @@
     flipY: false,
     // Whether the camera fades in and turns over when flipped.
     animate: true,
+    // Least milliseconds between two frames for the app, 0 for none.
+    frames: 0,
     labels: LABELS
   };
   var stopped = true;
@@ -278,6 +285,8 @@
   var generation = 0;
   // The generation a frame loop runs for, so there is never a second one.
   var reading = -1;
+  // The same for the loop handing frames to the app.
+  var framing = -1;
 
   // The web host passes the colour in the query string, the desktop hosts
   // call this once the page is up.
@@ -670,9 +679,10 @@
   }
 
   // Starts handing frames to the decoder, unless a loop already does for
-  // this camera.
+  // this camera, and to the app when it asked for them.
   function startReading() {
-    if (reading === generation) {
+    startFrames();
+    if (reading === generation || settings.formats === 'none') {
       return;
     }
     reading = generation;
@@ -711,6 +721,70 @@
     }, function () {
       /* a frame lost, or the decoder gone: the next one tries again */
     }).then(again);
+  }
+
+  // ---------------------------------------------------------------------
+  // Frames for the app.
+
+  var frameCanvas = null;
+
+  // Starts posting frames to the app, unless it wants none or a loop
+  // already posts them for this camera.
+  function startFrames() {
+    if (!settings.frames || framing === generation) {
+      return;
+    }
+    framing = generation;
+    postFrames(generation);
+  }
+
+  // Posts a frame every settings.frames milliseconds for as long as the
+  // camera of [run] runs; none while paused.
+  function postFrames(run) {
+    if (run !== generation || stopped || delivered || !settings.frames) {
+      if (framing === run) {
+        framing = -1;
+      }
+      return;
+    }
+    if (!paused && video.readyState >= 2 && video.videoWidth) {
+      try {
+        post({ frame: greyFrame() });
+      } catch (error) {
+        /* a frame lost: the next one tries again */
+      }
+    }
+    setTimeout(function () {
+      postFrames(run);
+    }, settings.frames);
+  }
+
+  // The part of the frame the decoder reads, in grey, one byte a pixel,
+  // at most FRAME_WIDTH across, as base64.
+  function greyFrame() {
+    var rect = cropRect();
+    var scale = Math.min(1, FRAME_WIDTH / rect.width);
+    var width = Math.max(1, Math.round(rect.width * scale));
+    var height = Math.max(1, Math.round(rect.height * scale));
+    frameCanvas = frameCanvas || document.createElement('canvas');
+    if (frameCanvas.width !== width || frameCanvas.height !== height) {
+      frameCanvas.width = width;
+      frameCanvas.height = height;
+    }
+    var context = frameCanvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(video, rect.x, rect.y, rect.width, rect.height,
+      0, 0, width, height);
+    var rgba = context.getImageData(0, 0, width, height).data;
+    var grey = new Uint8Array(width * height);
+    for (var i = 0, j = 0; j < grey.length; i += 4, j++) {
+      // ITU-R BT.601, as the native platforms' luminance.
+      grey[j] = (rgba[i] * 77 + rgba[i + 1] * 150 + rgba[i + 2] * 29) >> 8;
+    }
+    var text = '';
+    for (var k = 0; k < grey.length; k += 0x8000) {
+      text += String.fromCharCode.apply(null, grey.subarray(k, k + 0x8000));
+    }
+    return { width: width, height: height, data: btoa(text) };
   }
 
   // ---------------------------------------------------------------------
@@ -832,7 +906,9 @@
     }
     stopCamera();
     // Loaded while the camera opens.
-    decoderFor(settings.formats);
+    if (settings.formats !== 'none') {
+      decoderFor(settings.formats);
+    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showMessage({
         name: 'NotSupportedError',
@@ -974,6 +1050,7 @@
     settings.flipX = options.flipX === true || options.flipX === '1';
     settings.flipY = options.flipY === true || options.flipY === '1';
     settings.labels = readLabels(options.labels);
+    settings.frames = Math.max(0, parseInt(options.frames, 10) || 0);
     // Anything but an explicit no animates, as the Dart side defaults to.
     settings.animate = !(options.animate === false || options.animate === '0');
     document.documentElement.classList.toggle('ubs-animate', settings.animate);
@@ -1219,6 +1296,7 @@
       flipX: query.get('flipX'),
       flipY: query.get('flipY'),
       animate: query.get('animate'),
+      frames: query.get('frames'),
       labels: query.get('labels')
     });
     // The host holds its calls back until the page listens.

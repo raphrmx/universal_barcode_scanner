@@ -261,6 +261,8 @@ struct ScannerOptions {
   let hasWindow: Bool
   let scanFormat: String
   let delay: TimeInterval
+  /// Least time between two frames for Dart; zero for none.
+  let frameInterval: TimeInterval
   /// Scan window asked for by the embedded view, in points.
   let windowSize: CGSize?
 
@@ -277,6 +279,8 @@ struct ScannerOptions {
     scanFormat = arguments["scanFormat"] as? String ?? "ALL_FORMATS"
     let millis = (arguments["delayMillis"] as? NSNumber)?.doubleValue ?? 0
     delay = max(0, millis) / 1000.0
+    let frameMillis = (arguments["frameMillis"] as? NSNumber)?.doubleValue ?? 0
+    frameInterval = max(0, frameMillis) / 1000.0
 
     if let width = (arguments["scanWindowWidth"] as? NSNumber)?.doubleValue,
       let height = (arguments["scanWindowHeight"] as? NSNumber)?.doubleValue,

@@ -4,6 +4,7 @@ import 'dart:ui' show Color, Size;
 import 'package:flutter/foundation.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
+import 'package:universal_barcode_scanner/src/scan_frame.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 
@@ -28,6 +29,7 @@ class ScannerConfig {
     this.flipVertical = false,
     this.animate = true,
     this.labels = ScannerLabels.english,
+    this.frameInterval,
   });
 
   /// Colour of the scan line.
@@ -72,6 +74,9 @@ class ScannerConfig {
   /// The words the scanner shows or says.
   final ScannerLabels labels;
 
+  /// Least time between two frames handed to the app, or null for none.
+  final Duration? frameInterval;
+
   /// This configuration with what the buttons change as given.
   ScannerConfig copyWith({
     bool? flipHorizontal,
@@ -91,7 +96,15 @@ class ScannerConfig {
     flipVertical: flipVertical ?? this.flipVertical,
     animate: animate,
     labels: labels,
+    frameInterval: frameInterval,
   );
+
+  /// Milliseconds between two frames for the app, zero when it wants none.
+  int get frameMillis => switch (frameInterval) {
+    null => 0,
+    final Duration interval =>
+      interval.inMilliseconds < 1 ? 1 : interval.inMilliseconds,
+  };
 
   /// Milliseconds of [scanDelay], zero when there is none.
   int get delayMillis => scanDelay?.inMilliseconds ?? 0;
@@ -110,6 +123,8 @@ class ScannerConfig {
     'cameraFace': cameraFace.name,
     'scanFormat': scanFormat.wireName,
     'delayMillis': delayMillis,
+    // Only when asked for: a plugin from before frames sees what it knows.
+    if (frameMillis > 0) 'frameMillis': frameMillis,
   };
 
   /// Settings of the bundled page, read by its `configure` function on the
@@ -135,6 +150,7 @@ class ScannerConfig {
         'animate': animate ? '1' : '0',
         'labels': jsonEncode(labels.toPage(host: host)),
         'formats': formatsToPage(scanFormat),
+        if (frameMillis > 0) 'frames': '$frameMillis',
       };
 
   /// Settings of the bundled page run as an embedded view. The camera fills
@@ -155,6 +171,7 @@ class ScannerConfig {
     ScanFormat.all => 'all',
     ScanFormat.onlyQrCode => 'qr',
     ScanFormat.onlyBarcode => 'barcode',
+    ScanFormat.none => 'none',
   };
 
   /// What the page calls [face].
@@ -211,6 +228,23 @@ sealed class PageMessage {
         failed: decoded['failed'] as String?,
         message: decoded['message'] as String?,
       );
+    }
+    final Object? frame = decoded['frame'];
+    if (frame is Map) {
+      final Object? data = frame['data'];
+      if (data is! String) return null;
+      final Uint8List bytes;
+      try {
+        bytes = base64Decode(data);
+      } on FormatException {
+        return null;
+      }
+      final ScanFrame? read = ScanFrame.fromWire(<String, Object?>{
+        'width': frame['width'],
+        'height': frame['height'],
+        'bytes': bytes,
+      });
+      return read == null ? null : PageFrame(read);
     }
     final Object? code = decoded['code'];
     if (code is String && code.isNotEmpty) {
@@ -286,6 +320,15 @@ final class PageImage extends PageMessage {
 
   /// The browser's own words, for a log.
   final String? message;
+}
+
+/// A frame of the camera, for the app's `onFrame`.
+final class PageFrame extends PageMessage {
+  /// Wraps [frame].
+  const PageFrame(this.frame);
+
+  /// The frame.
+  final ScanFrame frame;
 }
 
 /// The page has loaded and taken its settings: it takes calls from now on.

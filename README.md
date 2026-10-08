@@ -294,6 +294,28 @@ give the widget a new key to change it. The flip, `continuous` and `validator` a
 they follow the widget, and the camera keeps running. The callbacks are always the current widget's, and none is
 called once the widget is gone.
 
+### Read the frames yourself
+
+`onFrame` hands the app the camera's frames, for it to read what is not a code: the machine
+readable zone of a passport or an identity card, say, with the MRZ scanner of
+[eid_icao](https://pub.dev/packages/eid_icao). Each `ScanFrame` holds the luminance under the scan
+window, one byte per pixel, and the quarter turns that stand it upright. Frames come at most every
+`frameInterval`, 200 ms by default, and none while the view is paused. With `ScanFormat.none` the
+view reads no code at all.
+
+```dart
+UniversalBarcodeScanner(
+  scanFormat: ScanFormat.none,
+  continuous: true,
+  onFrame: (ScanFrame frame) => reader.add(frame),
+  onCreated: (ScannerController controller) {},
+);
+```
+
+Android, iOS and macOS send the camera's own frames, at most 1280 pixels on their longest side;
+the web, Windows and Linux send the page's, at the same size. A view without `onFrame` asks for
+nothing more.
+
 ## Accept only some codes
 
 `validator` decides which codes count, on `scan`, `stream` and the embedded view. A code it refuses

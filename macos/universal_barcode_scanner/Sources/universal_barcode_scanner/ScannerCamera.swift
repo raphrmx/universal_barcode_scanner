@@ -15,6 +15,10 @@ final class ScannerCamera: NSObject {
   /// Called on the main thread once, when the first frame arrives.
   var onFirstFrame: (() -> Void)?
 
+  /// Called on the main thread with the luminance under the scan window, at
+  /// most every `frameInterval`, when frames were asked for.
+  var onFrame: ((LumaFrame) -> Void)?
+
   let session = AVCaptureSession()
   private let output = AVCaptureVideoDataOutput()
   private let frameQueue = DispatchQueue(
@@ -29,16 +33,24 @@ final class ScannerCamera: NSObject {
   private var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
   private var reading = true
   private var sawFrame = false
+  /// Where the frames for Dart are cut, origin at the top left.
+  private var frameRegion = CGRect(x: 0, y: 0, width: 1, height: 1)
+  private var lastFrame: CFTimeInterval = 0
   /// Built once: a request per frame was an allocation per frame.
   private let request: VNDetectBarcodesRequest
+  /// False for `NONE`: frames for Dart only, no code read.
+  private let readsCodes: Bool
+  private let frameInterval: TimeInterval
 
-  init(scanFormat: String) {
+  init(scanFormat: String, frameInterval: TimeInterval = 0) {
     let request = VNDetectBarcodesRequest()
     let wanted = ScannerCamera.symbologies(for: scanFormat)
     if !wanted.isEmpty {
       request.symbologies = wanted
     }
     self.request = request
+    readsCodes = scanFormat != "NONE"
+    self.frameInterval = frameInterval
     super.init()
   }
 
@@ -74,9 +86,13 @@ final class ScannerCamera: NSObject {
   func readInside(_ window: CGRect?, of preview: AVCaptureVideoPreviewLayer) {
     let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
     var region = whole
+    // What the preview shows, without a window.
+    var crop = preview.metadataOutputRectConverted(fromLayerRect: preview.bounds)
+      .intersection(whole)
     if let window = window, window.width > 0, window.height > 0 {
       let converted = preview.metadataOutputRectConverted(fromLayerRect: window)
       guard converted.width > 0, converted.height > 0 else { return }
+      crop = converted.intersection(whole)
       // Metadata space has its origin at the top left, Vision's at the bottom
       // left.
       region = CGRect(
@@ -87,7 +103,11 @@ final class ScannerCamera: NSObject {
       ).intersection(whole)
       guard !region.isEmpty else { return }
     }
-    frameQueue.async { [weak self] in self?.regionOfInterest = region }
+    if crop.isEmpty { crop = whole }
+    frameQueue.async { [weak self] in
+      self?.regionOfInterest = region
+      self?.frameRegion = crop
+    }
   }
 
   /// Runs on the session queue.
@@ -105,6 +125,13 @@ final class ScannerCamera: NSObject {
     session.addInput(input)
 
     output.alwaysDiscardsLateVideoFrames = true
+    if frameInterval > 0 {
+      // The luminance plane as it is, for Dart; Vision reads it as well.
+      output.videoSettings = [
+        kCVPixelBufferPixelFormatTypeKey as String:
+          kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+      ]
+    }
     output.setSampleBufferDelegate(self, queue: frameQueue)
     guard session.canAddOutput(output) else { return false }
     session.addOutput(output)
@@ -142,6 +169,8 @@ extension ScannerCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
       DispatchQueue.main.async { [weak self] in self?.onFirstFrame?() }
     }
     guard reading, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+    sendFrame(buffer)
+    guard readsCodes else { return }
 
     request.regionOfInterest = regionOfInterest
     let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
@@ -155,6 +184,18 @@ extension ScannerCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
     }
     guard !codes.isEmpty else { return }
     DispatchQueue.main.async { [weak self] in self?.onCodes?(codes) }
+  }
+}
+
+extension ScannerCamera {
+  /// Frame queue only.
+  private func sendFrame(_ buffer: CVPixelBuffer) {
+    let now = CACurrentMediaTime()
+    guard frameInterval > 0, now - lastFrame >= frameInterval,
+      let frame = LumaFrame(buffer, region: frameRegion)
+    else { return }
+    lastFrame = now
+    DispatchQueue.main.async { [weak self] in self?.onFrame?(frame) }
   }
 }
 

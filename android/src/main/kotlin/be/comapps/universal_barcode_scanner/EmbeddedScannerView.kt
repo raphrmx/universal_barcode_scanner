@@ -109,6 +109,13 @@ internal class EmbeddedScannerView(
     @Volatile
     private var detecting = true
 
+    /** When the last frame went to Dart, on the analysis thread. */
+    private var lastFrameAt = 0L
+
+    /** Whether a frame is on its way to Dart: one at a time, the rest dropped. */
+    @Volatile
+    private var frameInFlight = false
+
     /** Whether the bound camera faces the user, whose preview is mirrored. */
     @Volatile
     private var mirrored = false
@@ -183,7 +190,10 @@ internal class EmbeddedScannerView(
     }
 
     private fun startCamera() {
-        scanner = BarcodeScanning.getClient(options.mlKitOptions())
+        // With no code to read, ML Kit is not even loaded: frames only.
+        if (options.readsCodes) {
+            scanner = BarcodeScanning.getClient(options.mlKitOptions())
+        }
         analysisExecutor = Executors.newSingleThreadExecutor()
 
         host.addHostListener(hostListener)
@@ -238,6 +248,7 @@ internal class EmbeddedScannerView(
 
     @OptIn(markerClass = [ExperimentalGetImage::class])
     private fun analyse(proxy: ImageProxy) {
+        if (detecting && options.frameMillis > 0) sendFrame(proxy)
         // Read once: dispose may clear the field from the main thread.
         val current = scanner
         val image = proxy.image
@@ -282,6 +293,105 @@ internal class EmbeddedScannerView(
                 return
             }
         }
+    }
+
+    /**
+     * Hands Dart the luminance under the scan window, at most every
+     * `frameMillis`, as it comes from the sensor: [MAX_FRAME] pixels along
+     * its longer side at most, with the quarter turns that stand it upright.
+     */
+    private fun sendFrame(proxy: ImageProxy) {
+        val now = SystemClock.elapsedRealtime()
+        if (frameInFlight || now - lastFrameAt < options.frameMillis) return
+        if (viewWidth == 0 || viewHeight == 0) return
+        val rotation = proxy.imageInfo.rotationDegrees
+        val crop = frameCrop(rotation, proxy.width, proxy.height)
+        if (crop.width() <= 0 || crop.height() <= 0) return
+
+        val plane = proxy.planes[0]
+        val buffer = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val step = maxOf(1, (maxOf(crop.width(), crop.height()) + MAX_FRAME - 1) / MAX_FRAME)
+        val width = crop.width() / step
+        val height = crop.height() / step
+        if (width <= 0 || height <= 0) return
+        val bytes = ByteArray(width * height)
+        for (y in 0 until height) {
+            val row = (crop.top + y * step) * rowStride + crop.left * pixelStride
+            if (step == 1 && pixelStride == 1) {
+                buffer.position(row)
+                buffer.get(bytes, y * width, width)
+            } else {
+                for (x in 0 until width) {
+                    bytes[y * width + x] = buffer.get(row + x * step * pixelStride)
+                }
+            }
+        }
+        lastFrameAt = now
+        frameInFlight = true
+        val frame = mapOf(
+            "width" to width,
+            "height" to height,
+            "bytes" to bytes,
+            "quarterTurns" to rotation / 90,
+        )
+        main.post {
+            frameInFlight = false
+            if (!disposed && detecting) methodChannel.invokeMethod("onFrame", frame)
+        }
+    }
+
+    /**
+     * The scan window in the frame as the sensor gives it, before [rotation]:
+     * the inverse of [mapToView], then of the turn. The whole frame without a
+     * window.
+     */
+    private fun frameCrop(rotation: Int, frameWidth: Int, frameHeight: Int): Rect {
+        val whole = Rect(0, 0, frameWidth, frameHeight)
+        if (!options.hasWindow) return whole
+        val window = scanOverlay.copyWindow()
+        if (window.isEmpty) return whole
+
+        val swapped = rotation == 90 || rotation == 270
+        val imageWidth = (if (swapped) frameHeight else frameWidth).toFloat()
+        val imageHeight = (if (swapped) frameWidth else frameHeight).toFloat()
+        val scale = maxOf(viewWidth / imageWidth, viewHeight / imageHeight)
+        val offsetX = (viewWidth - imageWidth * scale) / 2f
+        val offsetY = (viewHeight - imageHeight * scale) / 2f
+
+        // The window in the upright frame.
+        var left = (window.left - offsetX) / scale
+        var right = (window.right - offsetX) / scale
+        if (mirrored) {
+            left = imageWidth - left
+            right = imageWidth - right
+        }
+        val top = (window.top - offsetY) / scale
+        val bottom = (window.bottom - offsetY) / scale
+
+        // Each corner back into the sensor's frame.
+        val xs = FloatArray(4)
+        val ys = FloatArray(4)
+        val us = floatArrayOf(left, right, right, left)
+        val vs = floatArrayOf(top, top, bottom, bottom)
+        for (i in 0 until 4) {
+            val u = us[i]
+            val v = vs[i]
+            when (rotation) {
+                90 -> { xs[i] = v; ys[i] = frameHeight - u }
+                180 -> { xs[i] = frameWidth - u; ys[i] = frameHeight - v }
+                270 -> { xs[i] = frameWidth - v; ys[i] = u }
+                else -> { xs[i] = u; ys[i] = v }
+            }
+        }
+        val crop = Rect(
+            xs.min().toInt().coerceIn(0, frameWidth),
+            ys.min().toInt().coerceIn(0, frameHeight),
+            xs.max().toInt().coerceIn(0, frameWidth),
+            ys.max().toInt().coerceIn(0, frameHeight),
+        )
+        return if (crop.isEmpty) whole else crop
     }
 
     /**
@@ -383,6 +493,9 @@ internal class EmbeddedScannerView(
 
     private companion object {
         const val TAG = "EmbeddedScannerView"
+
+        /** Longest side of a frame handed to Dart, in pixels. */
+        const val MAX_FRAME = 1280
 
         fun matchParent() = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

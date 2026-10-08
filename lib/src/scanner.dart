@@ -6,6 +6,7 @@ import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/enums.dart';
 import 'package:universal_barcode_scanner/src/platform/shared.dart';
 import 'package:universal_barcode_scanner/src/scan_feedback.dart';
+import 'package:universal_barcode_scanner/src/scan_frame.dart';
 import 'package:universal_barcode_scanner/src/scan_result.dart';
 import 'package:universal_barcode_scanner/src/scanner_bar.dart';
 import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
@@ -63,6 +64,8 @@ class UniversalBarcodeScanner extends StatefulWidget {
     this.beep = false,
     this.buttonStyle = const ScannerButtonStyle(),
     this.validator,
+    this.onFrame,
+    this.frameInterval = kDefaultFrameInterval,
   });
 
   /// Called once the view exists, with the controller that drives it. On
@@ -159,6 +162,21 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// Changing it, null included, applies at once, without restarting the
   /// camera.
   final ScanValidator? validator;
+
+  /// Called with the frames of the camera, in grey, as the scan window shows
+  /// them: for an app that reads the picture itself, such as the machine
+  /// readable zone of a passport. Null, the default, sends none.
+  ///
+  /// On every platform: the camera's own luminance on Android, iOS and
+  /// macOS, the pixels of the page on the web, Windows and Linux. A frame
+  /// comes at most every [frameInterval], none while reading is paused.
+  /// With [ScanFormat.none], no code is read at all. Read when the view is
+  /// created: give the widget a new key to start or stop the frames.
+  final ValueChanged<ScanFrame>? onFrame;
+
+  /// Least time between two frames handed to [onFrame]: five a second by
+  /// default, enough to read text and light on a phone's battery.
+  final Duration frameInterval;
 
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
@@ -432,10 +450,12 @@ class UniversalBarcodeScanner extends StatefulWidget {
   static Future<List<ScanResult>> scanImage(
     List<int> bytes, {
     ScanFormat scanFormat = ScanFormat.all,
-  }) => readImage(
-    bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
-    scanFormat,
-  );
+  }) => scanFormat == ScanFormat.none
+      ? Future<List<ScanResult>>.value(const <ScanResult>[])
+      : readImage(
+          bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+          scanFormat,
+        );
 
   /// One code, or null when the user backs out.
   static Future<ScanResult?> _scanOnce(
@@ -600,7 +620,9 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
     controller.isPaused.addListener(_onPaused);
     _holding = false;
     _buttons.controller = controller;
-    controller.onResult = _onResult;
+    controller
+      ..onResult = _onResult
+      ..onFrame = _onFrame;
     widget.onCreated(controller);
   }
 
@@ -608,6 +630,9 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
   void _onPaused() {
     if (!(_controller?.isPaused.value ?? true)) _holding = false;
   }
+
+  /// Every frame goes to the current widget's [UniversalBarcodeScanner.onFrame].
+  void _onFrame(ScanFrame frame) => widget.onFrame?.call(frame);
 
   /// Every code the view reads comes here, `onScanned` included, so the
   /// validator sees each one first.
@@ -648,6 +673,7 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
         flipVertical: _buttons.flipVertical,
         animate: UniversalBarcodeScanner._animates(context, widget.animate),
         labels: widget.labels,
+        frameInterval: widget.onFrame == null ? null : widget.frameInterval,
       ),
       scanWindowSize: widget.scanWindowSize,
       onError: widget.onError,

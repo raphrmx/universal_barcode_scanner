@@ -24,13 +24,19 @@ internal data class ScanOptions(
     val scanWindow: String,
     /** `back` or `front`. */
     val cameraFace: String,
-    /** `ALL_FORMATS`, `ONLY_QR_CODE` or `ONLY_BARCODE`. */
+    /** `ALL_FORMATS`, `ONLY_QR_CODE`, `ONLY_BARCODE` or `NONE`. */
     val scanFormat: String,
     val delayMillis: Int,
     /** Size of the scan window asked for, in logical pixels; zero for the default. */
     val scanWindowWidth: Double = 0.0,
     val scanWindowHeight: Double = 0.0,
+    /** Least milliseconds between two frames for Dart; zero for none. */
+    val frameMillis: Int = 0,
 ) {
+
+    /** Whether codes are read at all: `NONE` only hands frames to Dart. */
+    val readsCodes: Boolean
+        get() = scanFormat != "NONE"
 
     /** Whether the scan window is square, for QR codes, rather than wide. */
     val squareWindow: Boolean
@@ -108,6 +114,7 @@ internal data class ScanOptions(
             delayMillis = ((map?.get("delayMillis") as? Number)?.toInt() ?: 0).coerceAtLeast(0),
             scanWindowWidth = optionalDouble(map, "scanWindowWidth"),
             scanWindowHeight = optionalDouble(map, "scanWindowHeight"),
+            frameMillis = ((map?.get("frameMillis") as? Number)?.toInt() ?: 0).coerceAtLeast(0),
         )
 
         fun fromIntent(intent: Intent): ScanOptions = ScanOptions(
