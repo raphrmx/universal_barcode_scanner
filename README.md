@@ -110,7 +110,7 @@ And the camera entitlement in **both** `macos/Runner/DebugProfile.entitlements` 
 <true/>
 ```
 
-Requires macOS 10.15 or later.
+Requires macOS 11 or later, as `webview_all` does since 1.5.
 
 ### Web
 

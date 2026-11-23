@@ -1,4 +1,7 @@
 import 'package:example/main.dart';
+// Material moved to package:material_ui in Flutter 3.47, which that package
+// requires: the old library stays while Flutter 3.35 is supported.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

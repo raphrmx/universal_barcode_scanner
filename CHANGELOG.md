@@ -1,5 +1,16 @@
 # Universal Barcode Scanner Versions
 
+## 2.3.1
+
+### Changed
+
+- The README says the package needs macOS 11 or later: `webview_all`, a
+  dependency, requires it since 1.5, and an app below it no longer builds.
+- The example builds with Flutter 3.50, which refuses older Android
+  toolchains: Gradle 9.5.0, the Android Gradle Plugin 9.3.1 and Kotlin
+  2.4.20, with Java 17. It targets macOS 11. Nothing about the library
+  changed.
+
 ## 2.3.0
 
 ### Added

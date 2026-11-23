@@ -3,6 +3,9 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+// Material moved to package:material_ui in Flutter 3.47, which that package
+// requires: the old library stays while Flutter 3.35 is supported.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
