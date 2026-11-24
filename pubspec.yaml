@@ -46,7 +46,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_plugin_android_lifecycle: ^2.0.35
-  web: ^1.1.2
+  web: ^1.1.1
   webview_all: ^1.5.2
 
 dev_dependencies:

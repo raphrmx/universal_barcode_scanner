@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Update dependencies web to 1.1.2 and webview_all to 1.5.2
+- Update dependency webview_all to 1.5.2
 
 ## 2.3.1
 
