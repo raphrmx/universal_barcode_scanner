@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 /// The shape of a tone's wave.
-enum ToneWave {
+enum ToneWave() {
   /// Soft and pure.
   sine,
 
@@ -14,14 +14,14 @@ enum ToneWave {
 /// A short tone, played once at each of [starts]: what a code read or
 /// refused sounds like where the package makes the sound itself, in a
 /// browser and on Windows.
-final class Tone {
-  const Tone({
-    required this.hertz,
-    required this.wave,
-    required this.volume,
-    required this.starts,
-  });
+final class const Tone({
+  required final double hertz,
+  required final ToneWave wave,
+  required final double volume,
 
+  /// When each beep starts, in seconds.
+  required final List<double> starts,
+}) {
   /// The code read: one high, soft beep.
   static const Tone accepted = Tone(
     hertz: 1800,
@@ -46,13 +46,6 @@ final class Tone {
 
   /// Where the fade ends, from [volume].
   static const double floor = 0.001;
-
-  final double hertz;
-  final ToneWave wave;
-  final double volume;
-
-  /// When each beep starts, in seconds.
-  final List<double> starts;
 
   /// The tone as a 16-bit mono WAV file.
   Uint8List toWav({int rate = 22050}) {

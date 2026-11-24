@@ -38,120 +38,93 @@ import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 /// handed on: the scanner says so over the camera and reads on.
 typedef ScanValidator = bool Function(ScanResult result);
 
-class UniversalBarcodeScanner extends StatefulWidget {
-  /// Creates an embedded scanner view.
-  const UniversalBarcodeScanner({
-    super.key,
-    required this.onCreated,
-    this.onScanned,
-    this.onResult,
-    this.onError,
-    this.scanWindowSize,
-    this.lineColor = kDefaultLineColor,
-    this.scanWindow = ScanWindow.wide,
-    this.cameraFace = CameraFace.back,
-    this.scanFormat = ScanFormat.all,
-    this.scanDelay,
-    this.child,
-    this.continuous = false,
-    this.flip,
-    this.flipVertical = false,
-    this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.centerRight,
-    this.animate = true,
-    this.labels = ScannerLabels.english,
-    this.vibrate = false,
-    this.beep = false,
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.validator,
-    this.onFrame,
-    this.frameInterval = kDefaultFrameInterval,
-  });
+class const UniversalBarcodeScanner({
+  super.key,
 
   /// Called once the view exists, with the controller that drives it. On
   /// Android, iOS and macOS a camera switched by [ScannerButton.switchCamera]
   /// is a new native view, so this is called again with its controller.
-  final ScannerCreatedCallback onCreated;
+  required final ScannerCreatedCallback onCreated,
 
   /// Called with every code read.
-  final ValueChanged<String>? onScanned;
+  final ValueChanged<String>? onScanned,
 
   /// Called with every code read, with the symbology it was printed in.
-  final ValueChanged<ScanResult>? onResult;
+  final ValueChanged<ScanResult>? onResult,
 
   /// Called when the camera cannot be used, for instance when the user
   /// refuses it. On the web, Windows and Linux the view also says so itself.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Size of the scan window in logical pixels. A code is only read when it
   /// sits entirely inside it. Null picks one from the view and [scanWindow];
   /// ignored with [ScanWindow.none].
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Colour of the scan line.
-  final Color lineColor;
+  final Color lineColor = kDefaultLineColor,
 
   /// Shape of the scan window: square for QR codes, wide for barcodes, or
   /// none to read the whole view with nothing drawn over it.
-  final ScanWindow scanWindow;
+  final ScanWindow scanWindow = ScanWindow.wide,
 
   /// Which camera to open.
-  final CameraFace cameraFace;
+  final CameraFace cameraFace = CameraFace.back,
 
   /// Symbologies to accept.
-  final ScanFormat scanFormat;
+  final ScanFormat scanFormat = ScanFormat.all,
 
   /// Least time between two codes when [continuous].
-  final Duration? scanDelay;
+  final Duration? scanDelay,
 
   /// Drawn over the camera, for instance a manual entry field.
-  final Widget? child;
+  final Widget? child,
 
   /// Whether reading continues after the first code. When false, the view
   /// pauses on the first code until `ScannerController.resumeScanning`.
   /// Changing it applies at once, without restarting the camera.
-  final bool continuous;
+  final bool continuous = false,
 
   /// Whether the camera is shown mirrored left to right. Null mirrors it
   /// where the camera is a webcam facing the user, as [flipsByDefault] says.
   /// Only the picture turns: codes read the same.
   ///
   /// It can change while the view runs: the camera keeps going.
-  final bool? flip;
+  final bool? flip,
 
   /// Whether the camera is shown upside down, for a camera mounted that way.
-  final bool flipVertical;
+  final bool flipVertical = false,
 
   /// Buttons drawn over the camera, on every platform: the torch, pausing,
   /// and each flip. None by default.
   ///
   /// They drive the view as its controller would, and the flips start from
   /// [flip] and [flipVertical].
-  final Set<ScannerButton> buttons;
+  final Set<ScannerButton> buttons = const <ScannerButton>{},
 
   /// Where [buttons] sit over the camera. Along the side when centred on the
   /// left or the right, across otherwise.
-  final AlignmentGeometry buttonsAlignment;
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
 
   /// Whether the camera turns over when flipped, and fades in when it starts
   /// on the web, Windows and Linux, rather than changing at once. Off anyway
   /// when the platform asks for reduced motion.
-  final bool animate;
+  final bool animate = true,
 
   /// The words of the buttons, for screen readers, and of the page the web,
   /// Windows and Linux view writes when the camera will not start. English
   /// by default; [ScannerLabels.french], [ScannerLabels.dutch] and
   /// [ScannerLabels.german] are ready to use.
-  final ScannerLabels labels;
+  final ScannerLabels labels = ScannerLabels.english,
 
   /// Whether the phone vibrates for each code read, where it can.
-  final bool vibrate;
+  final bool vibrate = false,
 
   /// Whether a short beep sounds for each code read.
-  final bool beep;
+  final bool beep = false,
 
   /// How [buttons] look: their size, colours and shape.
-  final ScannerButtonStyle buttonStyle;
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
 
   /// Decides which codes count. A code it refuses reaches neither
   /// [onScanned] nor [onResult]: the view shows `ScannerLabels.rejected` over
@@ -161,7 +134,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
   ///
   /// Changing it, null included, applies at once, without restarting the
   /// camera.
-  final ScanValidator? validator;
+  final ScanValidator? validator,
 
   /// Called with the frames of the camera, in grey, as the scan window shows
   /// them: for an app that reads the picture itself, such as the machine
@@ -172,11 +145,14 @@ class UniversalBarcodeScanner extends StatefulWidget {
   /// comes at most every [frameInterval], none while reading is paused.
   /// With [ScanFormat.none], no code is read at all. Read when the view is
   /// created: give the widget a new key to start or stop the frames.
-  final ValueChanged<ScanFrame>? onFrame;
+  final ValueChanged<ScanFrame>? onFrame,
 
   /// Least time between two frames handed to [onFrame]: five a second by
   /// default, enough to read text and light on a phone's battery.
-  final Duration frameInterval;
+  final Duration frameInterval = kDefaultFrameInterval,
+}) extends StatefulWidget {
+  /// Creates an embedded scanner view.
+  this;
 
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
@@ -527,19 +503,17 @@ class UniversalBarcodeScanner extends StatefulWidget {
   }
 
   static Route<T> _route<T>(Widget page) => PageRouteBuilder<T>(
-    transitionsBuilder:
-        (
-          BuildContext context,
-          Animation<double> animation,
-          Animation<double> secondary,
-          Widget child,
-        ) => FadeTransition(opacity: animation, child: child),
-    pageBuilder:
-        (
-          BuildContext context,
-          Animation<double> animation,
-          Animation<double> secondary,
-        ) => page,
+    transitionsBuilder: (
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondary,
+      Widget child,
+    ) => FadeTransition(opacity: animation, child: child),
+    pageBuilder: (
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondary,
+    ) => page,
   );
 
   /// Takes [route] off the stack, whether or not it is still on top. Does
@@ -567,7 +541,7 @@ class UniversalBarcodeScanner extends StatefulWidget {
       _UniversalBarcodeScannerState();
 }
 
-class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
+class _UniversalBarcodeScannerState() extends State<UniversalBarcodeScanner> {
   late final ScannerButtons _buttons = ScannerButtons(
     flipHorizontal: widget.flip ?? UniversalBarcodeScanner.flipsByDefault,
     flipVertical: widget.flipVertical,
@@ -706,53 +680,29 @@ class _UniversalBarcodeScannerState extends State<UniversalBarcodeScanner> {
 
 /// What `scan`, `scanResult`, `stream` and `resultStream` are given, for the
 /// page they all open.
-class _Options {
-  const _Options({
-    required this.lineColor,
-    required this.showTorchButton,
-    required this.scanWindow,
-    required this.scanWindowSize,
-    required this.cameraFace,
-    required this.scanFormat,
-    required this.bar,
-    required this.flip,
-    required this.flipVertical,
-    required this.child,
-    required this.backgroundColor,
-    required this.buttons,
-    required this.buttonsAlignment,
-    required this.animate,
-    required this.labels,
-    required this.vibrate,
-    required this.beep,
-    required this.buttonStyle,
-    this.cancelLabel,
-    this.scanDelay,
-    this.validator,
-  });
-
-  final Color lineColor;
-  final String? cancelLabel;
-  final bool showTorchButton;
-  final ScanWindow scanWindow;
-  final Size? scanWindowSize;
-  final CameraFace cameraFace;
-  final ScanFormat scanFormat;
-  final ScannerBar? bar;
-  final Duration? scanDelay;
-  final bool? flip;
-  final bool flipVertical;
-  final Widget? child;
-  final Color? backgroundColor;
-  final Set<ScannerButton> buttons;
-  final AlignmentGeometry buttonsAlignment;
-  final bool animate;
-  final ScannerLabels labels;
-  final bool vibrate;
-  final bool beep;
-  final ScannerButtonStyle buttonStyle;
-  final ScanValidator? validator;
-
+class const _Options({
+  required final Color lineColor,
+  required final bool showTorchButton,
+  required final ScanWindow scanWindow,
+  required final Size? scanWindowSize,
+  required final CameraFace cameraFace,
+  required final ScanFormat scanFormat,
+  required final ScannerBar? bar,
+  required final bool? flip,
+  required final bool flipVertical,
+  required final Widget? child,
+  required final Color? backgroundColor,
+  required final Set<ScannerButton> buttons,
+  required final AlignmentGeometry buttonsAlignment,
+  required final bool animate,
+  required final ScannerLabels labels,
+  required final bool vibrate,
+  required final bool beep,
+  required final ScannerButtonStyle buttonStyle,
+  final String? cancelLabel,
+  final Duration? scanDelay,
+  final ScanValidator? validator,
+}) {
   /// The page, reading on after each code when [continuous] or when a
   /// [validator] has to see every code until one is accepted.
   ScannerPage page(

@@ -13,55 +13,44 @@ import 'package:universal_barcode_scanner/src/scanner_verdict.dart';
 ///
 /// Nothing reaches this in practice; it exists so the conditional export in
 /// `shared.dart` always has a default.
-class ScannerPage extends StatelessWidget {
-  /// Creates the fallback page.
-  const ScannerPage({
-    super.key,
-    required this.config,
-    required this.onScanned,
-    required this.onClose,
-    this.onError,
-    this.child,
-    this.bar,
-    this.backgroundColor,
-    this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.centerRight,
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.verdicts,
-  });
+class const ScannerPage({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called with every code read.
-  final ValueChanged<ScanResult> onScanned;
+  required final ValueChanged<ScanResult> onScanned,
 
   /// Called when the scanner closes without a code.
-  final VoidCallback onClose;
+  required final VoidCallback onClose,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Drawn over the scanner.
-  final Widget? child;
+  final Widget? child,
 
   /// App bar shown above the scanner, or null for none.
-  final ScannerBar? bar;
-
-  /// The buttons over the camera, on Windows and Linux.
-  final Set<ScannerButton> buttons;
-
-  /// Where [buttons] sit.
-  final AlignmentGeometry buttonsAlignment;
-
-  /// How the buttons look.
-  final ScannerButtonStyle buttonStyle;
-
-  /// The verdict on each code read, each one shown over the camera.
-  final ScanVerdicts? verdicts;
+  final ScannerBar? bar,
 
   /// Colour behind the camera.
-  final Color? backgroundColor;
+  final Color? backgroundColor,
+
+  /// The buttons over the camera, on Windows and Linux.
+  final Set<ScannerButton> buttons = const <ScannerButton>{},
+
+  /// Where [buttons] sit.
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+
+  /// How the buttons look.
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts,
+}) extends StatelessWidget {
+  /// Creates the fallback page.
+  this;
 
   @override
   Widget build(BuildContext context) =>
@@ -69,35 +58,29 @@ class ScannerPage extends StatelessWidget {
 }
 
 /// Fallback embedded view.
-class EmbeddedScanner extends StatelessWidget {
-  /// Creates the fallback view.
-  const EmbeddedScanner({
-    super.key,
-    required this.config,
-    required this.onCreated,
-    this.onScanned,
-    this.onError,
-    this.scanWindowSize,
-    this.child,
-  });
+class const EmbeddedScanner({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called once the view exists.
-  final ScannerCreatedCallback onCreated;
+  required final ScannerCreatedCallback onCreated,
 
   /// Called with every code read.
-  final ValueChanged<String>? onScanned;
+  final ValueChanged<String>? onScanned,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Size of the scan window.
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Drawn over the camera.
-  final Widget? child;
+  final Widget? child,
+}) extends StatelessWidget {
+  /// Creates the fallback view.
+  this;
 
   @override
   Widget build(BuildContext context) =>

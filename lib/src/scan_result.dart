@@ -2,7 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:universal_barcode_scanner/src/scan_content.dart';
 
 /// The symbology of a code read.
-enum BarcodeFormat {
+enum BarcodeFormat(
+  /// The name every platform reports it under, as the web's BarcodeDetector
+  /// names it.
+  final String wireName,
+) {
   aztec('aztec'),
   codabar('codabar'),
   code39('code_39'),
@@ -19,12 +23,6 @@ enum BarcodeFormat {
 
   /// A symbology this list does not name, or a platform that did not say.
   unknown('unknown');
-
-  const BarcodeFormat(this.wireName);
-
-  /// The name every platform reports it under, as the web's BarcodeDetector
-  /// names it.
-  final String wireName;
 
   /// The format named [wire], [unknown] for a name not on the list.
   static BarcodeFormat fromWire(Object? wire) {
@@ -43,15 +41,15 @@ enum BarcodeFormat {
 
 /// A code read: its text, and the symbology it was printed in.
 @immutable
-class ScanResult {
-  /// A code of [format] reading [text].
-  const ScanResult(this.text, {this.format = BarcodeFormat.unknown});
-
+class const ScanResult(
   /// What the code says.
-  final String text;
+  final String text, {
 
   /// How it was printed.
-  final BarcodeFormat format;
+  final BarcodeFormat format = BarcodeFormat.unknown,
+}) {
+  /// A code of [format] reading [text].
+  this;
 
   /// What [text] means where it follows a format phones know: a link, a Wi-Fi
   /// network, a contact, an e-mail, a phone number, a text message, a place or

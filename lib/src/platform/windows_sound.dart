@@ -6,7 +6,7 @@ import 'package:universal_barcode_scanner/src/tones.dart';
 /// Plays the package's own tones on Windows, where Flutter plays only the
 /// system's alert sound, through `PlaySound` of `winmm.dll`. No package:
 /// `dart:ffi` reaches it directly.
-abstract final class WindowsSound {
+abstract final class WindowsSound() {
   static const int _sndAsync = 0x0001;
   static const int _sndNoDefault = 0x0002;
   static const int _sndMemory = 0x0004;

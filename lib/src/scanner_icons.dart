@@ -3,19 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 /// An icon drawn in a square of any size, in one colour.
-abstract class ScannerIcon {
-  const ScannerIcon();
-
+abstract class const ScannerIcon() {
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke);
 }
 
 /// Paints a [ScannerIcon] in [color]: its fills solid, its lines round-ended.
-class ScannerIconPainter extends CustomPainter {
-  const ScannerIconPainter(this.icon, this.color);
-
-  final ScannerIcon icon;
-  final Color color;
-
+class const ScannerIconPainter(final ScannerIcon icon, final Color color)
+    extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     icon.paint(
@@ -37,9 +31,7 @@ class ScannerIconPainter extends CustomPainter {
 }
 
 /// A lightning bolt.
-class BoltIcon extends ScannerIcon {
-  const BoltIcon();
-
+class const BoltIcon() extends ScannerIcon {
   @override
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
     final double w = size.width;
@@ -59,11 +51,7 @@ class BoltIcon extends ScannerIcon {
 }
 
 /// Two bars, or a play triangle once paused.
-class PausePlayIcon extends ScannerIcon {
-  const PausePlayIcon({required this.paused});
-
-  final bool paused;
-
+class const PausePlayIcon({required final bool paused}) extends ScannerIcon {
   @override
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
     final double w = size.width;
@@ -101,11 +89,7 @@ class PausePlayIcon extends ScannerIcon {
 
 /// Two arrows going opposite ways, one above the other: ⇄ for the
 /// horizontal flip, and turned a quarter, ⇅, for the vertical one.
-class FlipIcon extends ScannerIcon {
-  const FlipIcon({required this.vertical});
-
-  final bool vertical;
-
+class const FlipIcon({required final bool vertical}) extends ScannerIcon {
   @override
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
     final double w = size.width;
@@ -160,9 +144,7 @@ class FlipIcon extends ScannerIcon {
 }
 
 /// A camera with two arrows going round inside it.
-class SwitchCameraIcon extends ScannerIcon {
-  const SwitchCameraIcon();
-
+class const SwitchCameraIcon() extends ScannerIcon {
   @override
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
     final double w = size.width;
@@ -236,11 +218,7 @@ class SwitchCameraIcon extends ScannerIcon {
 }
 
 /// The zoom as a figure, `1×`, `2×`: what the camera shows now.
-class ZoomIcon extends ScannerIcon {
-  const ZoomIcon(this.zoom);
-
-  final double zoom;
-
+class const ZoomIcon(final double zoom) extends ScannerIcon {
   @override
   void paint(Canvas canvas, Size size, Paint fill, Paint stroke) {
     final double rounded = (zoom * 10).roundToDouble() / 10;

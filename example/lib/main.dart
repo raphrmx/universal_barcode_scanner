@@ -3,11 +3,8 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-// Material moved to package:material_ui in Flutter 3.47, which that package
-// requires: the old library stays while Flutter 3.35 is supported.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 import 'check_in.dart';
@@ -39,9 +36,9 @@ const ScannerBar _appBar = ScannerBar(
 );
 
 /// The three ways to use the scanner: one shot, continuous, embedded.
-class ExampleApp extends StatelessWidget {
+class const ExampleApp({super.key}) extends StatelessWidget {
   /// Creates the example app.
-  const ExampleApp({super.key});
+  this;
 
   @override
   Widget build(BuildContext context) {
@@ -64,15 +61,15 @@ class ExampleApp extends StatelessWidget {
 }
 
 /// Menu of the three modes, showing what each one returns.
-class HomePage extends StatefulWidget {
+class const HomePage({super.key}) extends StatefulWidget {
   /// Creates the menu.
-  const HomePage({super.key});
+  this;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState() extends State<HomePage> {
   StreamSubscription<ScanResult>? _stream;
 
   /// What the last read gave: one code from the camera, every code of an
@@ -117,34 +114,34 @@ class _HomePageState extends State<HomePage> {
 
   static final List<(String, ScanValidator?)> _accepts =
       <(String, ScanValidator?)>[
-    ('Any code', null),
-    ('Links only', (ScanResult code) => code.content is UrlContent),
-    (
-      'Products only',
-      (ScanResult code) =>
-          code.format == BarcodeFormat.ean13 ||
-          code.format == BarcodeFormat.ean8 ||
-          code.format == BarcodeFormat.upcA ||
-          code.format == BarcodeFormat.upcE,
-    ),
-  ];
+        ('Any code', null),
+        ('Links only', (ScanResult code) => code.content is UrlContent),
+        (
+          'Products only',
+          (ScanResult code) =>
+              code.format == BarcodeFormat.ean13 ||
+              code.format == BarcodeFormat.ean8 ||
+              code.format == BarcodeFormat.upcA ||
+              code.format == BarcodeFormat.upcE,
+        ),
+      ];
 
   static const List<(String, ScannerButtonStyle)> _styles =
       <(String, ScannerButtonStyle)>[
-    ('Round', ScannerButtonStyle()),
-    (
-      'Square',
-      ScannerButtonStyle(
-        backgroundColor: Color(0xCCFFFFFF),
-        foregroundColor: Color(0xFF0E1014),
-        activeBackgroundColor: _accent,
-        activeForegroundColor: Color(0xFFFFFFFF),
-        focusColor: _accent,
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
-    ),
-    ('Large', ScannerButtonStyle(size: 56, iconSize: 26, spacing: 10)),
-  ];
+        ('Round', ScannerButtonStyle()),
+        (
+          'Square',
+          ScannerButtonStyle(
+            backgroundColor: Color(0xCCFFFFFF),
+            foregroundColor: Color(0xFF0E1014),
+            activeBackgroundColor: _accent,
+            activeForegroundColor: Color(0xFFFFFFFF),
+            focusColor: _accent,
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+        ),
+        ('Large', ScannerButtonStyle(size: 56, iconSize: 26, spacing: 10)),
+      ];
 
   @override
   void dispose() {
@@ -251,23 +248,24 @@ class _HomePageState extends State<HomePage> {
     await _stream?.cancel();
     await _closeEmbedded();
     if (!mounted) return;
-    _stream = UniversalBarcodeScanner.resultStream(
-      context,
-      bar: _appBar,
-      scanDelay: const Duration(seconds: 2),
-      buttons: _allButtons,
-      buttonsAlignment: _buttonsAt,
-      labels: _labels,
-      buttonStyle: _style,
-      vibrate: true,
-      beep: true,
-      validator: _accept,
-    ).listen(
-      (ScanResult result) => _found(result, 'continuous'),
-      onError: (Object error) {
-        if (error is ScannerException) _failed(error);
-      },
-    );
+    _stream =
+        UniversalBarcodeScanner.resultStream(
+          context,
+          bar: _appBar,
+          scanDelay: const Duration(seconds: 2),
+          buttons: _allButtons,
+          buttonsAlignment: _buttonsAt,
+          labels: _labels,
+          buttonStyle: _style,
+          vibrate: true,
+          beep: true,
+          validator: _accept,
+        ).listen(
+          (ScanResult result) => _found(result, 'continuous'),
+          onError: (Object error) {
+            if (error is ScannerException) _failed(error);
+          },
+        );
   }
 
   void _failed(ScannerException error) {
@@ -365,11 +363,11 @@ class _HomePageState extends State<HomePage> {
                   children: <Widget>[
                     for (final (String label, Alignment at)
                         in const <(String, Alignment)>[
-                      ('Right side', Alignment.centerRight),
-                      ('Top right', Alignment.topRight),
-                      ('Top left', Alignment.topLeft),
-                      ('Bottom', Alignment.bottomCenter),
-                    ])
+                          ('Right side', Alignment.centerRight),
+                          ('Top right', Alignment.topRight),
+                          ('Top left', Alignment.topLeft),
+                          ('Bottom', Alignment.bottomCenter),
+                        ])
                       ChoiceChip(
                         label: Text(label),
                         selected: _buttonsAt == at,
@@ -396,11 +394,11 @@ class _HomePageState extends State<HomePage> {
                   children: <Widget>[
                     for (final (String label, ScannerLabels labels)
                         in const <(String, ScannerLabels)>[
-                      ('English', ScannerLabels.english),
-                      ('Français', ScannerLabels.french),
-                      ('Nederlands', ScannerLabels.dutch),
-                      ('Deutsch', ScannerLabels.german),
-                    ])
+                          ('English', ScannerLabels.english),
+                          ('Français', ScannerLabels.french),
+                          ('Nederlands', ScannerLabels.dutch),
+                          ('Deutsch', ScannerLabels.german),
+                        ])
                       ChoiceChip(
                         label: Text(label),
                         selected: identical(_labels, labels),
@@ -426,7 +424,8 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 22),
                 _Mode(
                   title: 'Embedded view',
-                  body: 'Puts the camera inside your own layout, here the tile '
+                  body:
+                      'Puts the camera inside your own layout, here the tile '
                       'above, with buttons for the torch, pausing and '
                       'flipping.',
                   action: 'Open',
@@ -443,7 +442,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _Mode(
                   title: 'Scan continuously',
-                  body: 'Stays open and reports every code as it comes, two '
+                  body:
+                      'Stays open and reports every code as it comes, two '
                       'seconds apart. A Stream<String> that closes with the '
                       'route.',
                   action: 'Open',
@@ -451,7 +451,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _Mode(
                   title: 'Read an image',
-                  body: 'Reads every code in a picture, says what each one '
+                  body:
+                      'Reads every code in a picture, says what each one '
                       'holds and which ones the Accept row refuses. Pick one '
                       'of yours, or try one of these:',
                   action: 'Pick',
@@ -483,9 +484,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 /// The way into [CheckInDemo]: the package at work in an app of its own.
-class _ShowcaseEntry extends StatelessWidget {
-  const _ShowcaseEntry();
-
+class const _ShowcaseEntry() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -509,8 +508,11 @@ class _ShowcaseEntry extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(20, 18, 16, 18),
             child: Row(
               children: <Widget>[
-                Icon(Icons.confirmation_number_outlined,
-                    size: 34, color: Colors.white),
+                Icon(
+                  Icons.confirmation_number_outlined,
+                  size: 34,
+                  color: Colors.white,
+                ),
                 SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -549,16 +551,14 @@ class _ShowcaseEntry extends StatelessWidget {
 }
 
 /// What the last scan returned, or what to do to get one.
-class _Result extends StatelessWidget {
-  const _Result({
-    required this.results,
-    required this.accept,
-    required this.mode,
-    required this.count,
-    this.camera,
-    this.controls = const <Widget>[],
-  });
-
+class const _Result({
+  required this.results,
+  required this.accept,
+  required this.mode,
+  required this.count,
+  this.camera,
+  this.controls = const <Widget>[],
+}) extends StatelessWidget {
   /// The codes of the last read: one from the camera, any number from an
   /// image.
   final List<ScanResult> results;
@@ -588,17 +588,17 @@ class _Result extends StatelessWidget {
     final Widget? camera = this.camera;
     final String heading = !found
         ? emptyImage
-            ? 'NO CODE IN THE IMAGE'
-            : 'NOTHING SCANNED YET'
+              ? 'NO CODE IN THE IMAGE'
+              : 'NOTHING SCANNED YET'
         : allRefused
-            ? results.length > 1
-                ? 'REFUSED, $mode, ${results.length} CODES'
-                : 'REFUSED, $mode'
-            : results.length > 1
-                ? 'SCANNED, $mode, ${results.length} CODES'
-                : results.single.format == BarcodeFormat.unknown
-                    ? 'SCANNED, $mode'
-                    : 'SCANNED, $mode, ${_formatLabel(results.single.format)}';
+        ? results.length > 1
+              ? 'REFUSED, $mode, ${results.length} CODES'
+              : 'REFUSED, $mode'
+        : results.length > 1
+        ? 'SCANNED, $mode, ${results.length} CODES'
+        : results.single.format == BarcodeFormat.unknown
+        ? 'SCANNED, $mode'
+        : 'SCANNED, $mode, ${_formatLabel(results.single.format)}';
 
     return Container(
       width: double.infinity,
@@ -607,8 +607,8 @@ class _Result extends StatelessWidget {
         color: !found
             ? _white
             : allRefused
-                ? const Color(0xFFFCEDEC)
-                : const Color(0xFFEAF5EF),
+            ? const Color(0xFFFCEDEC)
+            : const Color(0xFFEAF5EF),
         border: Border.all(color: found ? tone : _line),
         borderRadius: BorderRadius.circular(16),
         boxShadow: _shadow,
@@ -622,8 +622,8 @@ class _Result extends StatelessWidget {
                 !found
                     ? Icons.qr_code_scanner
                     : allRefused
-                        ? Icons.block
-                        : Icons.check_circle,
+                    ? Icons.block
+                    : Icons.check_circle,
                 size: 17,
                 color: found ? tone : _dim,
               ),
@@ -662,17 +662,13 @@ class _Result extends StatelessWidget {
               emptyImage
                   ? 'The image holds no code this platform reads.'
                   : camera == null
-                      ? 'Pick a mode below and point the camera at a barcode.'
-                      : 'Point the camera at a barcode.',
+                  ? 'Pick a mode below and point the camera at a barcode.'
+                  : 'Point the camera at a barcode.',
               style: const TextStyle(fontSize: 14.5, height: 1.4, color: _dim),
             ),
           ],
           for (final (int i, ScanResult result) in results.indexed)
-            _Code(
-              result,
-              withFormat: results.length > 1,
-              refused: refused[i],
-            ),
+            _Code(result, withFormat: results.length > 1, refused: refused[i]),
           if (controls.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
             // Compact, so the three fit on one line of a phone.
@@ -697,13 +693,11 @@ class _Result extends StatelessWidget {
 
 /// One code read: its text, and what it holds where the text follows a
 /// format a phone knows.
-class _Code extends StatelessWidget {
-  const _Code(
-    this.result, {
-    required this.withFormat,
-    required this.refused,
-  });
-
+class const _Code(
+  this.result, {
+  required this.withFormat,
+  required this.refused,
+}) extends StatelessWidget {
   final ScanResult result;
 
   /// Whether the Accept row refused it.
@@ -778,27 +772,25 @@ class _Code extends StatelessWidget {
 
 /// What a code holds, in words, or null for plain text.
 String? _describe(ScanContent? content) => switch (content) {
-      UrlContent(:final Uri url) => 'A link to ${url.host}',
-      WifiContent(:final String ssid, :final WifiSecurity security) =>
-        'A Wi-Fi network, $ssid, '
-            '${security == WifiSecurity.open ? 'open' : security.name.toUpperCase()}',
-      ContactContent(:final String? name, :final String? organization) =>
-        'A contact, ${name ?? organization ?? 'with no name'}',
-      EmailContent(:final String address) => 'An e-mail to $address',
-      PhoneContent(:final String number) => 'A phone number, $number',
-      SmsContent(:final String number) => 'A text message to $number',
-      GeoContent(:final double latitude, :final double longitude) =>
-        'A place, $latitude, $longitude',
-      EventContent(:final String? summary) =>
-        'An event, ${summary ?? 'untitled'}',
-      null => null,
-    };
+  UrlContent(:final Uri url) => 'A link to ${url.host}',
+  WifiContent(:final String ssid, :final WifiSecurity security) =>
+    'A Wi-Fi network, $ssid, '
+        '${security == WifiSecurity.open ? 'open' : security.name.toUpperCase()}',
+  ContactContent(:final String? name, :final String? organization) =>
+    'A contact, ${name ?? organization ?? 'with no name'}',
+  EmailContent(:final String address) => 'An e-mail to $address',
+  PhoneContent(:final String number) => 'A phone number, $number',
+  SmsContent(:final String number) => 'A text message to $number',
+  GeoContent(:final double latitude, :final double longitude) =>
+    'A place, $latitude, $longitude',
+  EventContent(:final String? summary) => 'An event, ${summary ?? 'untitled'}',
+  null => null,
+};
 
 /// A row of choices after its label. The labels share one width, so every
 /// row of choices starts at the same place.
-class _Options extends StatelessWidget {
-  const _Options({required this.label, required this.children});
-
+class const _Options({required this.label, required this.children})
+    extends StatelessWidget {
   final String label;
   final List<Widget> children;
 
@@ -818,24 +810,20 @@ class _Options extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
-          child: Wrap(spacing: 8, runSpacing: 8, children: children),
-        ),
+        Expanded(child: Wrap(spacing: 8, runSpacing: 8, children: children)),
       ],
     );
   }
 }
 
 /// One of the ways in, with what it gives back.
-class _Mode extends StatelessWidget {
-  const _Mode({
-    required this.title,
-    required this.body,
-    required this.action,
-    required this.onPressed,
-    this.footer,
-  });
-
+class const _Mode({
+  required this.title,
+  required this.body,
+  required this.action,
+  required this.onPressed,
+  this.footer,
+}) extends StatelessWidget {
   final String title;
   final String body;
   final String action;
@@ -911,9 +899,7 @@ class _Mode extends StatelessWidget {
 }
 
 /// What a browser needs before any of this works.
-class _Note extends StatelessWidget {
-  const _Note();
-
+class const _Note() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb) return const SizedBox.shrink();
@@ -932,18 +918,18 @@ class _Note extends StatelessWidget {
 
 /// How a symbology is usually written.
 String _formatLabel(BarcodeFormat format) => switch (format) {
-      BarcodeFormat.aztec => 'Aztec',
-      BarcodeFormat.codabar => 'Codabar',
-      BarcodeFormat.code39 => 'Code 39',
-      BarcodeFormat.code93 => 'Code 93',
-      BarcodeFormat.code128 => 'Code 128',
-      BarcodeFormat.dataMatrix => 'Data Matrix',
-      BarcodeFormat.ean8 => 'EAN-8',
-      BarcodeFormat.ean13 => 'EAN-13',
-      BarcodeFormat.itf => 'ITF',
-      BarcodeFormat.pdf417 => 'PDF417',
-      BarcodeFormat.qrCode => 'QR code',
-      BarcodeFormat.upcA => 'UPC-A',
-      BarcodeFormat.upcE => 'UPC-E',
-      BarcodeFormat.unknown => '',
-    };
+  BarcodeFormat.aztec => 'Aztec',
+  BarcodeFormat.codabar => 'Codabar',
+  BarcodeFormat.code39 => 'Code 39',
+  BarcodeFormat.code93 => 'Code 93',
+  BarcodeFormat.code128 => 'Code 128',
+  BarcodeFormat.dataMatrix => 'Data Matrix',
+  BarcodeFormat.ean8 => 'EAN-8',
+  BarcodeFormat.ean13 => 'EAN-13',
+  BarcodeFormat.itf => 'ITF',
+  BarcodeFormat.pdf417 => 'PDF417',
+  BarcodeFormat.qrCode => 'QR code',
+  BarcodeFormat.upcA => 'UPC-A',
+  BarcodeFormat.upcE => 'UPC-E',
+  BarcodeFormat.unknown => '',
+};

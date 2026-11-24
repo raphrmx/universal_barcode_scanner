@@ -84,62 +84,51 @@ bool get _hasWebviewScanner => switch (defaultTargetPlatform) {
 ///
 /// Android, iOS and macOS go through their native scanner, which covers this
 /// page; Windows and Linux through a webview running the bundled scanner page.
-class ScannerPage extends StatefulWidget {
-  /// Creates the scanner page.
-  const ScannerPage({
-    super.key,
-    required this.config,
-    required this.onScanned,
-    required this.onClose,
-    this.onError,
-    this.child,
-    this.bar,
-    this.backgroundColor,
-    this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.centerRight,
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.verdicts,
-  });
+class const ScannerPage({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called with every code read.
-  final ValueChanged<ScanResult> onScanned;
+  required final ValueChanged<ScanResult> onScanned,
 
   /// Called when the scanner closes without a code: the user backed out, or a
   /// continuous scan ended.
-  final VoidCallback onClose;
+  required final VoidCallback onClose,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Drawn over the webview scanner.
-  final Widget? child;
+  final Widget? child,
 
   /// App bar above the webview scanner, or null for none.
-  final ScannerBar? bar;
-
-  /// The buttons over the camera, on Windows and Linux.
-  final Set<ScannerButton> buttons;
-
-  /// Where [buttons] sit.
-  final AlignmentGeometry buttonsAlignment;
-
-  /// How the buttons look.
-  final ScannerButtonStyle buttonStyle;
-
-  /// The verdict on each code read, each one shown over the camera.
-  final ScanVerdicts? verdicts;
+  final ScannerBar? bar,
 
   /// Colour behind the camera. Black when null.
-  final Color? backgroundColor;
+  final Color? backgroundColor,
+
+  /// The buttons over the camera, on Windows and Linux.
+  final Set<ScannerButton> buttons = const <ScannerButton>{},
+
+  /// Where [buttons] sit.
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
+
+  /// How the buttons look.
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
+
+  /// The verdict on each code read, each one shown over the camera.
+  final ScanVerdicts? verdicts,
+}) extends StatefulWidget {
+  /// Creates the scanner page.
+  this;
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
+class _ScannerPageState() extends State<ScannerPage> {
   /// Tags every call and event of this page's scan, so that a late close or
   /// event from it never reaches the next scanner.
   final int _session = NativeScanner.newSession();
@@ -289,14 +278,13 @@ class _ScannerPageState extends State<ScannerPage> {
 
 /// Shown for the moment between this route appearing and the native scanner
 /// covering it.
-class _Spinner extends StatefulWidget {
-  const _Spinner();
-
+class const _Spinner() extends StatefulWidget {
   @override
   State<_Spinner> createState() => _SpinnerState();
 }
 
-class _SpinnerState extends State<_Spinner>
+class _SpinnerState()
+    extends State<_Spinner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _turn = AnimationController(
     vsync: this,
@@ -316,7 +304,7 @@ class _SpinnerState extends State<_Spinner>
   );
 }
 
-class _Arc extends CustomPainter {
+class _Arc() extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
@@ -339,41 +327,36 @@ class _Arc extends CustomPainter {
 /// What to scan is read once, when the view is created: give the widget a
 /// new key to apply a different configuration. The callbacks are always the
 /// current widget's.
-class EmbeddedScanner extends StatefulWidget {
-  /// Creates the embedded view.
-  const EmbeddedScanner({
-    super.key,
-    required this.config,
-    required this.onCreated,
-    this.onScanned,
-    this.onError,
-    this.scanWindowSize,
-    this.child,
-  });
+class const EmbeddedScanner({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called once the view exists.
-  final ScannerCreatedCallback onCreated;
+  required final ScannerCreatedCallback onCreated,
 
   /// Called with every code read.
-  final ValueChanged<String>? onScanned;
+  final ValueChanged<String>? onScanned,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Size of the scan window in logical pixels, or null for a default.
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Drawn over the camera.
-  final Widget? child;
+  final Widget? child,
+}) extends StatefulWidget {
+  /// Creates the embedded view.
+  this;
 
   @override
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
 
-class _EmbeddedScannerState extends State<EmbeddedScanner>
+class _EmbeddedScannerState()
+    extends State<EmbeddedScanner>
     with SingleTickerProviderStateMixin {
   static const String _viewType = 'universal_barcode_scanner/view';
 

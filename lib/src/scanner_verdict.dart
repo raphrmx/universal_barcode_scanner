@@ -5,7 +5,7 @@ import 'package:universal_barcode_scanner/src/scan_feedback.dart';
 
 /// The verdict on each code read, for [ScannerVerdict] to show: each call is
 /// one code.
-final class ScanVerdicts extends ChangeNotifier {
+final class ScanVerdicts() extends ChangeNotifier {
   /// Whether the last code was accepted.
   bool get lastAccepted => _lastAccepted;
   bool _lastAccepted = false;
@@ -32,26 +32,25 @@ final class ScanVerdicts extends ChangeNotifier {
 /// Drawn over the camera by the web, Windows and Linux pages and by the
 /// embedded view; the native screens of Android, iOS and macOS say a refusal
 /// themselves.
-class ScannerVerdict extends StatefulWidget {
-  /// Shows each verdict of [verdicts].
-  const ScannerVerdict({
-    super.key,
-    required this.verdicts,
-    required this.rejectedLabel,
-  });
+class const ScannerVerdict({
+  super.key,
 
   /// The verdict on each code read.
-  final ScanVerdicts verdicts;
+  required final ScanVerdicts verdicts,
 
   /// What is shown and read out for a code refused, or empty for the red
   /// edge alone.
-  final String rejectedLabel;
+  required final String rejectedLabel,
+}) extends StatefulWidget {
+  /// Shows each verdict of [verdicts].
+  this;
 
   @override
   State<ScannerVerdict> createState() => _ScannerVerdictState();
 }
 
-class _ScannerVerdictState extends State<ScannerVerdict>
+class _ScannerVerdictState()
+    extends State<ScannerVerdict>
     with SingleTickerProviderStateMixin {
   static const Color _red = Color(0xFFE5484D);
   static const Color _green = Color(0xFF30C46C);
@@ -164,11 +163,7 @@ class _ScannerVerdictState extends State<ScannerVerdict>
 
 /// The words, as a phone says a short thing: a small dark capsule, a mark
 /// and the text.
-class _Toast extends StatelessWidget {
-  const _Toast(this.label);
-
-  final String label;
-
+class const _Toast(final String label) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
@@ -212,9 +207,7 @@ class _Toast extends StatelessWidget {
 }
 
 /// A red disc with a white bar across: not this one.
-class _RefusedMark extends CustomPainter {
-  const _RefusedMark();
-
+class const _RefusedMark() extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Offset centre = size.center(Offset.zero);

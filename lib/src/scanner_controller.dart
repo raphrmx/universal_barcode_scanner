@@ -12,9 +12,9 @@ typedef ScannerCreatedCallback = void Function(ScannerController controller);
 ///
 /// The widget creates one and hands it to `onCreated` once the scanner is up.
 /// Every platform has its own implementation behind this interface.
-abstract class ScannerController {
+abstract class ScannerController() {
   /// For the implementations of each platform.
-  ScannerController();
+  this;
 
   bool _disposed = false;
 
@@ -130,17 +130,17 @@ abstract class ScannerController {
 
 /// The controller of an Android, iOS or macOS view: one channel per view,
 /// keyed on the view id.
-final class ChannelScannerController extends ScannerController {
+final class ChannelScannerController(int id, {final bool _continuous = true})
+    extends ScannerController {
   /// Binds to the platform view with the given [id]. A view that is not
-  /// [continuous] pauses on its first code.
-  ChannelScannerController(int id, {bool continuous = true})
-    : _continuous = continuous,
-      _channel = MethodChannel('universal_barcode_scanner/view_$id') {
+  /// `continuous` pauses on its first code.
+  this {
     _channel.setMethodCallHandler(_handleMethodCall);
   }
 
-  final MethodChannel _channel;
-  final bool _continuous;
+  final MethodChannel _channel = MethodChannel(
+    'universal_barcode_scanner/view_$id',
+  );
 
   /// Called once the view's camera shows its first frame.
   VoidCallback? onCameraStarted;

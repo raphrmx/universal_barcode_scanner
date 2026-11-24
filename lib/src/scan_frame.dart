@@ -15,22 +15,32 @@ import 'package:flutter/foundation.dart';
 /// );
 /// ```
 @immutable
-class ScanFrame {
+class const ScanFrame({
+  /// The width, as the bytes run.
+  required final int width,
+
+  /// The height, as the bytes run.
+  required final int height,
+
+  /// The luminance, [width] bytes a row, [height] rows.
+  required final Uint8List bytes,
+
+  /// The quarter turns clockwise that stand the frame the way the user sees
+  /// it, from 0 to 3.
+  final int quarterTurns = 0,
+}) {
   /// A frame of [width] by [height] pixels in [bytes], one byte each.
-  const ScanFrame({
-    required this.width,
-    required this.height,
-    required this.bytes,
-    this.quarterTurns = 0,
-  });
+  this;
 
   /// A frame as a platform sends it, or null when it is malformed.
   static ScanFrame? fromWire(Object? data) {
-    if (data case {
-      'width': final int width,
-      'height': final int height,
-      'bytes': final Uint8List bytes,
-    } when width > 0 && height > 0 && bytes.length >= width * height) {
+    if (data
+        case {
+          'width': final int width,
+          'height': final int height,
+          'bytes': final Uint8List bytes,
+        }
+        when width > 0 && height > 0 && bytes.length >= width * height) {
       final Object? turns = data['quarterTurns'];
       return ScanFrame(
         width: width,
@@ -41,19 +51,6 @@ class ScanFrame {
     }
     return null;
   }
-
-  /// The width, as the bytes run.
-  final int width;
-
-  /// The height, as the bytes run.
-  final int height;
-
-  /// The luminance, [width] bytes a row, [height] rows.
-  final Uint8List bytes;
-
-  /// The quarter turns clockwise that stand the frame the way the user sees
-  /// it, from 0 to 3.
-  final int quarterTurns;
 
   @override
   String toString() => 'ScanFrame(${width}x$height, $quarterTurns turns)';

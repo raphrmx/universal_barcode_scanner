@@ -143,61 +143,50 @@ void _play(Tone tone) {
 }
 
 /// Barcode scanner for web, running the bundled page in an iframe.
-class ScannerPage extends StatefulWidget {
-  /// Creates the web scanner page.
-  const ScannerPage({
-    super.key,
-    required this.config,
-    required this.onScanned,
-    required this.onClose,
-    this.onError,
-    this.child,
-    this.bar,
-    this.backgroundColor,
-    this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.centerRight,
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.verdicts,
-  });
+class const ScannerPage({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called with every code read.
-  final ValueChanged<ScanResult> onScanned;
+  required final ValueChanged<ScanResult> onScanned,
 
   /// Called by the back button.
-  final VoidCallback onClose;
+  required final VoidCallback onClose,
 
   /// Unused on web: the page says itself why the camera did not start.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Drawn over the scanner.
-  final Widget? child;
+  final Widget? child,
 
   /// App bar shown above the scanner, or null for none.
-  final ScannerBar? bar;
+  final ScannerBar? bar,
 
   /// Colour behind the camera. Black when null.
-  final Color? backgroundColor;
+  final Color? backgroundColor,
 
   /// The buttons over the camera.
-  final Set<ScannerButton> buttons;
+  final Set<ScannerButton> buttons = const <ScannerButton>{},
 
   /// Where [buttons] sit.
-  final AlignmentGeometry buttonsAlignment;
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
 
   /// How the buttons look.
-  final ScannerButtonStyle buttonStyle;
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
 
   /// The verdict on each code read, each one shown over the camera.
-  final ScanVerdicts? verdicts;
+  final ScanVerdicts? verdicts,
+}) extends StatefulWidget {
+  /// Creates the web scanner page.
+  this;
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
+class _ScannerPageState() extends State<ScannerPage> {
   /// The frame, once Flutter has created it.
   html.HTMLIFrameElement? _iframe;
 
@@ -341,41 +330,35 @@ class _ScannerPageState extends State<ScannerPage> {
 /// What to scan is read once, when the frame is created: give the widget a
 /// new key to apply a different configuration. The flip follows the widget,
 /// and the callbacks are always the current widget's.
-class EmbeddedScanner extends StatefulWidget {
-  /// Creates the web embedded view.
-  const EmbeddedScanner({
-    super.key,
-    required this.config,
-    required this.onCreated,
-    this.onScanned,
-    this.onError,
-    this.scanWindowSize,
-    this.child,
-  });
+class const EmbeddedScanner({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called once the view exists.
-  final ScannerCreatedCallback onCreated;
+  required final ScannerCreatedCallback onCreated,
 
   /// Called with every code read.
-  final ValueChanged<String>? onScanned;
+  final ValueChanged<String>? onScanned,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Size of the scan window.
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Drawn over the camera.
-  final Widget? child;
+  final Widget? child,
+}) extends StatefulWidget {
+  /// Creates the web embedded view.
+  this;
 
   @override
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
 
-class _EmbeddedScannerState extends State<EmbeddedScanner> {
+class _EmbeddedScannerState() extends State<EmbeddedScanner> {
   /// What the page is asked to show.
   late final PageLink _link = PageLink(_call, widget.config);
 

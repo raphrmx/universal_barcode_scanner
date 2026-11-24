@@ -9,43 +9,63 @@ import 'package:flutter/foundation.dart';
 /// piece by piece with [copyWith]. The native scanners of Android, iOS and
 /// macOS draw their own words, except for `ScannerBar.cancelLabel`.
 @immutable
-class ScannerLabels {
+class const ScannerLabels({
+  /// The close button over the camera, when there is no bar.
+  final String close = 'Close',
+
+  /// The buttons over the camera.
+  final String torch = 'Torch',
+  final String pause = 'Pause',
+  final String resume = 'Resume',
+  final String flipHorizontal = 'Flip horizontally',
+  final String flipVertical = 'Flip vertically',
+  final String switchCamera = 'Switch camera',
+  final String zoom = 'Zoom',
+
+  /// Shown, and read out, when a code is read but the `validator` refuses
+  /// it. Empty for no words, the red edge alone.
+  final String rejected = 'Code not accepted',
+
+  /// The camera refused: the title, then what to do in a browser and in a
+  /// desktop application.
+  final String cameraBlocked = 'Camera blocked',
+  final String cameraBlockedWeb =
+      'The page needs permission to use the camera. Allow it in the '
+      'address bar, then reload.',
+  final String cameraBlockedDesktop =
+      'Allow this application to use the camera in the system settings, '
+      'then open the scanner again.',
+
+  /// No camera at all.
+  final String noCamera = 'No camera found',
+  final String noCameraWeb =
+      'This device has no camera the browser can open. Try it on a phone.',
+  final String noCameraDesktop =
+      'This computer has no camera the scanner can open.',
+
+  /// The camera held by another application.
+  final String cameraBusy = 'Camera busy',
+  final String cameraBusyWeb =
+      'Another application is using it. Close that one and reload.',
+  final String cameraBusyDesktop =
+      'Another application is using it. Close that one and open the '
+      'scanner again.',
+
+  /// A page served over plain HTTP, where a browser opens no camera.
+  final String insecureOrigin = 'Not a secure origin',
+  final String insecureOriginDetail =
+      'A browser only opens the camera over HTTPS or on localhost.',
+
+  /// Any other failure, and what is said when the browser gave no reason.
+  final String cameraFailed = 'The camera did not start',
+  final String noReason = 'No reason was given.',
+
+  /// The decoder could not be loaded.
+  final String decoderFailed = 'The scanner did not load',
+  final String decoderFailedDetail = 'The decoder could not be started.',
+}) {
   /// English, or the words given.
-  const ScannerLabels({
-    this.close = 'Close',
-    this.torch = 'Torch',
-    this.pause = 'Pause',
-    this.resume = 'Resume',
-    this.flipHorizontal = 'Flip horizontally',
-    this.flipVertical = 'Flip vertically',
-    this.switchCamera = 'Switch camera',
-    this.zoom = 'Zoom',
-    this.rejected = 'Code not accepted',
-    this.cameraBlocked = 'Camera blocked',
-    this.cameraBlockedWeb =
-        'The page needs permission to use the camera. Allow it in the '
-        'address bar, then reload.',
-    this.cameraBlockedDesktop =
-        'Allow this application to use the camera in the system settings, '
-        'then open the scanner again.',
-    this.noCamera = 'No camera found',
-    this.noCameraWeb =
-        'This device has no camera the browser can open. Try it on a phone.',
-    this.noCameraDesktop = 'This computer has no camera the scanner can open.',
-    this.cameraBusy = 'Camera busy',
-    this.cameraBusyWeb =
-        'Another application is using it. Close that one and reload.',
-    this.cameraBusyDesktop =
-        'Another application is using it. Close that one and open the '
-        'scanner again.',
-    this.insecureOrigin = 'Not a secure origin',
-    this.insecureOriginDetail =
-        'A browser only opens the camera over HTTPS or on localhost.',
-    this.cameraFailed = 'The camera did not start',
-    this.noReason = 'No reason was given.',
-    this.decoderFailed = 'The scanner did not load',
-    this.decoderFailedDetail = 'The decoder could not be started.',
-  });
+  this;
 
   /// English, the default.
   static const ScannerLabels english = ScannerLabels();
@@ -165,50 +185,6 @@ class ScannerLabels {
     decoderFailedDetail: 'Der Decoder konnte nicht starten.',
     rejected: 'Code abgelehnt',
   );
-
-  /// The close button over the camera, when there is no bar.
-  final String close;
-
-  /// The buttons over the camera.
-  final String torch;
-  final String pause;
-  final String resume;
-  final String flipHorizontal;
-  final String flipVertical;
-  final String switchCamera;
-  final String zoom;
-
-  /// Shown, and read out, when a code is read but the `validator` refuses
-  /// it. Empty for no words, the red edge alone.
-  final String rejected;
-
-  /// The camera refused: the title, then what to do in a browser and in a
-  /// desktop application.
-  final String cameraBlocked;
-  final String cameraBlockedWeb;
-  final String cameraBlockedDesktop;
-
-  /// No camera at all.
-  final String noCamera;
-  final String noCameraWeb;
-  final String noCameraDesktop;
-
-  /// The camera held by another application.
-  final String cameraBusy;
-  final String cameraBusyWeb;
-  final String cameraBusyDesktop;
-
-  /// A page served over plain HTTP, where a browser opens no camera.
-  final String insecureOrigin;
-  final String insecureOriginDetail;
-
-  /// Any other failure, and what is said when the browser gave no reason.
-  final String cameraFailed;
-  final String noReason;
-
-  /// The decoder could not be loaded.
-  final String decoderFailed;
-  final String decoderFailedDetail;
 
   /// These labels with the ones given changed.
   ScannerLabels copyWith({

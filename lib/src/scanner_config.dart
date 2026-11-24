@@ -13,69 +13,54 @@ import 'package:universal_barcode_scanner/src/scanner_labels.dart';
 /// What only concerns the Flutter side, such as the app bar or the widget
 /// drawn over the camera, stays on the page.
 @immutable
-class ScannerConfig {
-  /// Creates a configuration.
-  const ScannerConfig({
-    this.lineColor = kDefaultLineColor,
-    this.cancelLabel = 'Cancel',
-    this.showTorchButton = false,
-    this.scanWindow = ScanWindow.wide,
-    this.scanWindowSize,
-    this.cameraFace = CameraFace.back,
-    this.scanFormat = ScanFormat.all,
-    this.scanDelay,
-    this.continuous = false,
-    this.flipHorizontal = false,
-    this.flipVertical = false,
-    this.animate = true,
-    this.labels = ScannerLabels.english,
-    this.frameInterval,
-  });
-
+class const ScannerConfig({
   /// Colour of the scan line.
-  final Color lineColor;
+  final Color lineColor = kDefaultLineColor,
 
   /// Label of the cancel button on the native scanners.
-  final String cancelLabel;
+  final String cancelLabel = 'Cancel',
 
   /// Whether the native scanners show a torch toggle.
-  final bool showTorchButton;
+  final bool showTorchButton = false,
 
   /// Shape of the scan window: square for QR codes, wide for barcodes.
-  final ScanWindow scanWindow;
+  final ScanWindow scanWindow = ScanWindow.wide,
 
   /// Size of the scan window in logical pixels, or null for one picked from
   /// the view and [scanWindow].
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Which camera to open.
-  final CameraFace cameraFace;
+  final CameraFace cameraFace = CameraFace.back,
 
   /// Symbologies to accept.
-  final ScanFormat scanFormat;
+  final ScanFormat scanFormat = ScanFormat.all,
 
   /// Least time between two codes in continuous mode.
-  final Duration? scanDelay;
+  final Duration? scanDelay,
 
   /// Whether reading continues after the first code.
-  final bool continuous;
+  final bool continuous = false,
 
   /// Whether the camera is shown mirrored left to right, as a webcam facing
   /// the user usually is. Only the picture turns: codes read the same.
-  final bool flipHorizontal;
+  final bool flipHorizontal = false,
 
   /// Whether the camera is shown upside down.
-  final bool flipVertical;
+  final bool flipVertical = false,
 
   /// Whether the camera fades in when it starts and turns over when it is
   /// flipped, rather than appearing and flipping at once.
-  final bool animate;
+  final bool animate = true,
 
   /// The words the scanner shows or says.
-  final ScannerLabels labels;
+  final ScannerLabels labels = ScannerLabels.english,
 
   /// Least time between two frames handed to the app, or null for none.
-  final Duration? frameInterval;
+  final Duration? frameInterval,
+}) {
+  /// Creates a configuration.
+  this;
 
   /// This configuration with what the buttons change as given.
   ScannerConfig copyWith({
@@ -197,9 +182,7 @@ class ScannerConfig {
 ///
 /// The page posts JSON rather than the bare code, so that no code can be
 /// mistaken for a command.
-sealed class PageMessage {
-  const PageMessage();
-
+sealed class const PageMessage() {
   /// Reads what the page posted, or null when it is not one of its messages.
   static PageMessage? parse(Object? data) {
     if (data is! String || data.isEmpty) return null;
@@ -218,10 +201,12 @@ sealed class PageMessage {
         codes is List
             ? <ScanResult>[
                 for (final Object? found in codes)
-                  if (found case {
-                    'code': final String code,
-                    'format': final Object? format,
-                  } when code.isNotEmpty)
+                  if (found
+                      case {
+                        'code': final String code,
+                        'format': final Object? format,
+                      }
+                      when code.isNotEmpty)
                     ScanResult(code, format: BarcodeFormat.fromWire(format)),
               ]
             : null,
@@ -265,83 +250,83 @@ sealed class PageMessage {
 }
 
 /// A code the page read.
-final class PageCode extends PageMessage {
-  /// Wraps [code], printed in [format].
-  const PageCode(this.code, {this.format = BarcodeFormat.unknown});
-
+final class const PageCode(
   /// The payload.
-  final String code;
+  final String code, {
 
   /// Its symbology.
-  final BarcodeFormat format;
+  final BarcodeFormat format = BarcodeFormat.unknown,
+}) extends PageMessage {
+  /// Wraps [code], printed in [format].
+  this;
 }
 
 /// The zoom the camera applied, in answer to `setZoom`.
-final class PageZoom extends PageMessage {
-  /// Wraps the zoom applied.
-  const PageZoom(this.zoom);
-
+final class const PageZoom(
   /// `1` for none.
-  final double zoom;
+  final double zoom,
+) extends PageMessage {
+  /// Wraps the zoom applied.
+  this;
 }
 
 /// The user asked the page to close, with the Escape key.
-final class PageClose extends PageMessage {
+final class const PageClose() extends PageMessage {
   /// Creates the message.
-  const PageClose();
+  this;
 }
 
 /// The camera did not start. [code] is one of the wire names of
 /// `ScannerErrorCode`.
-final class PageError extends PageMessage {
-  /// Wraps an error.
-  const PageError(this.code, this.message);
-
+final class const PageError(
   /// What went wrong.
-  final String code;
+  final String code,
 
   /// The browser's own words, for a log.
-  final String? message;
+  final String? message,
+) extends PageMessage {
+  /// Wraps an error.
+  this;
 }
 
 /// The codes the page read in an image, or why it could not.
-final class PageImage extends PageMessage {
-  /// The answer to the image [id].
-  const PageImage(this.id, this.results, {this.failed, this.message});
-
+final class const PageImage(
   /// The request it answers.
-  final int id;
+  final int id,
 
   /// Every code read, null when the page [failed].
-  final List<ScanResult>? results;
+  final List<ScanResult>? results, {
 
   /// One of the wire names of `ScannerErrorCode`.
-  final String? failed;
+  final String? failed,
 
   /// The browser's own words, for a log.
-  final String? message;
+  final String? message,
+}) extends PageMessage {
+  /// The answer to the image [id].
+  this;
 }
 
 /// A frame of the camera, for the app's `onFrame`.
-final class PageFrame extends PageMessage {
-  /// Wraps [frame].
-  const PageFrame(this.frame);
-
+final class const PageFrame(
   /// The frame.
-  final ScanFrame frame;
+  final ScanFrame frame,
+) extends PageMessage {
+  /// Wraps [frame].
+  this;
 }
 
 /// The page has loaded and taken its settings: it takes calls from now on.
-final class PageReady extends PageMessage {
+final class const PageReady() extends PageMessage {
   /// Creates the message.
-  const PageReady();
+  this;
 }
 
 /// The torch was toggled, or could not be.
-final class PageTorch extends PageMessage {
-  /// Wraps the torch's state.
-  const PageTorch({required this.on});
-
+final class const PageTorch({
   /// Whether the torch is now on.
-  final bool on;
+  required final bool on,
+}) extends PageMessage {
+  /// Wraps the torch's state.
+  this;
 }

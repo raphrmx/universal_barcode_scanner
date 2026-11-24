@@ -18,20 +18,19 @@ import 'package:universal_barcode_scanner/src/scanner_exception.dart';
 /// Every host of the page keeps one, the web and the desktop, full page and
 /// embedded view alike. [call] reaches a function of the page by name, with
 /// its arguments in order.
-class PageLink {
-  /// Wants what [config] opens the page with.
-  PageLink(this.call, ScannerConfig config)
-    : _flip = (config.flipHorizontal, config.flipVertical),
-      _face = config.cameraFace;
-
+class PageLink(
   /// Calls a function of the page.
-  final void Function(String name, List<Object> arguments) call;
+  final void Function(String name, List<Object> arguments) call,
+  ScannerConfig config,
+) {
+  /// Wants what [config] opens the page with.
+  this;
 
   bool _ready = false;
   final List<VoidCallback> _whenReady = <VoidCallback>[];
 
-  (bool, bool) _flip;
-  CameraFace _face;
+  (bool, bool) _flip = (config.flipHorizontal, config.flipVertical);
+  CameraFace _face = config.cameraFace;
   Size? _window;
   bool _paused = false;
 
@@ -143,15 +142,14 @@ class PageLink {
 /// The controller of a scanner that runs the bundled page, on the web,
 /// Windows and Linux, full page or embedded view. It reaches the page through
 /// [link] and hears back through [handle].
-final class PageScannerController extends ScannerController {
-  /// Drives the page behind [link]. A view that is not [continuous] pauses on
-  /// its first code, as the page does.
-  PageScannerController(this.link, {required bool continuous})
-    : _continuous = continuous;
-
+final class PageScannerController(
   /// What the page is asked to show.
-  final PageLink link;
-  final bool _continuous;
+  final PageLink link, {
+  required final bool _continuous,
+}) extends ScannerController {
+  /// Drives the page behind [link]. A view that is not `continuous` pauses on
+  /// its first code, as the page does.
+  this;
 
   /// The torch toggle waiting for the page's answer.
   Completer<bool>? _torch;
@@ -291,40 +289,33 @@ Rect? scanWindowRect(Size size, ScanWindow shape, Size? requested) {
 ///
 /// Reports the window's size through [onWindow] whenever the layout changes
 /// it, [Size.zero] when there is none, so the page reads inside the same box.
-class EmbeddedPageFrame extends StatelessWidget {
-  /// Frames [view].
-  const EmbeddedPageFrame({
-    super.key,
-    required this.view,
-    required this.config,
-    required this.onWindow,
-    this.scanWindowSize,
-    this.child,
-    this.failed = false,
-    this.paused,
-  });
+class const EmbeddedPageFrame({
+  super.key,
 
   /// The webview or iframe running the page.
-  final Widget view;
+  required final Widget view,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called with the scan window's size, before [view] is built.
-  final ValueChanged<Size> onWindow;
+  required final ValueChanged<Size> onWindow,
 
   /// Size of the scan window asked for, or null for the default.
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Drawn over the camera.
-  final Widget? child;
+  final Widget? child,
 
   /// Whether the camera did not start. The page then explains why, and no
   /// scan window is drawn over its words.
-  final bool failed;
+  final bool failed = false,
 
   /// Whether the view has stopped reading: the scan line stops with it.
-  final ValueListenable<bool>? paused;
+  final ValueListenable<bool>? paused,
+}) extends StatelessWidget {
+  /// Frames [view].
+  this;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -365,29 +356,27 @@ class EmbeddedPageFrame extends StatelessWidget {
 /// The scan window over the camera: the surround dimmed, the window cut out
 /// of it with rounded corners, marked by four thin corner lines, and a line
 /// sweeping across it.
-class ScanWindowOverlay extends StatefulWidget {
-  /// Draws [window] with a line of [lineColor].
-  const ScanWindowOverlay({
-    super.key,
-    required this.window,
-    required this.lineColor,
-    this.paused,
-  });
+class const ScanWindowOverlay({
+  super.key,
 
   /// The window, in this widget's coordinates.
-  final Rect window;
+  required final Rect window,
 
   /// Colour of the sweeping line.
-  final Color lineColor;
+  required final Color lineColor,
 
   /// Stops the line where it is while true, and sets it off again from there.
-  final ValueListenable<bool>? paused;
+  final ValueListenable<bool>? paused,
+}) extends StatefulWidget {
+  /// Draws [window] with a line of [lineColor].
+  this;
 
   @override
   State<ScanWindowOverlay> createState() => _ScanWindowOverlayState();
 }
 
-class _ScanWindowOverlayState extends State<ScanWindowOverlay>
+class _ScanWindowOverlayState()
+    extends State<ScanWindowOverlay>
     with SingleTickerProviderStateMixin {
   /// One sweep down and back up, as on Android.
   late final AnimationController _sweep = AnimationController(
@@ -452,16 +441,12 @@ class _ScanWindowOverlayState extends State<ScanWindowOverlay>
   );
 }
 
-class _WindowPainter extends CustomPainter {
-  _WindowPainter({
-    required this.window,
-    required this.lineColor,
-    required this.sweep,
-  }) : super(repaint: sweep);
-
-  final Rect window;
-  final Color lineColor;
-  final Animation<double> sweep;
+class _WindowPainter({
+  required final Rect window,
+  required final Color lineColor,
+  required final Animation<double> sweep,
+}) extends CustomPainter {
+  this : super(repaint: sweep);
 
   static final Paint _dim = Paint()..color = const Color(0x73000000);
   static final Paint _corner = Paint()

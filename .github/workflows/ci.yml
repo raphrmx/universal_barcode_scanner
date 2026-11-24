@@ -167,31 +167,6 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tool/plugin_takes_flutter_framework.py" "$RUNNER_TEMP/deps.json"
         working-directory: example/${{ matrix.target }}/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage
 
-  # A Flutter from before FlutterFramework, with Swift Package Manager turned
-  # on: the plugin's package must resolve without it.
-  swiftpm-older:
-    runs-on: macos-latest
-
-    name: build macos (Flutter 3.38, Swift Package Manager)
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.38.5
-
-      - name: Turn on Swift Package Manager
-        run: flutter config --enable-swift-package-manager
-
-      - name: Install dependencies
-        run: flutter pub get
-        working-directory: example
-
-      - name: Build
-        run: flutter build macos --debug
-        working-directory: example
-
   # The example is on AGP 9 but opts out of its built-in Kotlin support, so the
   # plugin applies the Kotlin plugin there, as an app created by an older
   # Flutter does. An app created today may opt in, and the plugin then compiles

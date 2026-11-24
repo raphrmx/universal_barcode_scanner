@@ -4,7 +4,7 @@ import 'dart:ui' show Color;
 ///
 /// Desktop hands the asset key to the webview, web loads it as a served URL,
 /// hence the two spellings of the same file.
-abstract final class ScannerAsset {
+abstract final class ScannerAsset() {
   /// Asset key handed to the desktop webview.
   static const String desktopPath =
       'packages/universal_barcode_scanner/assets/barcode.html';

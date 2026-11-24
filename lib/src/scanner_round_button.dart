@@ -7,36 +7,29 @@ import 'package:universal_barcode_scanner/src/scanner_button_style.dart';
 /// A button over the camera: tapped, clicked, or reached with Tab and
 /// pressed with Enter or Space. It shows the hand over it, a ring when the
 /// keyboard is on it, and says what it does in a tooltip.
-class ScannerRoundButton extends StatefulWidget {
-  /// A button reading [label], drawn by [painter] in the colour it is given.
-  const ScannerRoundButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-    required this.painter,
-    this.on = false,
-    this.style = const ScannerButtonStyle(),
-    this.tooltip = AxisDirection.left,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
+class const ScannerRoundButton({
+  super.key,
+  required final String label,
+  required final VoidCallback? onPressed,
 
   /// Draws the icon in a colour.
-  final CustomPainter Function(Color color) painter;
+  required final CustomPainter Function(Color color) painter,
 
   /// Whether what the button turns on is on.
-  final bool on;
-  final ScannerButtonStyle style;
+  final bool on = false,
+  final ScannerButtonStyle style = const ScannerButtonStyle(),
 
   /// Where the tooltip opens.
-  final AxisDirection tooltip;
+  final AxisDirection tooltip = AxisDirection.left,
+}) extends StatefulWidget {
+  /// A button reading [label], drawn by [painter] in the colour it is given.
+  this;
 
   @override
   State<ScannerRoundButton> createState() => _ScannerRoundButtonState();
 }
 
-class _ScannerRoundButtonState extends State<ScannerRoundButton> {
+class _ScannerRoundButtonState() extends State<ScannerRoundButton> {
   /// How long the mouse rests on a button before it says what it does.
   static const Duration _tooltipDelay = Duration(milliseconds: 500);
 
@@ -200,13 +193,11 @@ class _ScannerRoundButtonState extends State<ScannerRoundButton> {
 }
 
 /// What a button does, next to it.
-class _Tooltip extends StatelessWidget {
-  const _Tooltip({required this.link, required this.side, required this.label});
-
-  final LayerLink link;
-  final AxisDirection side;
-  final String label;
-
+class const _Tooltip({
+  required final LayerLink link,
+  required final AxisDirection side,
+  required final String label,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const double gap = 8;

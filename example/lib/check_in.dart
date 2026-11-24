@@ -1,8 +1,5 @@
-// Material moved to package:material_ui in Flutter 3.47, which that package
-// requires: the old library stays while Flutter 3.35 is supported.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:universal_barcode_scanner/universal_barcode_scanner.dart';
 
 const Color _paper = Color(0xFFF6F1EA);
@@ -25,9 +22,7 @@ const double _wide = 820;
 const String _event = 'HR26-';
 
 /// A guest and the ticket they bought.
-class _Guest {
-  const _Guest(this.name, this.pass);
-
+class const _Guest(this.name, this.pass) {
   final String name;
   final String pass;
 }
@@ -76,9 +71,7 @@ int? _guestOf(String code) {
 }
 
 /// One line of the gate's log: a guest let in, or a ticket turned away.
-class _Entry {
-  const _Entry(this.code, this.time, {this.refusal});
-
+class const _Entry(this.code, this.time, {this.refusal}) {
   final String code;
   final DateTime time;
 
@@ -89,15 +82,15 @@ class _Entry {
 /// The gate of an evening: the camera reads tickets, the list fills up. A
 /// ticket already used or bought for another evening is refused over the
 /// camera, and the camera reads on.
-class CheckInDemo extends StatefulWidget {
+class const CheckInDemo({super.key}) extends StatefulWidget {
   /// Creates the demo.
-  const CheckInDemo({super.key});
+  this;
 
   @override
   State<CheckInDemo> createState() => _CheckInDemoState();
 }
 
-class _CheckInDemoState extends State<CheckInDemo> {
+class _CheckInDemoState() extends State<CheckInDemo> {
   /// Guests already in before the screen opened, so the hall is not empty.
   static const int _before = 64;
 
@@ -118,17 +111,14 @@ class _CheckInDemoState extends State<CheckInDemo> {
     final String? refusal = guest == null
         ? 'Not a ticket for tonight'
         : _in.contains(guest)
-            ? 'Already checked in'
-            : null;
+        ? 'Already checked in'
+        : null;
     if (refusal != null) {
       // The validator runs while the scanner decides: log after this frame.
       Future<void>.microtask(() {
         if (!mounted) return;
         setState(
-          () => _log.insert(
-            0,
-            _Entry(code, DateTime.now(), refusal: refusal),
-          ),
+          () => _log.insert(0, _Entry(code, DateTime.now(), refusal: refusal)),
         );
       });
     }
@@ -220,9 +210,7 @@ class _CheckInDemoState extends State<CheckInDemo> {
 }
 
 /// The evening's name, the gate, and the way back.
-class _Header extends StatelessWidget {
-  const _Header({required this.wide});
-
+class const _Header({required this.wide}) extends StatelessWidget {
   final bool wide;
 
   @override
@@ -294,9 +282,7 @@ class _Header extends StatelessWidget {
 }
 
 /// The camera, in a dark rounded frame with a line saying what to do.
-class _Camera extends StatelessWidget {
-  const _Camera({required this.scanner});
-
+class const _Camera({required this.scanner}) extends StatelessWidget {
   final Widget scanner;
 
   @override
@@ -344,14 +330,12 @@ class _Camera extends StatelessWidget {
 }
 
 /// How full the hall is, the last ticket read, and the ones before it.
-class _Gate extends StatelessWidget {
-  const _Gate({
-    required this.count,
-    required this.log,
-    required this.onTicket,
-    required this.wide,
-  });
-
+class const _Gate({
+  required this.count,
+  required this.log,
+  required this.onTicket,
+  required this.wide,
+}) extends StatelessWidget {
   final int count;
   final List<_Entry> log;
 
@@ -383,15 +367,15 @@ class _Gate extends StatelessWidget {
                     duration: const Duration(milliseconds: 500),
                     builder: (BuildContext context, double value, Widget? _) =>
                         Text(
-                      '${value.round()}',
-                      style: const TextStyle(
-                        fontSize: 38,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1.2,
-                        color: _ink,
-                      ),
-                    ),
+                          '${value.round()}',
+                          style: const TextStyle(
+                            fontSize: 38,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.2,
+                            color: _ink,
+                          ),
+                        ),
                   ),
                   const SizedBox(width: 8),
                   const Padding(
@@ -411,11 +395,11 @@ class _Gate extends StatelessWidget {
                   duration: const Duration(milliseconds: 500),
                   builder: (BuildContext context, double value, Widget? _) =>
                       LinearProgressIndicator(
-                    value: value,
-                    minHeight: 8,
-                    backgroundColor: const Color(0xFFEDE6DC),
-                    color: _accent,
-                  ),
+                        value: value,
+                        minHeight: 8,
+                        backgroundColor: const Color(0xFFEDE6DC),
+                        color: _accent,
+                      ),
                 ),
               ),
             ],
@@ -459,9 +443,8 @@ class _Gate extends StatelessWidget {
 }
 
 /// One ticket at the gate: who, which pass, when, and whether they got in.
-class _Line extends StatelessWidget {
-  const _Line(this.entry, {required this.latest, super.key});
-
+class const _Line(this.entry, {required this.latest, super.key})
+    extends StatelessWidget {
   final _Entry entry;
 
   /// Whether it is the ticket just read, drawn larger.
@@ -484,27 +467,32 @@ class _Line extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (BuildContext context, double t, Widget? child) => Opacity(
         opacity: t,
-        child:
-            Transform.translate(offset: Offset(0, (1 - t) * -12), child: child),
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * -12),
+          child: child,
+        ),
       ),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-        padding:
-            EdgeInsets.symmetric(horizontal: 12, vertical: latest ? 12 : 9),
+        padding: EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: latest ? 12 : 9,
+        ),
         decoration: BoxDecoration(
           color: !latest
               ? Colors.transparent
               : ok
-                  ? const Color(0xFFEAF5EF)
-                  : const Color(0xFFFCEDEC),
+              ? const Color(0xFFEAF5EF)
+              : const Color(0xFFFCEDEC),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: <Widget>[
             CircleAvatar(
               radius: latest ? 21 : 17,
-              backgroundColor:
-                  ok ? const Color(0xFFDDEFE5) : const Color(0xFFF8DADB),
+              backgroundColor: ok
+                  ? const Color(0xFFDDEFE5)
+                  : const Color(0xFFF8DADB),
               child: Text(
                 initials,
                 style: TextStyle(
@@ -567,9 +555,8 @@ const List<(String, String, String)> _samples = <(String, String, String)>[
 /// The tickets to try, beside the camera rather than over it: tap one to
 /// hand it to the gate, which reads it from its picture with `scanImage`, or
 /// hold another device's camera to it.
-class _TicketStrip extends StatelessWidget {
-  const _TicketStrip({required this.onPick, required this.wide});
-
+class const _TicketStrip({required this.onPick, required this.wide})
+    extends StatelessWidget {
   final ValueChanged<String> onPick;
   final bool wide;
 
@@ -598,7 +585,7 @@ class _TicketStrip extends StatelessWidget {
           Text(
             wide
                 ? 'Tap one to hand it to the gate, twice to see it refused, or '
-                    'scan it with another device.'
+                      'scan it with another device.'
                 : 'Tap one to hand it to the gate, twice to see it refused.',
             style: const TextStyle(fontSize: 12.5, height: 1.4, color: _dim),
           ),
@@ -626,14 +613,12 @@ class _TicketStrip extends StatelessWidget {
 }
 
 /// A ticket: the evening, the guest, and the QR code the gate reads.
-class _Ticket extends StatelessWidget {
-  const _Ticket({
-    required this.code,
-    required this.name,
-    required this.qr,
-    required this.onTap,
-  });
-
+class const _Ticket({
+  required this.code,
+  required this.name,
+  required this.qr,
+  required this.onTap,
+}) extends StatelessWidget {
   final String code;
   final String name;
 

@@ -15,28 +15,23 @@ import 'package:universal_barcode_scanner/src/scanner_round_button.dart';
 ///
 /// The state is kept here rather than read back from the scanner, so a page
 /// that loads again can be handed it.
-class ScannerButtons extends ChangeNotifier {
-  /// Starts with the flips the scanner opens with.
-  ScannerButtons({
-    required bool flipHorizontal,
-    required bool flipVertical,
-    required this.onFlip,
-    this.onSwitchCamera,
-  }) : _flipHorizontal = flipHorizontal,
-       _flipVertical = flipVertical;
+class ScannerButtons({
+  required var bool _flipHorizontal,
+  required var bool _flipVertical,
 
   /// Shows the camera flipped as the buttons now say.
-  final void Function(bool horizontal, bool vertical) onFlip;
+  required final void Function(bool horizontal, bool vertical) onFlip,
 
   /// Opens the other camera, or null where the scanner cannot.
-  final VoidCallback? onSwitchCamera;
+  final VoidCallback? onSwitchCamera,
+}) extends ChangeNotifier {
+  /// Starts with the flips the scanner opens with.
+  this;
 
   /// The zooms the zoom button goes through, in turn.
   static const List<double> zoomSteps = <double>[1, 2, 3];
 
   ScannerController? _controller;
-  bool _flipHorizontal;
-  bool _flipVertical;
   bool _torchBusy = false;
 
   /// The scanner's controller, once there is one: until then the pause, torch
@@ -151,24 +146,17 @@ class ScannerButtons extends ChangeNotifier {
 /// Places a [ScannerButtonGroup] at [alignment] inside the box it is given,
 /// [inset] from its edges. Along the side when centred on the left or the
 /// right, across otherwise, and with its tooltips towards the middle.
-class ScannerButtonsOverlay extends StatelessWidget {
+class const ScannerButtonsOverlay({
+  super.key,
+  required final ScannerButtons state,
+  required final Set<ScannerButton> buttons,
+  required final AlignmentGeometry alignment,
+  final EdgeInsets inset = const EdgeInsets.all(12),
+  final ScannerLabels labels = ScannerLabels.english,
+  final ScannerButtonStyle style = const ScannerButtonStyle(),
+}) extends StatelessWidget {
   /// Shows [buttons] at [alignment].
-  const ScannerButtonsOverlay({
-    super.key,
-    required this.state,
-    required this.buttons,
-    required this.alignment,
-    this.inset = const EdgeInsets.all(12),
-    this.labels = ScannerLabels.english,
-    this.style = const ScannerButtonStyle(),
-  });
-
-  final ScannerButtons state;
-  final Set<ScannerButton> buttons;
-  final AlignmentGeometry alignment;
-  final EdgeInsets inset;
-  final ScannerLabels labels;
-  final ScannerButtonStyle style;
+  this;
 
   @override
   Widget build(BuildContext context) {
@@ -203,30 +191,23 @@ class ScannerButtonsOverlay extends StatelessWidget {
 }
 
 /// The buttons asked for, in the order of [ScannerButton], along [direction].
-class ScannerButtonGroup extends StatelessWidget {
-  /// Shows [buttons], driving [state].
-  const ScannerButtonGroup({
-    super.key,
-    required this.state,
-    required this.buttons,
-    this.direction = Axis.horizontal,
-    this.labels = ScannerLabels.english,
-    this.style = const ScannerButtonStyle(),
-    this.tooltips = AxisDirection.left,
-  });
-
-  final ScannerButtons state;
-  final Set<ScannerButton> buttons;
-  final Axis direction;
+class const ScannerButtonGroup({
+  super.key,
+  required final ScannerButtons state,
+  required final Set<ScannerButton> buttons,
+  final Axis direction = Axis.horizontal,
 
   /// What each button says, to a screen reader and in its tooltip.
-  final ScannerLabels labels;
+  final ScannerLabels labels = ScannerLabels.english,
 
   /// How the buttons look.
-  final ScannerButtonStyle style;
+  final ScannerButtonStyle style = const ScannerButtonStyle(),
 
   /// Where the tooltips open.
-  final AxisDirection tooltips;
+  final AxisDirection tooltips = AxisDirection.left,
+}) extends StatelessWidget {
+  /// Shows [buttons], driving [state].
+  this;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(

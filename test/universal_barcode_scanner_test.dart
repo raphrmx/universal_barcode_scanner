@@ -3,13 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-// Material moved to package:material_ui in Flutter 3.47, which that package
-// requires: the old library stays while Flutter 3.35 is supported.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:universal_barcode_scanner/src/constants.dart';
 import 'package:universal_barcode_scanner/src/embedded_page.dart';
 import 'package:universal_barcode_scanner/src/scan_feedback.dart';
@@ -28,11 +25,8 @@ TestDefaultBinaryMessenger get _messenger =>
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
 /// A home screen whose context the tests scan from.
-class _Home extends StatelessWidget {
-  const _Home(this.onContext);
-
-  final ValueChanged<BuildContext> onContext;
-
+class const _Home(final ValueChanged<BuildContext> onContext)
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     onContext(context);
@@ -286,9 +280,8 @@ void main() {
         'formats': 'barcode',
       });
       expect(
-        const ScannerConfig(
-          scanWindow: ScanWindow.square,
-        ).toPage(host: 'web')['window'],
+        const ScannerConfig(scanWindow: ScanWindow.square)
+            .toPage(host: 'web')['window'],
         'square',
       );
     });
@@ -296,9 +289,8 @@ void main() {
     test('hands the page its words, for where it runs', () {
       Map<String, Object?> words(ScannerLabels labels, String host) =>
           jsonDecode(
-                ScannerConfig(labels: labels).toPage(host: host)['labels']!,
-              )
-              as Map<String, Object?>;
+            ScannerConfig(labels: labels).toPage(host: host)['labels']!,
+          ) as Map<String, Object?>;
 
       expect(words(ScannerLabels.english, 'web')['blocked'], <String>[
         'Camera blocked',
@@ -769,9 +761,8 @@ void main() {
 
         String? code = 'unset';
         unawaited(
-          UniversalBarcodeScanner.scan(
-            home,
-          ).then((String? value) => code = value),
+          UniversalBarcodeScanner.scan(home)
+              .then((String? value) => code = value),
         );
         await _frames(tester);
 
@@ -792,9 +783,8 @@ void main() {
 
         Object? failure;
         unawaited(
-          UniversalBarcodeScanner.scan(
-            home,
-          ).then<void>((_) {}, onError: (Object error) => failure = error),
+          UniversalBarcodeScanner.scan(home)
+              .then<void>((_) {}, onError: (Object error) => failure = error),
         );
         await _frames(tester);
 
@@ -845,9 +835,8 @@ void main() {
 
         String? code;
         unawaited(
-          UniversalBarcodeScanner.scan(
-            home,
-          ).then((String? value) => code = value),
+          UniversalBarcodeScanner.scan(home)
+              .then((String? value) => code = value),
         );
         await _frames(tester);
         Navigator.of(
@@ -946,9 +935,8 @@ void main() {
 
         String? code;
         unawaited(
-          UniversalBarcodeScanner.stream(
-            home,
-          ).first.then((String value) => code = value),
+          UniversalBarcodeScanner.stream(home).first
+              .then((String value) => code = value),
         );
         await _frames(tester);
 
@@ -973,9 +961,8 @@ void main() {
 
         final List<Object> errors = <Object>[];
         bool done = false;
-        UniversalBarcodeScanner.stream(
-          home,
-        ).listen((_) {}, onError: errors.add, onDone: () => done = true);
+        UniversalBarcodeScanner.stream(home)
+            .listen((_) {}, onError: errors.add, onDone: () => done = true);
         await _frames(tester);
 
         final int session = openedSession();
@@ -1972,12 +1959,10 @@ void main() {
 }
 
 /// Answers the buttons as a scanner would, noting each call.
-final class _RecordingController extends ScannerController {
-  _RecordingController(this.calls, this.torchAnswer);
-
-  final List<String> calls;
-  final bool torchAnswer;
-
+final class _RecordingController(
+  final List<String> calls,
+  final bool torchAnswer,
+) extends ScannerController {
   @override
   Future<bool> toggleFlash() async {
     calls.add('torch');
@@ -1999,10 +1984,8 @@ final class _RecordingController extends ScannerController {
 }
 
 /// A camera that zooms as far as [max].
-final class _ZoomingController extends ScannerController {
-  _ZoomingController({required this.max});
-
-  final double max;
+final class _ZoomingController({required final double max})
+    extends ScannerController {
   final List<double> asked = <double>[];
 
   @override

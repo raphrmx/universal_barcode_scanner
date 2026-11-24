@@ -1,5 +1,19 @@
 # Universal Barcode Scanner Versions
 
+## 2.4.0
+
+### Changed
+
+- Requires Flutter 3.47 and Dart 3.13 or later.
+- Updates `web` to 1.1.2.
+- The package and the example declare their classes with primary
+  constructors. The public API does not change.
+- The example and the tests use `package:material_ui`, which replaces
+  `package:flutter/material.dart` since Flutter 3.47. The library itself only
+  uses the widgets layer and is not affected.
+- The example updates `cupertino_icons` to 2.0.0, `file_picker` to 13.4.1
+  and `flutter_lints` to 6.0.0.
+
 ## 2.3.2
 
 ### Changed

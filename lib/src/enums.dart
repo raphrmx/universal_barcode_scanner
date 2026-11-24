@@ -1,7 +1,7 @@
 /// Shape of the scan window.
 ///
 /// Codes are read inside it; which codes are accepted is [ScanFormat]'s job.
-enum ScanWindow {
+enum ScanWindow() {
   /// A square, for QR codes and other two-dimensional codes.
   square,
 
@@ -14,7 +14,13 @@ enum ScanWindow {
 }
 
 /// Which symbologies the scanner accepts, on every platform.
-enum ScanFormat {
+enum ScanFormat(
+  /// Value the native scanners expect over the method channel.
+  ///
+  /// Kept apart from the Dart name so the enum can be renamed without
+  /// touching the native side, and the other way round.
+  final String wireName,
+) {
   /// Every symbology the platform supports.
   all('ALL_FORMATS'),
 
@@ -27,19 +33,11 @@ enum ScanFormat {
   /// No code at all: the camera only hands its frames to
   /// `UniversalBarcodeScanner.onFrame`, for an app that reads them itself,
   /// such as the text of a document.
-  none('NONE');
-
-  const ScanFormat(this.wireName);
-
-  /// Value the native scanners expect over the method channel.
-  ///
-  /// Kept apart from the Dart name so the enum can be renamed without
-  /// touching the native side, and the other way round.
-  final String wireName;
+  none('NONE'),
 }
 
 /// Which camera to open.
-enum CameraFace {
+enum CameraFace() {
   /// The rear camera, the one you scan with.
   back,
 
@@ -49,7 +47,7 @@ enum CameraFace {
 
 /// A button over the camera, drawn by Flutter wherever the scanner is a
 /// Flutter page or view.
-enum ScannerButton {
+enum ScannerButton() {
   /// Turns the torch on and off, where the camera has one a page may drive.
   torch,
 

@@ -29,7 +29,7 @@ const Duration _idleBeforeRelease = Duration(minutes: 1);
 const String _blankPage = '<!doctype html><title>.</title>';
 
 /// Whoever shows a webview: the scanner page, or an embedded view.
-abstract interface class _PageOwner {
+abstract interface class _PageOwner() {
   /// The page is up and can take `configure`.
   void onPageLoaded();
 
@@ -42,8 +42,8 @@ abstract interface class _PageOwner {
 /// The page never starts the camera on its own: it waits for `configure`,
 /// which only the owner on screen sends. A scanner closed before its webview
 /// finished loading therefore never lights the camera up behind it.
-class _Webview {
-  _Webview() {
+class _Webview() {
+  this {
     controller = WebViewController(onPermissionRequest: _grantCamera)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
@@ -132,8 +132,8 @@ _Webview? _kept;
 
 /// A webview for [owner]: the kept one when nobody is showing it, a new one
 /// otherwise. [_Lease.shared] says which, for [_Lease.end].
-class _Lease {
-  _Lease(_PageOwner owner) {
+class _Lease(_PageOwner owner) {
+  this {
     final _Webview kept = _kept ??= _Webview();
     if (kept.owner == null) {
       kept.release?.cancel();
@@ -180,8 +180,9 @@ Future<List<ScanResult>> readImageOnDesktop(Uint8List bytes, String formats) =>
     _ImageRead(bytes, formats).answer.future;
 
 /// One image handed to the page, and its answer.
-class _ImageRead implements _PageOwner {
-  _ImageRead(this.bytes, this.formats) {
+class _ImageRead(final Uint8List bytes, final String formats)
+    implements _PageOwner {
+  this {
     _lease = _Lease(this);
     _timeout = Timer(
       _imageTimeout,
@@ -197,8 +198,6 @@ class _ImageRead implements _PageOwner {
 
   static int _lastId = 0;
 
-  final Uint8List bytes;
-  final String formats;
   final int id = ++_lastId;
   final Completer<List<ScanResult>> answer = Completer<List<ScanResult>>();
   late final _Lease _lease;
@@ -246,57 +245,48 @@ class _ImageRead implements _PageOwner {
 /// Both run the same bundled scanner page in a webview, WebView2 on
 /// Windows and WebKitGTK on Linux, and both need the host to answer the
 /// page's camera permission request.
-class DesktopScannerPage extends StatefulWidget {
-  /// Creates the desktop scanner page.
-  const DesktopScannerPage({
-    super.key,
-    required this.config,
-    required this.onScanned,
-    required this.onClose,
-    this.child,
-    this.bar,
-    this.backgroundColor,
-    this.buttons = const <ScannerButton>{},
-    this.buttonsAlignment = Alignment.centerRight,
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.verdicts,
-  });
+class const DesktopScannerPage({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called with every code read.
-  final ValueChanged<ScanResult> onScanned;
+  required final ValueChanged<ScanResult> onScanned,
 
   /// Called by the back button.
-  final VoidCallback onClose;
+  required final VoidCallback onClose,
 
   /// Drawn over the scanner.
-  final Widget? child;
+  final Widget? child,
 
   /// App bar shown above the scanner, or null for none.
-  final ScannerBar? bar;
+  final ScannerBar? bar,
 
   /// Colour behind the camera. Black when null.
-  final Color? backgroundColor;
+  final Color? backgroundColor,
 
   /// The buttons over the camera.
-  final Set<ScannerButton> buttons;
+  final Set<ScannerButton> buttons = const <ScannerButton>{},
 
   /// Where [buttons] sit.
-  final AlignmentGeometry buttonsAlignment;
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
 
   /// How the buttons look.
-  final ScannerButtonStyle buttonStyle;
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
 
   /// The verdict on each code read, each one shown over the camera.
-  final ScanVerdicts? verdicts;
+  final ScanVerdicts? verdicts,
+}) extends StatefulWidget {
+  /// Creates the desktop scanner page.
+  this;
 
   @override
   State<DesktopScannerPage> createState() => _DesktopScannerPageState();
 }
 
-class _DesktopScannerPageState extends State<DesktopScannerPage>
+class _DesktopScannerPageState()
+    extends State<DesktopScannerPage>
     implements _PageOwner {
   late final _Lease _lease = _Lease(this);
 
@@ -411,41 +401,36 @@ class _DesktopScannerPageState extends State<DesktopScannerPage>
 /// What to scan is read once, when the view starts: give the widget a new key
 /// to apply a different configuration. The callbacks are always the current
 /// widget's.
-class DesktopEmbeddedScanner extends StatefulWidget {
-  /// Creates the desktop embedded view.
-  const DesktopEmbeddedScanner({
-    super.key,
-    required this.config,
-    required this.onCreated,
-    this.onScanned,
-    this.onError,
-    this.scanWindowSize,
-    this.child,
-  });
+class const DesktopEmbeddedScanner({
+  super.key,
 
   /// What to scan and how.
-  final ScannerConfig config;
+  required final ScannerConfig config,
 
   /// Called once the view exists.
-  final ScannerCreatedCallback onCreated;
+  required final ScannerCreatedCallback onCreated,
 
   /// Called with every code read.
-  final ValueChanged<String>? onScanned;
+  final ValueChanged<String>? onScanned,
 
   /// Called when the camera cannot be used.
-  final ValueChanged<ScannerException>? onError;
+  final ValueChanged<ScannerException>? onError,
 
   /// Size of the scan window in logical pixels, or null for a default.
-  final Size? scanWindowSize;
+  final Size? scanWindowSize,
 
   /// Drawn over the camera.
-  final Widget? child;
+  final Widget? child,
+}) extends StatefulWidget {
+  /// Creates the desktop embedded view.
+  this;
 
   @override
   State<DesktopEmbeddedScanner> createState() => _DesktopEmbeddedScannerState();
 }
 
-class _DesktopEmbeddedScannerState extends State<DesktopEmbeddedScanner>
+class _DesktopEmbeddedScannerState()
+    extends State<DesktopEmbeddedScanner>
     implements _PageOwner {
   late final _Lease _lease = _Lease(this);
 

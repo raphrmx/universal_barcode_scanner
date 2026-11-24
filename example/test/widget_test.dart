@@ -1,15 +1,10 @@
 import 'package:example/main.dart';
-// Material moved to package:material_ui in Flutter 3.47, which that package
-// requires: the old library stays while Flutter 3.35 is supported.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
-  testWidgets('the menu offers the ways to scan', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('the menu offers the ways to scan', (WidgetTester tester) async {
     await tester.pumpWidget(const ExampleApp());
 
     // The cards are below the fold of the test window, so the list has not
@@ -30,20 +25,20 @@ void main() {
     }
   });
 
-  testWidgets('places the buttons on the right side, and elsewhere on request',
-      (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(const ExampleApp());
-    ChoiceChip chip(String label) =>
-        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
+  testWidgets(
+    'places the buttons on the right side, and elsewhere on request',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(const ExampleApp());
+      ChoiceChip chip(String label) =>
+          tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
 
-    expect(chip('Right side').selected, isTrue);
-    await tester.tap(find.text('Bottom'));
-    await tester.pump();
-    expect(chip('Right side').selected, isFalse);
-    expect(chip('Bottom').selected, isTrue);
-  });
+      expect(chip('Right side').selected, isTrue);
+      await tester.tap(find.text('Bottom'));
+      await tester.pump();
+      expect(chip('Right side').selected, isFalse);
+      expect(chip('Bottom').selected, isTrue);
+    },
+  );
 
   testWidgets('the result panel starts empty', (WidgetTester tester) async {
     await tester.pumpWidget(const ExampleApp());

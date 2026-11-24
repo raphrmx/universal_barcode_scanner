@@ -51,7 +51,7 @@ media request the embedder does not handle.
 flutter pub add universal_barcode_scanner
 ```
 
-Requires Flutter 3.35 or later.
+Requires Flutter 3.47 or later.
 
 ### Android
 

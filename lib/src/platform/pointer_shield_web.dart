@@ -8,11 +8,10 @@ import 'package:web/web.dart' as html;
 /// so buttons drawn over one would be neither pressed nor hovered. The
 /// element sits between the two: the events reach the app, which hands them
 /// to [child].
-class PointerShield extends StatelessWidget {
+class const PointerShield({super.key, required final Widget child})
+    extends StatelessWidget {
   /// Shows [child], reachable by the pointer.
-  const PointerShield({super.key, required this.child});
-
-  final Widget child;
+  this;
 
   @override
   Widget build(BuildContext context) => Stack(

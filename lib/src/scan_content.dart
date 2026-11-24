@@ -20,9 +20,7 @@ import 'package:flutter/foundation.dart';
 /// }
 /// ```
 @immutable
-sealed class ScanContent {
-  const ScanContent();
-
+sealed class const ScanContent() {
   /// What [text] means, or null when it follows none of the formats known
   /// here, or follows one without what it needs, such as a Wi-Fi network with
   /// no name.
@@ -58,15 +56,15 @@ sealed class ScanContent {
 }
 
 /// A web address.
-final class UrlContent extends ScanContent {
-  /// A link to [url], called [title] where the code names it.
-  const UrlContent(this.url, {this.title});
-
+final class const UrlContent(
   /// Where it leads.
-  final Uri url;
+  final Uri url, {
 
   /// What the code calls it, from a bookmark code.
-  final String? title;
+  final String? title,
+}) extends ScanContent {
+  /// A link to [url], called [title] where the code names it.
+  this;
 
   static UrlContent? _fromUrl(String text, {String? title}) {
     final Uri? url = Uri.tryParse(text);
@@ -93,7 +91,7 @@ final class UrlContent extends ScanContent {
 }
 
 /// How a Wi-Fi network is secured.
-enum WifiSecurity {
+enum WifiSecurity() {
   /// No password.
   open,
 
@@ -105,27 +103,22 @@ enum WifiSecurity {
 }
 
 /// A Wi-Fi network to join.
-final class WifiContent extends ScanContent {
-  /// The network [ssid], secured by [security] with [password].
-  const WifiContent(
-    this.ssid, {
-    this.security = WifiSecurity.open,
-    this.password,
-    this.hidden = false,
-  });
-
+final class const WifiContent(
   /// The network's name.
-  final String ssid;
+  final String ssid, {
 
   /// How it is secured.
-  final WifiSecurity security;
+  final WifiSecurity security = WifiSecurity.open,
 
   /// Its password, null for an open network.
-  final String? password;
+  final String? password,
 
   /// Whether the network does not announce itself, and has to be joined by
   /// name.
-  final bool hidden;
+  final bool hidden = false,
+}) extends ScanContent {
+  /// The network [ssid], secured by [security] with [password].
+  this;
 
   /// `WIFI:T:WPA;S:name;P:password;H:true;;`, the fields in any order.
   static WifiContent? _parse(String body) {
@@ -155,42 +148,33 @@ final class WifiContent extends ScanContent {
 }
 
 /// A person or a business, from a vCard or a MECARD.
-final class ContactContent extends ScanContent {
-  /// A contact with what the code gives of it.
-  const ContactContent({
-    this.name,
-    this.organization,
-    this.title,
-    this.phones = const <String>[],
-    this.emails = const <String>[],
-    this.urls = const <String>[],
-    this.address,
-    this.note,
-  });
-
+final class const ContactContent({
   /// The name, in the order it is written: given name first.
-  final String? name;
+  final String? name,
 
   /// The company.
-  final String? organization;
+  final String? organization,
 
   /// The job title.
-  final String? title;
+  final String? title,
 
   /// Phone numbers, as written.
-  final List<String> phones;
+  final List<String> phones = const <String>[],
 
   /// E-mail addresses.
-  final List<String> emails;
+  final List<String> emails = const <String>[],
 
   /// Web addresses.
-  final List<String> urls;
+  final List<String> urls = const <String>[],
 
   /// The postal address, on one line.
-  final String? address;
+  final String? address,
 
   /// A free note.
-  final String? note;
+  final String? note,
+}) extends ScanContent {
+  /// A contact with what the code gives of it.
+  this;
 
   /// `BEGIN:VCARD` … `END:VCARD`, versions 2.1, 3.0 and 4.0.
   static ContactContent? _fromVCard(String text) {
@@ -305,18 +289,18 @@ final class ContactContent extends ScanContent {
 }
 
 /// An e-mail to write.
-final class EmailContent extends ScanContent {
-  /// An e-mail to [address], with [subject] and [body] where given.
-  const EmailContent(this.address, {this.subject, this.body});
-
+final class const EmailContent(
   /// The recipient. Several are separated by commas.
-  final String address;
+  final String address, {
 
   /// The subject line.
-  final String? subject;
+  final String? subject,
 
   /// The text of the message.
-  final String? body;
+  final String? body,
+}) extends ScanContent {
+  /// An e-mail to [address], with [subject] and [body] where given.
+  this;
 
   /// `mailto:someone@example.com?subject=…&body=…`.
   static EmailContent? _fromMailto(String rest) {
@@ -363,12 +347,12 @@ final class EmailContent extends ScanContent {
 }
 
 /// A phone number to call.
-final class PhoneContent extends ScanContent {
-  /// A call to [number].
-  const PhoneContent(this.number);
-
+final class const PhoneContent(
   /// The number, as written.
-  final String number;
+  final String number,
+) extends ScanContent {
+  /// A call to [number].
+  this;
 
   /// `tel:+32 2 123 45 67`.
   static PhoneContent? _parse(String rest) {
@@ -381,15 +365,15 @@ final class PhoneContent extends ScanContent {
 }
 
 /// A text message to send.
-final class SmsContent extends ScanContent {
-  /// A message to [number], reading [message] where given.
-  const SmsContent(this.number, {this.message});
-
+final class const SmsContent(
   /// The number to send it to.
-  final String number;
+  final String number, {
 
   /// The text, ready to send.
-  final String? message;
+  final String? message,
+}) extends ScanContent {
+  /// A message to [number], reading [message] where given.
+  this;
 
   /// `SMSTO:number:message`.
   static SmsContent? _fromSmsTo(String rest) {
@@ -422,21 +406,21 @@ final class SmsContent extends ScanContent {
 }
 
 /// A place on the map.
-final class GeoContent extends ScanContent {
-  /// The point at [latitude] and [longitude].
-  const GeoContent(this.latitude, this.longitude, {this.altitude, this.query});
-
+final class const GeoContent(
   /// Degrees north, negative to the south.
-  final double latitude;
+  final double latitude,
 
   /// Degrees east, negative to the west.
-  final double longitude;
+  final double longitude, {
 
   /// Metres above sea level, where given.
-  final double? altitude;
+  final double? altitude,
 
   /// What to search for there, from `?q=`.
-  final String? query;
+  final String? query,
+}) extends ScanContent {
+  /// The point at [latitude] and [longitude].
+  this;
 
   /// `geo:50.8467,4.3525,100?q=Grand-Place`.
   static GeoContent? _parse(String rest) {
@@ -469,34 +453,27 @@ final class GeoContent extends ScanContent {
 }
 
 /// An event for the calendar, from an iCalendar `VEVENT`.
-final class EventContent extends ScanContent {
-  /// An event with what the code gives of it.
-  const EventContent({
-    this.summary,
-    this.start,
-    this.end,
-    this.allDay = false,
-    this.location,
-    this.description,
-  });
-
+final class const EventContent({
   /// Its title.
-  final String? summary;
+  final String? summary,
 
   /// When it starts: in UTC when the code says so, local time otherwise.
-  final DateTime? start;
+  final DateTime? start,
 
   /// When it ends.
-  final DateTime? end;
+  final DateTime? end,
 
   /// Whether it takes whole days rather than hours.
-  final bool allDay;
+  final bool allDay = false,
 
   /// Where it happens.
-  final String? location;
+  final String? location,
 
   /// What it is about.
-  final String? description;
+  final String? description,
+}) extends ScanContent {
+  /// An event with what the code gives of it.
+  this;
 
   static EventContent? _parse(String text) {
     String? summary;
@@ -670,18 +647,16 @@ Map<String, String> _query(String query) {
 }
 
 /// One line of a vCard or an iCalendar: `NAME;PARAM=x:value`.
-class _Property {
-  const _Property(this.name, this.parameters, this.raw);
-
+class const _Property(
   /// In capitals, without a group such as `item1.`.
-  final String name;
+  final String name,
 
   /// In capitals.
-  final List<String> parameters;
+  final List<String> parameters,
 
   /// The value as written, escapes and encoding kept.
-  final String raw;
-
+  final String raw,
+) {
   bool get quotedPrintable => parameters.any(
     (String parameter) => parameter.contains('QUOTED-PRINTABLE'),
   );

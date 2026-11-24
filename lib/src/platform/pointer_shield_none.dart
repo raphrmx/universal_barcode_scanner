@@ -2,11 +2,10 @@ import 'package:flutter/widgets.dart';
 
 /// [child] as it is: off the web, nothing under the buttons keeps the pointer
 /// from them.
-class PointerShield extends StatelessWidget {
+class const PointerShield({super.key, required final Widget child})
+    extends StatelessWidget {
   /// Shows [child].
-  const PointerShield({super.key, required this.child});
-
-  final Widget child;
+  this;
 
   @override
   Widget build(BuildContext context) => child;

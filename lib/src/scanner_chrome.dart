@@ -16,52 +16,42 @@ const double _barHeight = 56;
 /// The page the scanner fills: an optional bar above the camera.
 ///
 /// Built from `widgets.dart` alone: no Material, no Cupertino.
-class ScannerChrome extends StatelessWidget {
-  /// Creates the page around [body].
-  const ScannerChrome({
-    super.key,
-    required this.body,
-    this.bar,
-    this.onClose,
-    this.backgroundColor,
-    this.buttons,
-    this.buttonsAlignment = Alignment.centerRight,
-    this.closeLabel = 'Close',
-    this.buttonStyle = const ScannerButtonStyle(),
-    this.verdicts,
-    this.rejectedLabel = '',
-  });
+class const ScannerChrome({
+  super.key,
 
   /// The camera and whatever is drawn over it.
-  final Widget body;
+  required final Widget body,
 
   /// The bar to show, or null for a camera that fills the page.
-  final ScannerBar? bar;
+  final ScannerBar? bar,
 
   /// Called by the back button, when the bar shows one.
-  final VoidCallback? onClose;
+  final VoidCallback? onClose,
 
   /// Colour behind the camera. Black when null.
-  final Color? backgroundColor;
+  final Color? backgroundColor,
 
   /// The buttons over the camera, or null for none.
-  final ScannerButtonGroup? buttons;
+  final ScannerButtonGroup? buttons,
 
   /// Where [buttons] sit over the camera.
-  final AlignmentGeometry buttonsAlignment;
+  final AlignmentGeometry buttonsAlignment = Alignment.centerRight,
 
   /// What the close button says, to a screen reader and in its tooltip.
-  final String closeLabel;
+  final String closeLabel = 'Close',
 
   /// How [buttons] and the close button look.
-  final ScannerButtonStyle buttonStyle;
+  final ScannerButtonStyle buttonStyle = const ScannerButtonStyle(),
 
   /// The verdict on each code read, each one shown over the camera, or null
   /// for none.
-  final ScanVerdicts? verdicts;
+  final ScanVerdicts? verdicts,
 
   /// What is said of a code refused.
-  final String rejectedLabel;
+  final String rejectedLabel = '',
+}) extends StatelessWidget {
+  /// Creates the page around [body].
+  this;
 
   @override
   Widget build(BuildContext context) {
@@ -143,11 +133,7 @@ class ScannerChrome extends StatelessWidget {
 }
 
 /// A cross, for the close button.
-class _Cross extends CustomPainter {
-  const _Cross(this.color);
-
-  final Color color;
-
+class const _Cross(final Color color) extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
@@ -168,12 +154,10 @@ class _Cross extends CustomPainter {
 }
 
 /// The bar itself: a title, and a back button when one is asked for.
-class _ScannerBar extends StatelessWidget {
-  const _ScannerBar({required this.bar, this.onClose});
-
-  final ScannerBar bar;
-  final VoidCallback? onClose;
-
+class const _ScannerBar({
+  required final ScannerBar bar,
+  final VoidCallback? onClose,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color foreground = bar.foregroundColor ?? _barForeground;
@@ -226,27 +210,20 @@ class _ScannerBar extends StatelessWidget {
 }
 
 /// A tappable square holding the back icon. No ink ripple.
-class _BackButton extends StatefulWidget {
-  const _BackButton({
-    required this.onPressed,
-    required this.label,
-    required this.color,
-    this.icon,
-  });
-
-  final VoidCallback? onPressed;
-  final String label;
-  final Widget? icon;
+class const _BackButton({
+  required final VoidCallback? onPressed,
+  required final String label,
 
   /// Colour of the icon, and of the ring around it when the keyboard is on
   /// it.
-  final Color color;
-
+  required final Color color,
+  final Widget? icon,
+}) extends StatefulWidget {
   @override
   State<_BackButton> createState() => _BackButtonState();
 }
 
-class _BackButtonState extends State<_BackButton> {
+class _BackButtonState() extends State<_BackButton> {
   bool _focused = false;
 
   @override
@@ -307,11 +284,7 @@ class _BackButtonState extends State<_BackButton> {
 }
 
 /// A back chevron, so a bar with no icon of its own still has one.
-class _Chevron extends CustomPainter {
-  const _Chevron(this.color);
-
-  final Color color;
-
+class const _Chevron(final Color color) extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()

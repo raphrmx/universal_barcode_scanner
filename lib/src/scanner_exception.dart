@@ -1,7 +1,10 @@
 import 'package:flutter/services.dart';
 
 /// Why the scanner could not open or had to stop.
-enum ScannerErrorCode {
+enum ScannerErrorCode(
+  /// Code the native scanners send over the method channel.
+  final String wireName,
+) {
   /// The user refused the camera, now or earlier.
   permissionDenied('camera_permission_denied'),
 
@@ -16,11 +19,6 @@ enum ScannerErrorCode {
 
   /// Anything the platform reported that has no code of its own here.
   unknown('unknown');
-
-  const ScannerErrorCode(this.wireName);
-
-  /// Code the native scanners send over the method channel.
-  final String wireName;
 
   /// The value matching [code], or [unknown].
   static ScannerErrorCode fromWire(String code) {
@@ -38,12 +36,18 @@ enum ScannerErrorCode {
 /// `scan` and `stream` raise it on Android, iOS and macOS; on the web,
 /// Windows and Linux their page explains a missing camera itself. The
 /// embedded view reports it on every platform.
-class ScannerException implements Exception {
+class const ScannerException(
+  /// What went wrong.
+  final ScannerErrorCode code, [
+
+  /// Detail from the platform, for a log rather than for the user.
+  final String? message,
+]) implements Exception {
   /// Creates an exception with a [code] and an optional [message].
-  const ScannerException(this.code, [this.message]);
+  this;
 
   /// Converts whatever a channel call failed with.
-  factory ScannerException.from(Object error) => switch (error) {
+  factory from(Object error) => switch (error) {
     final ScannerException exception => exception,
     final PlatformException exception => ScannerException(
       ScannerErrorCode.fromWire(exception.code),
@@ -55,12 +59,6 @@ class ScannerException implements Exception {
     ),
     _ => ScannerException(ScannerErrorCode.unknown, error.toString()),
   };
-
-  /// What went wrong.
-  final ScannerErrorCode code;
-
-  /// Detail from the platform, for a log rather than for the user.
-  final String? message;
 
   @override
   String toString() {
