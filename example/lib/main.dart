@@ -37,9 +37,6 @@ const ScannerBar _appBar = ScannerBar(
 
 /// The three ways to use the scanner: one shot, continuous, embedded.
 class const ExampleApp({super.key}) extends StatelessWidget {
-  /// Creates the example app.
-  this;
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -62,9 +59,6 @@ class const ExampleApp({super.key}) extends StatelessWidget {
 
 /// Menu of the three modes, showing what each one returns.
 class const HomePage({super.key}) extends StatefulWidget {
-  /// Creates the menu.
-  this;
-
   @override
   State<HomePage> createState() => _HomePageState();
 }

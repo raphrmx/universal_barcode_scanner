@@ -151,9 +151,6 @@ class const UniversalBarcodeScanner({
   /// default, enough to read text and light on a phone's battery.
   final Duration frameInterval = kDefaultFrameInterval,
 }) extends StatefulWidget {
-  /// Creates an embedded scanner view.
-  this;
-
   /// Whether a scanner animates: when asked to, and the platform does not
   /// ask for reduced motion.
   static bool _animates(BuildContext context, bool animate) =>

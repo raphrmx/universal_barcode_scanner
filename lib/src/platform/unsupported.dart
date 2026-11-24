@@ -49,9 +49,6 @@ class const ScannerPage({
   /// The verdict on each code read, each one shown over the camera.
   final ScanVerdicts? verdicts,
 }) extends StatelessWidget {
-  /// Creates the fallback page.
-  this;
-
   @override
   Widget build(BuildContext context) =>
       const Center(child: Text('Platform not supported'));
@@ -79,9 +76,6 @@ class const EmbeddedScanner({
   /// Drawn over the camera.
   final Widget? child,
 }) extends StatelessWidget {
-  /// Creates the fallback view.
-  this;
-
   @override
   Widget build(BuildContext context) =>
       const Center(child: Text('Platform not supported'));

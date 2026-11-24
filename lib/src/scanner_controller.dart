@@ -13,9 +13,6 @@ typedef ScannerCreatedCallback = void Function(ScannerController controller);
 /// The widget creates one and hands it to `onCreated` once the scanner is up.
 /// Every platform has its own implementation behind this interface.
 abstract class ScannerController() {
-  /// For the implementations of each platform.
-  this;
-
   bool _disposed = false;
 
   /// Called with every code the view reads. Assign it before the first scan.

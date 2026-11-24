@@ -43,9 +43,6 @@ class const ScannerException(
   /// Detail from the platform, for a log rather than for the user.
   final String? message,
 ]) implements Exception {
-  /// Creates an exception with a [code] and an optional [message].
-  this;
-
   /// Converts whatever a channel call failed with.
   factory from(Object error) => switch (error) {
     final ScannerException exception => exception,

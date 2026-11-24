@@ -83,9 +83,6 @@ class const _Entry(this.code, this.time, {this.refusal}) {
 /// ticket already used or bought for another evening is refused over the
 /// camera, and the camera reads on.
 class const CheckInDemo({super.key}) extends StatefulWidget {
-  /// Creates the demo.
-  this;
-
   @override
   State<CheckInDemo> createState() => _CheckInDemoState();
 }

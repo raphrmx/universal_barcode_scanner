@@ -31,7 +31,4 @@ class const ScannerBar({
   /// the native scanners of Android, iOS and macOS, and what a screen reader
   /// says for the back button of this bar.
   final String cancelLabel = 'Cancel',
-}) {
-  /// Describes the bar.
-  this;
-}
+});

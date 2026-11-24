@@ -59,9 +59,6 @@ class const ScannerConfig({
   /// Least time between two frames handed to the app, or null for none.
   final Duration? frameInterval,
 }) {
-  /// Creates a configuration.
-  this;
-
   /// This configuration with what the buttons change as given.
   ScannerConfig copyWith({
     bool? flipHorizontal,
@@ -256,25 +253,16 @@ final class const PageCode(
 
   /// Its symbology.
   final BarcodeFormat format = BarcodeFormat.unknown,
-}) extends PageMessage {
-  /// Wraps [code], printed in [format].
-  this;
-}
+}) extends PageMessage;
 
 /// The zoom the camera applied, in answer to `setZoom`.
 final class const PageZoom(
   /// `1` for none.
   final double zoom,
-) extends PageMessage {
-  /// Wraps the zoom applied.
-  this;
-}
+) extends PageMessage;
 
 /// The user asked the page to close, with the Escape key.
-final class const PageClose() extends PageMessage {
-  /// Creates the message.
-  this;
-}
+final class const PageClose() extends PageMessage;
 
 /// The camera did not start. [code] is one of the wire names of
 /// `ScannerErrorCode`.
@@ -284,10 +272,7 @@ final class const PageError(
 
   /// The browser's own words, for a log.
   final String? message,
-) extends PageMessage {
-  /// Wraps an error.
-  this;
-}
+) extends PageMessage;
 
 /// The codes the page read in an image, or why it could not.
 final class const PageImage(
@@ -311,22 +296,13 @@ final class const PageImage(
 final class const PageFrame(
   /// The frame.
   final ScanFrame frame,
-) extends PageMessage {
-  /// Wraps [frame].
-  this;
-}
+) extends PageMessage;
 
 /// The page has loaded and taken its settings: it takes calls from now on.
-final class const PageReady() extends PageMessage {
-  /// Creates the message.
-  this;
-}
+final class const PageReady() extends PageMessage;
 
 /// The torch was toggled, or could not be.
 final class const PageTorch({
   /// Whether the torch is now on.
   required final bool on,
-}) extends PageMessage {
-  /// Wraps the torch's state.
-  this;
-}
+}) extends PageMessage;

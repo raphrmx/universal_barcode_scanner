@@ -278,9 +278,6 @@ class const DesktopScannerPage({
   /// The verdict on each code read, each one shown over the camera.
   final ScanVerdicts? verdicts,
 }) extends StatefulWidget {
-  /// Creates the desktop scanner page.
-  this;
-
   @override
   State<DesktopScannerPage> createState() => _DesktopScannerPageState();
 }
@@ -422,9 +419,6 @@ class const DesktopEmbeddedScanner({
   /// Drawn over the camera.
   final Widget? child,
 }) extends StatefulWidget {
-  /// Creates the desktop embedded view.
-  this;
-
   @override
   State<DesktopEmbeddedScanner> createState() => _DesktopEmbeddedScannerState();
 }

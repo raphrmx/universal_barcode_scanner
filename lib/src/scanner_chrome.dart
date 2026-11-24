@@ -50,9 +50,6 @@ class const ScannerChrome({
   /// What is said of a code refused.
   final String rejectedLabel = '',
 }) extends StatelessWidget {
-  /// Creates the page around [body].
-  this;
-
   @override
   Widget build(BuildContext context) {
     final ScannerBar? bar = this.bar;

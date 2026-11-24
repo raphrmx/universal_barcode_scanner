@@ -179,9 +179,6 @@ class const ScannerPage({
   /// The verdict on each code read, each one shown over the camera.
   final ScanVerdicts? verdicts,
 }) extends StatefulWidget {
-  /// Creates the web scanner page.
-  this;
-
   @override
   State<ScannerPage> createState() => _ScannerPageState();
 }
@@ -351,9 +348,6 @@ class const EmbeddedScanner({
   /// Drawn over the camera.
   final Widget? child,
 }) extends StatefulWidget {
-  /// Creates the web embedded view.
-  this;
-
   @override
   State<EmbeddedScanner> createState() => _EmbeddedScannerState();
 }
